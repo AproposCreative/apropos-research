@@ -40,9 +40,12 @@ export async function appendLivSentCopy(rawMessage: Buffer): Promise<SentCopyRes
     const client = await createImapClient('liv');
     try {
       const mailboxes = await client.list();
-      const sentPath = findSentMailboxPath(mailboxes);
+      // The owner's Apple Mail maps Liv's Sendt to this server folder. One.com
+      // also exposes a separate `Sent` folder with \Sent, which Apple does not show.
+      // Do not silently fall back to that other folder if the mapping disappears.
+      const sentPath = mailboxes.find((mailbox) => mailbox.path === 'Sent Messages')?.path;
       if (!sentPath) {
-        return { ok: false, error: 'one.com Sent mailbox was not found' };
+        return { ok: false, error: 'Liv Apple Mail Sent Messages folder was not found' };
       }
       const appended = await client.append(sentPath, rawMessage, ['\\Seen'], new Date());
       return appended

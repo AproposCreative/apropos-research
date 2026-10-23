@@ -13,8 +13,8 @@ export function canonicalMailMime(raw:Buffer){
 }
 export type FolderKind = 'sent' | 'drafts';
 type Folder = Pick<ListResponse, 'path' | 'name' | 'specialUse'>;
-// Frederik supplied his Apple Mail mapping on 22 October. Never apply it to Liv.
-export const mailboxFolders = { frederik: { sent: 'Sent Messages', drafts: 'Drafts' }, liv: { sent: null, drafts: null } } as const;
+// The owner confirmed the Apple Mail mapping separately for both accounts.
+export const mailboxFolders = { frederik: { sent: 'Sent Messages', drafts: 'Drafts' }, liv: { sent: 'Sent Messages', drafts: null } } as const;
 export function resolveMailFolder(mailbox: MailboxId, kind: FolderKind, folders: Folder[]) {
   const chosen = mailboxFolders[mailbox][kind];
   if (chosen) {

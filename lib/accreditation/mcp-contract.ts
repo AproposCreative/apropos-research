@@ -37,6 +37,7 @@ export const accredDraftInput = z.object({ requestId: accredId, expectedHash: ac
   subject: singleLine(250), text: z.string().trim().min(1).max(12000),
   sourceMessageId: accredId.optional(), assetIds: z.array(accredId).max(20).default([]) }).strict();
 export const accredApprovalInput = z.object({ approvalId: accredId }).strict();
+export const accredSentRepairInput = accredApprovalInput.extend({ expectedHash: accredHash }).strict();
 export const accredConfirmInput = z.object({ token: z.string().regex(/^[a-zA-Z0-9_-]{43}$/), displayedHash: accredHash }).strict();
 export const accredOutcomeInput = z.object({ requestId: accredId, expectedHash: accredHash, operationId,
   status: z.enum(['granted', 'denied', 'withdrawn', 'paused', 'closed', 'resume']), reason: z.string().trim().min(1).max(2000), evidence: accredEvidence }).strict();

@@ -13,7 +13,8 @@ beforeEach(()=>{items={'Sent':[raw],'Sent Messages':[]}; let folder=''; mock.cli
  append:vi.fn(async(path:string,bytes:Buffer)=>{items[path].push(bytes);return {uid:items[path].length,uidValidity:42n};})};});
 it('prefers the owner mapping over specialUse; isolates Liv and refuses missing/ambiguous mappings',()=>{
  expect(resolveMailFolder('frederik','sent',[{path:'Sent',name:'Sent',specialUse:'\\Sent'},{path:'Sent Messages',name:'Sent Messages'}])).toBe('Sent Messages');
- expect(resolveMailFolder('liv','sent',[{path:'Sent',name:'Sent',specialUse:'\\Sent'}])).toBe('Sent');
+ expect(resolveMailFolder('liv','sent',[{path:'Sent',name:'Sent',specialUse:'\\Sent'},{path:'Sent Messages',name:'Sent Messages'}])).toBe('Sent Messages');
+ expect(()=>resolveMailFolder('liv','sent',[{path:'Sent',name:'Sent',specialUse:'\\Sent'}])).toThrow('mapping_missing');
  expect(()=>resolveMailFolder('frederik','sent',[{path:'Sent',name:'Sent'}])).toThrow('mapping_missing');
  expect(resolveMailFolder('frederik','drafts',[{path:'INBOX/Drafts',name:'Drafts'}])).toBe('INBOX/Drafts');
 });

@@ -1,9 +1,10 @@
 import { beforeEach, expect, it, vi } from 'vitest';
 import { createHash } from 'node:crypto';
 import { memoryFirestore } from './helpers/mcp-firestore';
-const mock = vi.hoisted(() => ({ db: null as any, send: vi.fn(), smtp:vi.fn(), contacts: vi.fn(), archive: vi.fn(), workflow: vi.fn(), additional: vi.fn(), overview: vi.fn(), sync: vi.fn(), bytes: vi.fn() }));
+const mock = vi.hoisted(() => ({ db: null as any, send: vi.fn(), smtp:vi.fn(), contacts: vi.fn(), archive: vi.fn(), workflow: vi.fn(), additional: vi.fn(), overview: vi.fn(), sync: vi.fn(), bytes: vi.fn(), inspect:vi.fn(), copy:vi.fn() }));
 vi.mock('nodemailer',()=>({default:{createTransport:()=>({sendMail:mock.smtp,close:()=>{}})}}));
 vi.mock('@/lib/accreditation/imap/sent-copy',()=>({appendLivSentCopy:async()=>({ok:true,mailboxPath:'Sent'})}));
+vi.mock('@/lib/editorial-mail/imap', async original => ({...await original<any>(), inspectSentMessage:mock.inspect, copyExistingSentMessage:mock.copy}));
 vi.mock('@/lib/firebase-admin', () => ({ getAdminDb: () => mock.db }));
 vi.mock('@/lib/accreditation/sheet-client', async original => ({...await original<any>(), pullContacts: mock.contacts, pullMailboxContactArchive: mock.archive, pullWorkflowRows: mock.workflow, pullAdditionalAccreditationSource:mock.additional,syncRequestToSheet: mock.sync }));
 vi.mock('@/lib/accreditation/imap/contact-overview-store', () => ({ readContactOverview: mock.overview }));
@@ -14,7 +15,7 @@ import { __setMemoryBackendForTests, upsertContactProfile } from '@/lib/accredit
 import { getAccreditationContext, getAccreditationRequest, searchAccreditationContacts, listAccreditationRequests, accreditationCaseHash } from '@/lib/accreditation/mcp-context';
 import { saveAccreditationRequest, setAccreditationOutcome, linkAccreditationMail, syncAccreditationSheet } from '@/lib/accreditation/mcp-cases';
 import { retainPersonalAccreditationInbound } from '@/lib/accreditation/mcp-inbound';
-import { saveAccreditationDraft, getAccreditationDraft, previewAccreditationDraft, confirmAccreditationDraft } from '@/lib/accreditation/mcp-drafts';
+import { saveAccreditationDraft, getAccreditationDraft, previewAccreditationDraft, confirmAccreditationDraft, inspectAccreditationSent, repairAccreditationSent } from '@/lib/accreditation/mcp-drafts';
 import { assertPersonalAccreditationSend } from '@/lib/accreditation/mcp-send-guard';
 import { canAutoSend, assertSendAllowed } from '@/lib/accreditation/policy';
 import { accreditationMailHtml } from '@/lib/accreditation/mcp-mail-content';
@@ -67,7 +68,7 @@ it('uses existing case IDs/stores, deduplicates replay/event, preserves evidence
 it('fails owner checks before reading data, even for a colleague admin with scopes', async () => {
   const colleague = { ...owner, owner: false, uid: 'other' };
   for (const fn of [getAccreditationContext, getAccreditationRequest, searchAccreditationContacts, listAccreditationRequests, saveAccreditationRequest,
-    setAccreditationOutcome, linkAccreditationMail, saveAccreditationDraft, getAccreditationDraft, previewAccreditationDraft, confirmAccreditationDraft])
+    setAccreditationOutcome, linkAccreditationMail, saveAccreditationDraft, getAccreditationDraft, previewAccreditationDraft, confirmAccreditationDraft, inspectAccreditationSent, repairAccreditationSent])
     await expect(fn(colleague, {})).rejects.toThrow('mcp_mail_owner_required');
   expect(mock.contacts).not.toHaveBeenCalled(); expect(mock.send).not.toHaveBeenCalled();
 });
@@ -95,6 +96,19 @@ it('single personal send across concurrent previews, with honest receipt and exi
   await Promise.all([approve(p), approve(second), approve(p)]); expect(mock.send).toHaveBeenCalledTimes(1);
   const d = await getAccreditationDraft(owner, { approvalId: p.data.approvalId }); expect(d.status).toBe('accepted'); expect(d.receipt?.recipientDeliveryVerified).toBe(false);
   expect((await fresh()).status).toBe('sent_awaiting_reply'); expect((await getAccreditationRequest(owner, { requestId: d.requestId })).messages).toHaveLength(1);
+});
+it('inspects and copies the already accepted Liv mail to Apple Mail Sent Messages only once, without SMTP',async()=>{
+  const p=await preview();await approve(p);const sent=await getAccreditationDraft(owner,{approvalId:p.data.approvalId});
+  const source={folder:'Sent',uid:20,uidValidity:'42',sha256:'a'.repeat(64),identityMatches:true};
+  mock.inspect.mockResolvedValueOnce({targetFolder:'Sent Messages',matches:[source]})
+    .mockResolvedValue({targetFolder:'Sent Messages',matches:[source,{...source,folder:'Sent Messages',uid:1}]});
+  mock.copy.mockResolvedValue({folder:'Sent Messages',uid:1,uidValidity:'43',sha256:source.sha256,copied:true});
+  const result=await repairAccreditationSent(owner,{approvalId:sent.approvalId,expectedHash:sent.contentHash});
+  expect(result).toMatchObject({status:'verified',copied:true,folder:'Sent Messages',smtpCalled:false});
+  expect(mock.copy).toHaveBeenCalledOnce();expect(mock.send).toHaveBeenCalledOnce();
+  expect((await repairAccreditationSent(owner,{approvalId:sent.approvalId,expectedHash:sent.contentHash})).status).toBe('verified');
+  expect(mock.copy).toHaveBeenCalledOnce();
+  await expect(repairAccreditationSent(owner,{approvalId:sent.approvalId,expectedHash:'0'.repeat(64)})).rejects.toThrow('draft_changed');
 });
 it('edited text invalidates prior consent, retains exact prior draft, rejects another owner/grant/scope', async () => {
   const p = await preview(), r = await fresh();

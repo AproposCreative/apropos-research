@@ -10,11 +10,12 @@ import { EDITORIAL_DESK_URI, editorialDeskWidgetHtml } from './editorial-desk-wi
 import { MAIL_PREVIEW_URI, MAIL_PREVIEW_LEGACY_URIS, mailWidgetHtml } from './mail-widget';
 import { ACCREDITATION_PREVIEW_URI, accreditationWidgetHtml } from './accreditation-widget';
 import { accredListInput, accredContactInput, accredResearchInput, accredCaseInput, accredSaveCaseInput, accredDraftInput, accredApprovalInput,
-  accredConfirmInput, accredOutcomeInput, accredLinkMailInput, accredSyncInput } from '@/lib/accreditation/mcp-contract';
+  accredConfirmInput, accredSentRepairInput, accredOutcomeInput, accredLinkMailInput, accredSyncInput } from '@/lib/accreditation/mcp-contract';
 import { getAccreditationContext, searchAccreditationContacts, listAccreditationRequests, getAccreditationRequest } from '@/lib/accreditation/mcp-context';
 import { researchAccreditationEvent } from '@/lib/accreditation/mcp-research';
 import { saveAccreditationRequest, setAccreditationOutcome, linkAccreditationMail, syncAccreditationSheet } from '@/lib/accreditation/mcp-cases';
-import { saveAccreditationDraft, getAccreditationDraft, previewAccreditationDraft, confirmAccreditationDraft } from '@/lib/accreditation/mcp-drafts';
+import { saveAccreditationDraft, getAccreditationDraft, previewAccreditationDraft, confirmAccreditationDraft,
+  inspectAccreditationSent, repairAccreditationSent } from '@/lib/accreditation/mcp-drafts';
 import { mailSearchInput, mailReadInput } from '@/lib/editorial-mail/mailbox';
 import { searchEditorialMail, readEditorialMail, saveEditorialReply, getEditorialReply, previewEditorialReply, confirmEditorialReply,
   replyInput, replyIdInput, replyConfirmInput, composeInput,composeEditorialMail,draftSyncInput,syncEditorialDraft,getEditorialMailThread,repairEditorialSent } from '@/lib/editorial-mail/service';
@@ -206,6 +207,10 @@ export function createEditorialMcp(identity: McpIdentity) {
     accredDraftInput, 'apropos:draft', false, input => saveAccreditationDraft(identity, input));
   tool('get_accreditation_draft', 'Læs konkret akkrediteringsmail, version og kvittering efter timeout. sending/unconfirmed må ikke gensendes eller omgås med ny kladde. accepted er mailserverens accept, ikke bevist levering hos modtageren. Kun ejer.',
     accredApprovalInput, 'apropos:read', true, input => getAccreditationDraft(identity, input));
+  tool('inspect_accreditation_sent', 'Læs kun den accepterede mails præcise Message-ID i Livs mulige IMAP-Sendt-mapper. Viser iPhone-målmappen og om kopi/headers matcher; ingen mail sendes eller flyttes.',
+    accredApprovalInput, 'apropos:read', true, input => inspectAccreditationSent(identity, input));
+  tool('repair_accreditation_sent', 'Kopiér kun den allerede accepterede, identitetsverificerede mail til Livs ejerbekræftede Apple Mail Sendt-mappe. Kræver samme versionshash, bevarer originalen og sender aldrig SMTP. Ved usikkerhed kun readback, ingen ny APPEND.',
+    accredSentRepairInput, 'apropos:draft', false, input => repairAccreditationSent(identity, input));
   tool('link_accreditation_mail', 'Knyt kun en tidligere ejer-læst, fuldstændig indgående mail til den valgte sag. messageId/sourceHash fra read_editorial_mail; expectedHash fra sagen. Serveren kræver matchende kontakt og sagsmarkør/referencer. Bevarer original mail og tråd, ændrer ikke Seen og henter ikke bilag. Ingen klassificering, udfald eller send. Stabil operationId.',
     accredLinkMailInput, 'apropos:draft', false, input => linkAccreditationMail(identity, input));
   tool('set_accreditation_outcome', 'Registrér et konkret dokumenteret tilsagn/afslag, pause, tilbagetrækning eller lukning på den valgte personlige sag. Kræver frisk hash, begrundelse, faktisk kilde eller ejeroplysning og operationId. Tilsagn er ikke modtagne eller videresendte billetter. Ingen mail sendes; intet automatisk udfald fra en løs tekstmatch.',
