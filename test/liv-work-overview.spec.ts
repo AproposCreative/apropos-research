@@ -48,3 +48,14 @@ it('adds only Liv CMS drafts and does not duplicate or resurrect published ident
   const result = addLivCmsDrafts(known, cms as any, ['liv-id'], new Set());
   expect(result.map(item => item.title).sort()).toEqual(['Christopher', 'Liv kladde']);
 });
+it('keeps stale legacy and CMS archive drafts out of active work while retaining saved ChatGPT submissions', () => {
+  const since = '2026-10-09T00:00:00.000Z';
+  const submissions = [row('a'.repeat(64), { livProduction: { kind: 'reserve', day: '2026-09-28' },
+    article: text, status: 'draft', updatedAt: '2026-09-28T12:00:00Z' })];
+  const runs = [row('prepare-2026-09-20', { articleCheckpoint: { ...text, title: 'Historisk run' }, updatedAt: '2026-09-20T12:00:00Z' })];
+  const active = projectLivWork(submissions, runs, [], since);
+  expect(active.map(item => item.title)).toEqual(['Christopher']);
+  const cms = { items: [{ id: '1'.repeat(24), fieldData: { name: 'Gammel CMS-kladde', author: 'liv-id', content: '<p>Tekst</p>' },
+    isDraft: true, lastUpdated: '2026-09-20T12:00:00Z' }], rowsRead: 1, complete: true, maxRows: 300, sortedBy: 'lastUpdated_desc' as const };
+  expect(addLivCmsDrafts(active, cms as any, ['liv-id'], new Set(), since)).toHaveLength(1);
+});

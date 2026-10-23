@@ -22,7 +22,7 @@ const validId = (value: string) => /^[a-f0-9]{64}$/.test(value);
 const count = (value: unknown) => Array.isArray(value) ? value.length : 0;
 
 /** Only saved article text with explicit Liv provenance is a work item. Plans and model attempts are not articles. */
-export function projectLivWork(submissions: SavedRow[], runs: SavedRow[], desk: SavedRow[] = []): LivWorkItem[] {
+export function projectLivWork(submissions: SavedRow[], runs: SavedRow[], desk: SavedRow[] = [], recentSince = ''): LivWorkItem[] {
   const items: LivWorkItem[] = [];
   const cmsIds = new Set<string>();
   for (const { id, data: row } of submissions) {
@@ -43,6 +43,7 @@ export function projectLivWork(submissions: SavedRow[], runs: SavedRow[], desk: 
   }
   for (const { id, data: row } of runs) {
     if (!/^(?:prepare|prepare-alternative|reserve|reserve-editorial)-20\d{2}-\d{2}-\d{2}$/.test(id) ||
+      (recentSince && (!workTimestamp(row.updatedAt) || workTimestamp(row.updatedAt)! < recentSince)) ||
       draftPresence(row.articleCheckpoint && typeof row.articleCheckpoint === 'object' ? row.articleCheckpoint : {}).hasText !== true || row.status === 'published' ||
       (typeof row.webflowItemId === 'string' && cmsIds.has(row.webflowItemId))) continue;
     const article = row.articleCheckpoint;
@@ -57,7 +58,9 @@ export function projectLivWork(submissions: SavedRow[], runs: SavedRow[], desk: 
   }
   for (const { id, data: row } of desk) {
     const article = row.article;
-    if (!validId(id) || !article || draftPresence(article).hasText !== true) continue;
+    if (!validId(id) || !article ||
+      (recentSince && (!workTimestamp(row.updatedAt) || workTimestamp(row.updatedAt)! < recentSince)) ||
+      draftPresence(article).hasText !== true) continue;
     const presence = draftPresence({ ...article, author: 'Liv Brandt', category: article.section,
       featuredImage: article.selectedImage?.url, fotoCredit: article.selectedImage?.credit });
     items.push({ id, title: safeTitle(article.title), source: 'editorial-desk', cmsItemId: null,
@@ -70,12 +73,13 @@ export function projectLivWork(submissions: SavedRow[], runs: SavedRow[], desk: 
 }
 
 export function addLivCmsDrafts(items: LivWorkItem[], cms: Awaited<ReturnType<typeof readEditorialCmsCandidates>>,
-  livAuthorIds: string[], publishedIds: Set<string>): LivWorkItem[] {
+  livAuthorIds: string[], publishedIds: Set<string>, recentSince = ''): LivWorkItem[] {
   const knownIds = new Set(items.map(item => item.cmsItemId).filter(Boolean));
   const mapping = readMapping().entries;
   const extra: LivWorkItem[] = [];
   for (const row of cms.items) {
     if (row.isArchived || !row.isDraft && row.lastPublished ||
+      (recentSince && (!workTimestamp(row.lastUpdated || row.createdOn) || workTimestamp(row.lastUpdated || row.createdOn)! < recentSince)) ||
       knownIds.has(row.id) || publishedIds.has(row.id) || !livAuthorIds.includes(String(row.fieldData.author || ''))) continue;
     const article = Object.fromEntries(mapping.map(field => [field.internal, row.fieldData[field.webflowSlug]]));
     const presence = draftPresence(article);
@@ -89,6 +93,7 @@ export function addLivCmsDrafts(items: LivWorkItem[], cms: Awaited<ReturnType<ty
 
 export async function readLivWorkOverview(uid: string) {
   const db = getAdminDb(); if (!db) throw Error('liv_work_store_unavailable');
+  const recentSince = new Date(Date.now() - 14 * 86400000).toISOString();
   const [submissions, runs, desk, cmsResult] = await Promise.all([
     db.collection('editorialSubmissions').where('uid', '==', uid).limit(100).get(),
     db.collection('livDailyArticles').orderBy('updatedAt', 'desc').limit(100).get(),
@@ -98,11 +103,11 @@ export async function readLivWorkOverview(uid: string) {
   const items = projectLivWork(
     submissions.docs.filter(doc => doc.data().uid === uid).map(doc => ({ id: doc.id, data: doc.data() })),
     runs.docs.map(doc => ({ id: doc.id, data: doc.data() })),
-    desk.docs.map(doc => ({ id: doc.id, data: doc.data() })));
+    desk.docs.map(doc => ({ id: doc.id, data: doc.data() })), recentSince);
   const publishedIds = new Set(submissions.docs.filter(doc => doc.data().status === 'published')
     .map(doc => doc.data().publishedTarget?.itemId || doc.data().prepared?.itemId).filter((id): id is string => typeof id === 'string'));
   const livAuthors = cmsResult?.[1].authors.filter(author => author.name.trim().toLocaleLowerCase('da') === 'liv brandt').map(author => author.id) || [];
-  return { items: cmsResult && livAuthors.length ? addLivCmsDrafts(items, cmsResult[0], livAuthors, publishedIds) : items,
+  return { items: cmsResult && livAuthors.length ? addLivCmsDrafts(items, cmsResult[0], livAuthors, publishedIds, recentSince) : items,
     complete: submissions.size < 100 && runs.size < 100 && desk.size < 100 && !!cmsResult?.[0].complete && livAuthors.length > 0,
     checkedAt: new Date().toISOString(),
     sources: { submissions: submissions.size, livCheckpoints: runs.size, editorialDesk: desk.size,

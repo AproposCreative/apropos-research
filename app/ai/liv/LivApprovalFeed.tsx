@@ -103,7 +103,7 @@ function LivSavedWorkCard({ item }: { item: LivWorkItem }) {
     <h3 className="mt-2 break-words text-lg font-medium leading-snug">{item.title}</h3>
     <p className="mt-2 text-xs leading-relaxed text-white/55">{item.source === 'chatgpt-submission' ? `Gemt i ChatGPT-forløb${item.revision ? ` · version ${item.revision}` : ''}` :
       item.source === 'editorial-desk' ? 'Gemt i Research og kilder' : item.source === 'cms-draft' ? 'Gemt som CMS-kladde' : 'Gemt i Livs artikelarkiv'}
-      {item.updatedAt ? ` · opdateret ${new Intl.DateTimeFormat('da-DK', { day: 'numeric', month: 'short', timeZone: 'Europe/Copenhagen' }).format(new Date(item.updatedAt))}` : ''}.
+      {item.updatedAt ? ` · opdateret ${new Intl.DateTimeFormat('da-DK', { day: 'numeric', month: 'short', timeZone: 'Europe/Copenhagen' }).format(new Date(item.updatedAt))}` : ''} ·
       {item.researchCount ? ` ${item.researchCount} registrerede kilder, ikke faktatjekket.` : ' Ingen kilder registreret i denne artikelpost.'}
       {item.missing.length ? ` Mangler registrerede felter: ${item.missing.map(name => fieldNames[name] || name).join(', ')}.` : ' Alle grundfelter findes; kvalitet og udgivelse er ikke godkendt.'}</p>
     {item.previewUrl && <a href={item.previewUrl} className="mt-3 inline-block min-h-11 py-3 text-sm text-white underline underline-offset-4 focus-visible:outline focus-visible:outline-2 focus-visible:outline-white">Åbn gemt artikel →</a>}
@@ -166,7 +166,7 @@ export default function LivApprovalFeed() {
       <header className="space-y-3">
         <div className="flex items-center justify-between gap-3"><h2 className="text-xl font-medium">Artikler i arbejde</h2>
           <button className="min-h-11 px-2 text-sm text-white/70 underline underline-offset-4 disabled:opacity-40" disabled={loading || !!saving} onClick={() => void refresh()}>Opdater</button></div>
-        <p className="text-sm leading-relaxed text-white/65">Gemte artikler og eventuelle historier klar til din kontrol. Idéer, tomme kalenderdage og research uden artikeltekst er ikke artikler.</p>
+        <p className="text-sm leading-relaxed text-white/65">Gemte ChatGPT-artikler og aktivt arbejde fra de seneste 14 dage. Idéer, tomme kalenderdage og research uden artikeltekst er ikke artikler.</p>
         <p className="text-xs leading-relaxed text-white/45">Kladder er ikke automatisk godkendt eller planlagt til udgivelse.</p>
         {feed?.work && <p className="text-xs text-white/55">{feed.stories.length} i udgivelseskøen · {savedWork.length} gemte kladder</p>}
       </header>
