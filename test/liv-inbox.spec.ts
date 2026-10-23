@@ -14,6 +14,7 @@ import {
 } from '@/lib/liv-inbox/send';
 import {
   DEFAULT_SETTINGS,
+  PREVIOUS_LIV_HOUSE_SIGNATURE,
   getLivInboxSettings,
   updateLivInboxSettings,
 } from '@/lib/liv-inbox/settings-store';
@@ -95,6 +96,9 @@ describe('liv-inbox settings store', () => {
     expect(upgraded.signature).toBe(DEFAULT_SETTINGS.signature);
     const historical = await updateLivInboxSettings({ signature: '--\nVenlig hilsen / Best regards\n\nLiv Brandt\nSkribent og kulturjournalist Aproposmagazine.com\n\nApropos Magazine\nFlæsketorvet 26-28,\n1711 København V' });
     expect(historical.signature).toBe(DEFAULT_SETTINGS.signature);
+    const previousHouse = await updateLivInboxSettings({ signature: PREVIOUS_LIV_HOUSE_SIGNATURE });
+    expect(previousHouse.signature).toBe(DEFAULT_SETTINGS.signature);
+    expect(previousHouse.signature).toContain('+45 93 93 77 76');
     const custom = await updateLivInboxSettings({ signature: 'Venlig hilsen\nLiv Brandt' });
     expect(custom.signature).toBe('Venlig hilsen\nLiv Brandt');
   });

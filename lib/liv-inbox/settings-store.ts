@@ -4,13 +4,15 @@ import { requireFirestore, stripUndefined } from '@/lib/accreditation/persistenc
 import { registerAccreditationStoreReset } from '@/lib/accreditation/persistence/reset-registry';
 import type { LivInboxSettings } from '@/lib/liv-inbox/types';
 import { isAproposStaffEmail } from '@/lib/liv-inbox/staff';
+import { APROPOS_PHONE_DISPLAY } from '@/lib/apropos-contact';
 
 const FILENAME = 'liv_inbox_settings.json';
 const COLLECTION = 'livInboxSettings';
 const DOC_ID = 'default';
 export const LEGACY_SHORT_LIV_SIGNATURE = 'Bedste hilsner\nLiv Brandt\nApropos Magazine';
 export const LEGACY_LONG_LIV_SIGNATURE = '--\nVenlig hilsen / Best regards\n\nLiv Brandt\nSkribent og kulturjournalist Aproposmagazine.com\n\nApropos Magazine\nFlæsketorvet 26-28,\n1711 København V';
-export const LIV_HOUSE_SIGNATURE = 'Venlig hilsen / Best regards\n\nLiv Brandt\nSkribent og kulturjournalist\nAproposmagazine.com\n\nApropos Magazine\nFlæsketorvet 26-28\n1711 København V';
+export const PREVIOUS_LIV_HOUSE_SIGNATURE = 'Venlig hilsen / Best regards\n\nLiv Brandt\nSkribent og kulturjournalist\nAproposmagazine.com\n\nApropos Magazine\nFlæsketorvet 26-28\n1711 København V';
+export const LIV_HOUSE_SIGNATURE = `Venlig hilsen / Best regards\n\nLiv Brandt\nSkribent og kulturjournalist\n${APROPOS_PHONE_DISPLAY}\nAproposmagazine.com\n\nApropos Magazine\nFlæsketorvet 26-28\n1711 København V`;
 
 /**
  * Default house rules — editable in the UI, injected into Liv's prompt.
@@ -64,7 +66,7 @@ function migrate(raw: Partial<LivInboxSettings> | null | undefined): LivInboxSet
   return {
     ...merged,
     // Upgrade only the exact old default; an editor's custom signature remains untouched.
-    signature: [LEGACY_SHORT_LIV_SIGNATURE, LEGACY_LONG_LIV_SIGNATURE].includes(merged.signature) ? LIV_HOUSE_SIGNATURE : merged.signature,
+    signature: [LEGACY_SHORT_LIV_SIGNATURE, LEGACY_LONG_LIV_SIGNATURE, PREVIOUS_LIV_HOUSE_SIGNATURE].includes(merged.signature) ? LIV_HOUSE_SIGNATURE : merged.signature,
     autoRespond: merged.autoRespond === true,
     guidelines:
       typeof merged.guidelines === 'string' && merged.guidelines.trim()

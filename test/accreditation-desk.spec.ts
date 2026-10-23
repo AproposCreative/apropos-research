@@ -148,9 +148,11 @@ describe('accreditation draft template', () => {
     expect(containsForbiddenDash(draft.text)).toBe(false);
     expect(draftHash(draft.subject, draft.text)).toHaveLength(16);
     expect(livSignaturePlainText()).toContain('Liv Brandt');
+    expect(livSignaturePlainText()).toContain('+45 93 93 77 76');
     const html = textToEmailHtml(draft.text);
     expect(html).toContain('Liv Brandt');
     expect(html).toContain('Flæsketorvet');
+    expect(html).toContain('tel:+4593937776');
     expect(html).toMatch(/AM-Signatur|data:image\/png;base64/);
     expect(html).toContain('font-family:Arial,Helvetica,sans-serif');
     expect(html).not.toContain('Georgia');

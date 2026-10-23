@@ -3,6 +3,7 @@ import fs from 'fs';
 import path from 'path';
 import type { AccreditationRequest } from '@/lib/accreditation/types';
 import { ensureRequestIdInSubject, sanitizeLivOutput } from '@/lib/accreditation/sanitize';
+import { APROPOS_PHONE_DISPLAY, APROPOS_PHONE_TEL } from '@/lib/apropos-contact';
 
 /** User-provided magazine reach figures for accreditation outreach. */
 export const ACCREDITATION_STATS = {
@@ -64,6 +65,7 @@ export function livSignaturePlainText(): string {
     '',
     LIV_DISPLAY_NAME,
     LIV_TITLE,
+    APROPOS_PHONE_DISPLAY,
     '',
     LIV_ORG,
     ...LIV_ADDRESS_LINES,
@@ -80,7 +82,7 @@ export function livSignatureHtml(): string {
     '<div style="margin-top:20px;padding-top:12px;font-family:Arial,Helvetica,sans-serif;font-size:14px;line-height:1.5">',
     '<p style="margin:0 0 12px">Venlig hilsen / Best regards</p>',
     `<p style="margin:0"><strong>${LIV_DISPLAY_NAME}</strong><br/>`,
-    `${LIV_TITLE}</p>`,
+    `${LIV_TITLE}<br/><a href="${APROPOS_PHONE_TEL}">${APROPOS_PHONE_DISPLAY}</a></p>`,
     `<p style="margin:12px 0 0">${LIV_ORG}<br/>`,
     `${LIV_ADDRESS_LINES.join('<br/>')}</p>`,
     img,
