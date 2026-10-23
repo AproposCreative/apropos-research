@@ -11,10 +11,7 @@ import { generateNewsletterIntro, stripTypographicDashesForNewsletter } from '@/
 import { introTextToHtml, renderNewsletterEmailHtml } from '@/lib/newsletter/render-html';
 import { newsletterUtmCampaignCustom, newsletterUtmCampaignFromWeek } from '@/lib/newsletter/newsletter-utm';
 import { env } from '@/lib/config/env';
-
-/** Når AI mangler eller fejler, så preview ikke er et tomt afsnit. */
-const INTRO_FALLBACK_DA =
-  'Vi har samlet udvalgte artikler nedenfor, fra de store titler til de små kulturstunder. God læselyst.';
+import { buildSourceBasedNewsletterIntro } from '@/lib/newsletter/source-summary';
 
 /** Bruges når AI ikke giver overskrift; samme tekst som emnefelt (kun overskrift, ingen dato-linje). */
 export const HEADLINE_FALLBACK_DA = 'Seneste fra Apropos';
@@ -25,6 +22,7 @@ export type BuildDraftResult = {
   html: string;
   headline: string;
   intro: string;
+  introSource: 'editor' | 'ai' | 'article_excerpts' | 'none';
   articles: NewsletterArticle[];
   warnings: string[];
   /** Når sæt, forklarer hvorfor udsnit kan mangle (fx 9. artikel). */
@@ -125,24 +123,23 @@ export async function composeWeeklyNewsletterDraft(
   if (params.minimumNote) warnings.push(params.minimumNote);
 
   let intro = (params.introOverride || '').trim();
+  let introSource: BuildDraftResult['introSource'] = intro ? 'editor' : 'none';
   let headline = '';
-  let usedAiIntro = false;
-  let introAiError: string | undefined;
   if (!intro && !params.skipAiIntro) {
     const gen = await generateNewsletterIntro(week, params.articles);
     intro = gen.intro.trim();
     headline = gen.headline.trim();
-    usedAiIntro = Boolean(intro);
-    introAiError = gen.error;
+    if (intro) introSource = 'ai';
     if (gen.error) warnings.push(gen.error);
   }
 
   if (!intro) {
-    intro = INTRO_FALLBACK_DA;
-    if (params.skipAiIntro) {
-      warnings.push('Intro-feltet er tomt; standardtekst bruges i mailen.');
-    } else if (!usedAiIntro && !introAiError) {
-      warnings.push('AI returnerede ingen tekst; standardtekst bruges i preview og ved send.');
+    intro = buildSourceBasedNewsletterIntro(params.articles) ?? '';
+    if (intro) {
+      introSource = 'article_excerpts';
+      warnings.push('Opsummeringen er sammensat af artiklernes egne titler og uddrag, uden AI.');
+    } else {
+      warnings.push('Ingen kildebaseret opsummering kunne dannes; mailen må ikke sendes automatisk.');
     }
   }
 
@@ -181,6 +178,7 @@ export async function composeWeeklyNewsletterDraft(
     html,
     headline,
     intro,
+    introSource,
     articles: params.articles,
     warnings,
     articlePoolStats: params.articlePoolStats,

@@ -176,7 +176,31 @@ export async function GET(req: NextRequest) {
     const draft = await buildWeeklyNewsletterDraft({
       excludeArticleIds: excludeFull,
       relaxedExcludeArticleIds: excludeRelax,
+      // Scheduled sends may not use the interactive Writer budget. Compose a
+      // source-bound article digest instead of attempting paid backend AI.
+      skipAiIntro: true,
     });
+
+    if (draft.introSource === 'none' || !draft.intro.trim()) {
+      await finishWeeklyAutoSend(weekKey, {
+        status: 'skipped',
+        reason: 'missing_editorial_summary: Artiklerne har ikke nok komplette uddrag til en kildebaseret opsummering.',
+      });
+      console.warn('[cron/newsletter-weekly]', {
+        weekKey,
+        skipped: true,
+        reason: 'missing_editorial_summary',
+        articleCount: draft.articles.length,
+      });
+      return NextResponse.json({
+        ok: true,
+        skipped: true,
+        reason: 'missing_editorial_summary',
+        weekKey,
+        articleCount: draft.articles.length,
+        warnings: draft.warnings,
+      });
+    }
 
     const prodHost = env.VERCEL_PROJECT_PRODUCTION_URL?.trim().replace(/\/$/, '').replace(/^https?:\/\//, '');
     const logoBase =
@@ -186,7 +210,7 @@ export async function GET(req: NextRequest) {
     const cacheHash = buildWeeklyDraftInputHash({
       week: draft.week,
       articles: draft.articles,
-      skipAiIntro: false,
+      skipAiIntro: true,
       logoAssetBaseUrl: logoBase,
     });
     await saveWeeklyDraftCache(draft, cacheHash);

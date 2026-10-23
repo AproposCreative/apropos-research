@@ -88,7 +88,7 @@ export async function generateNewsletterIntro(
       ],
     }, { maxRetries: 0, timeout: 45000 }));
     if (completion.choices[0]?.finish_reason !== 'stop') {
-      return { headline: '', intro: '', error: 'AI-introen blev ikke færdig. Standardtekst bruges.' };
+      return { headline: '', intro: '', error: 'AI-introen blev ikke færdig. Kildebaseret opsummering forsøges.' };
     }
     const raw = completion.choices[0]?.message?.content?.trim() || '';
     if (!raw) return { headline: '', intro: '', error: 'Tomt svar fra modellen' };
@@ -105,7 +105,7 @@ export async function generateNewsletterIntro(
     return { headline, intro };
   } catch (e) {
     return { headline: '', intro: '', error: getLivCostPretransportError(e)
-      ? 'AI-introen blev stoppet af budgetkontrollen. Standardtekst bruges.'
-      : 'AI-introen kunne ikke genereres. Standardtekst bruges.' };
+      ? 'AI-introen blev stoppet af budgetkontrollen. Kildebaseret opsummering forsøges.'
+      : 'AI-introen kunne ikke genereres. Kildebaseret opsummering forsøges.' };
   }
 }

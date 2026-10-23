@@ -62,6 +62,12 @@ export async function POST(req: NextRequest) {
         excludeArticleIds: excludeFull,
         relaxedExcludeArticleIds: excludeRelax,
       });
+      if (draft.introSource === 'none' || !draft.intro.trim()) {
+        return NextResponse.json({
+          error: 'Ingen redaktionel opsummering kunne dannes. Tilføj en intro før afsendelse.',
+          warnings: draft.warnings,
+        }, { status: 422 });
+      }
       html = rewriteNewsletterLogoSrcForOutgoingEmail(draft.html);
       sentArticleIds = draft.articles.map((a) => a.id);
       if (!subject) subject = draft.subject;

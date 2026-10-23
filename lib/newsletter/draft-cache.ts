@@ -7,7 +7,7 @@ import { getAdminDb } from '@/lib/firebase-admin';
 
 const DRAFT_CACHE_COLLECTION = 'newsletterDraftCache';
 const CACHE_DOC_PREFIX = 'weekly-';
-const DRAFT_TEMPLATE_VERSION = 27;
+const DRAFT_TEMPLATE_VERSION = 28;
 
 export type DraftCacheHit = {
   hit: true;
@@ -46,6 +46,9 @@ function parseCachedDraftData(
   const html = typeof d.html === 'string' ? d.html : '';
   const headline = typeof d.headline === 'string' ? d.headline : '';
   const intro = typeof d.intro === 'string' ? d.intro : '';
+  const introSource = d.introSource === 'editor' || d.introSource === 'ai' || d.introSource === 'article_excerpts'
+    ? d.introSource
+    : 'none';
   const warnings = Array.isArray(d.warnings) ? d.warnings.filter((w) => typeof w === 'string') : [];
   const articles = Array.isArray(d.articles)
     ? d.articles
@@ -90,6 +93,7 @@ function parseCachedDraftData(
       html,
       headline,
       intro,
+      introSource,
       articles,
       warnings,
     },
@@ -166,6 +170,7 @@ export async function saveWeeklyDraftCache(
       html: draft.html,
       headline: draft.headline,
       intro: draft.intro,
+      introSource: draft.introSource,
       warnings: draft.warnings.slice(0, 40),
       articles: draft.articles.map((a) => ({
         id: a.id,
@@ -198,6 +203,9 @@ function draftHitFromStoredFields(d: Record<string, unknown>): DraftCacheHit | D
   const html = typeof d.html === 'string' ? d.html : '';
   const headline = typeof d.headline === 'string' ? d.headline : '';
   const intro = typeof d.intro === 'string' ? d.intro : '';
+  const introSource = d.introSource === 'editor' || d.introSource === 'ai' || d.introSource === 'article_excerpts'
+    ? d.introSource
+    : 'none';
   if (!weekStart || !weekEnd || !subject || !html || !headline) return { hit: false };
   if (isStaleCacheDoc(d)) return { hit: false };
 
@@ -243,6 +251,7 @@ function draftHitFromStoredFields(d: Record<string, unknown>): DraftCacheHit | D
       html,
       headline,
       intro,
+      introSource,
       articles,
       warnings,
     },
