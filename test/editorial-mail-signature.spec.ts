@@ -7,6 +7,15 @@ it('uses the original logo, official details and accessible links; account-speci
  const s=await currentSignature('frederik');expect(s.text).toBe(FREDERIK_SIGNATURE);expect(s.html).toContain(SIGNATURE_LOGO);expect(s.html).toContain('tel:+4531103117');expect(s.html).toContain('https://aproposmagazine.com');expect(s.html).toContain('max-width:100%');
  expect((await currentSignature('liv')).text).toBe('Liv Brandt\nApropos Magazine');
 });
+it('keeps body and both signatures on the mail client canvas in light and dark mode',async()=>{
+ for(const mailbox of ['frederik','liv'] as const){
+  const content=applySignature('Hej,\n\nTak for din mail.',await currentSignature(mailbox));
+  expect(content.html).not.toMatch(/(?:background(?:-color)?|color):\s*#[0-9a-f]{3,8}/i);
+  expect(content.html).toContain('white-space:pre-wrap');
+  expect(content.html).toContain('Tak for din mail.');
+  expect(content.html).toContain(mailbox==='frederik'?'Frederik Emil Kragh':'Liv Brandt');
+ }
+});
 it('escapes body, strips only exact trailing signatures, and keeps one signature',async()=>{
  const s=await currentSignature('frederik'),a=applySignature('<script>alert(1)</script>\nHej',s),b=applySignature(a.body,s);
  expect(b.body).toBe(a.body);expect(b.html).not.toContain('<script>');expect(b.html).toContain('&lt;script&gt;');expect(b.body.match(/Frederik Emil Kragh/g)).toHaveLength(1);
