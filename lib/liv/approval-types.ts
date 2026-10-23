@@ -2,6 +2,7 @@ import type { LivArticleFormat } from './review-format';
 import type { LivEditorialKind } from './editorial-kind';
 import type { LivCostSummary } from './cost-ledger';
 import type { LivNextPreparationStatus } from './preparation-status';
+import type { LivWorkItem } from './work-overview';
 
 export type ApprovalStory = {
   itemId: string; payloadHash: string; revision: number;
@@ -19,5 +20,8 @@ export type ApprovalStory = {
   decision: 'pending' | 'approved' | 'rejected';
 };
 export type ApprovalFeed = { stories: ApprovalStory[]; total: number; nextOffset: number | null;
+  queueUnavailable?: boolean;
   week?: import('./weekly-plan').WeeklyStory[];
+  work?: { items: LivWorkItem[]; complete: boolean; checkedAt: string;
+    sources: { submissions: number; livCheckpoints: number; editorialDesk: number; cmsRows: number } } | null;
   queueEnabled: boolean; preparationEnabled: boolean; cost?: LivCostSummary; preparation?: LivNextPreparationStatus };

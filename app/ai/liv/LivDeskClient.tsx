@@ -13,6 +13,8 @@ import LivBudgetSettings from './LivBudgetSettings';
 import SharedMediaSources from './SharedMediaSources';
 import LivOperations from './LivOperations';
 import LivStoryNavigation from './LivStoryNavigation';
+import LivTips from './LivTips';
+import LivObservations from './LivObservations';
 
 const LivPostingClient = lazy(() => import('./LivPostingClient'));
 type View = 'upcoming' | 'published' | 'settings' | 'research' | 'manual';
@@ -72,6 +74,8 @@ export default function LivDeskClient({ onClose, onOpenWriter }: { onClose: () =
         <button onClick={() => setView('manual')} className="block w-full space-y-2 p-5 text-left hover:bg-white/5 focus-visible:outline focus-visible:outline-white"><span className="block font-medium">Avanceret drift →</span><span className="block text-sm text-white/55">Udgivelsesstatus, fejllog og manuel planlægning.</span></button>
       </div>
       <LivOperations />
+      <LivTips />
+      <LivObservations key={user?.uid || 'signed-out'} />
       <LivBudgetSettings />
       <SharedMediaSources />
     </LivContentColumn></div>}

@@ -195,10 +195,12 @@ it('excludes a published slot owner even if a stale ready entry has a different 
   state.slots['2026-09-09'] = slot(entry.itemId, 'published');
   expect(approvalEntries(state, '2026-09-10')).toEqual([]);
 });
-it('renders all returned stories without a client-side cap or promising extra generation', () => {
+it('renders saved articles without presenting empty calendar slots or promising automatic publication', () => {
   const source = readFileSync('app/ai/liv/LivApprovalFeed.tsx', 'utf8');
-  expect(source).toContain('Liv udkommer hver anden dag kl. 10.');
-  expect(source).toContain('Planlagte historier er ikke nødvendigvis færdige.');
+  expect(source).toContain('Artikler i arbejde');
+  expect(source).toContain('Gemte Liv-kladder');
+  expect(source).not.toContain('feed?.week?.map');
+  expect(source).not.toContain('Uden et valg fortsætter Liv automatisk');
   expect(source).not.toContain('data.stories.slice');
   expect(source).not.toContain('Én historie til i morgen.');
 });

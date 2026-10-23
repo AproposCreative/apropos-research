@@ -8,6 +8,7 @@ import { parseEditorialFeedback } from '@/lib/liv/editorial-feedback';
 import { readLivCostSummary } from '@/lib/liv/cost-ledger';
 import { readNextLivPreparationStatus } from '@/lib/liv/preparation-status';
 import { readWeeklyPlan } from '@/lib/liv/weekly-plan';
+import { readLivWorkOverview } from '@/lib/liv/work-overview';
 
 const headers = { 'Cache-Control': 'private, no-store' };
 const reply = (body: object, status = 200) => NextResponse.json(body, { status, headers });
@@ -23,11 +24,16 @@ export async function GET(req: NextRequest) {
   const queueEnabled = queueConfigured && !paused && process.env.LIV_DAILY_PUBLICATION_MODE === 'auto_publish';
   const preparationEnabled = preparationConfigured && !paused;
   // Keep saved previews available when paused; effective flags must not imply publication is active.
-  if (!queueConfigured && !preparationConfigured) return reply({ stories: [], total: 0, nextOffset: null, queueEnabled, preparationEnabled });
+  const workPromise = access.owner ? readLivWorkOverview(userId).catch(() => null) : Promise.resolve(undefined);
+  if (!queueConfigured && !preparationConfigured) return reply({ stories: [], total: 0, nextOffset: null, queueEnabled, preparationEnabled,
+    ...(access.owner ? { work: await workPromise } : {}) });
   try {
-    const [state, cost] = await Promise.all([readDeliveryState(), access.owner ? readLivCostSummary() : undefined]);
+    const [state, cost, work] = await Promise.all([readDeliveryState().catch(() => null),
+      access.owner ? readLivCostSummary().catch(() => undefined) : undefined, workPromise]);
+    if (!state) return reply({ stories: [], total: 0, nextOffset: null, queueEnabled, preparationEnabled,
+      queueUnavailable: true, ...(access.owner ? { work } : {}) });
     const now = new Date();
-    const preparation = access.owner ? await readNextLivPreparationStatus(state, now) : undefined;
+    const preparation = access.owner ? await readNextLivPreparationStatus(state, now).catch(() => undefined) : undefined;
     // A plan read failure must not hide the independently verified ready queue.
     const week = access.owner ? await readWeeklyPlan(state, now, preparation).catch(() => undefined) : undefined;
     const entries = approvalEntries(state, copenhagenClock().day);
@@ -37,7 +43,7 @@ export async function GET(req: NextRequest) {
       return approvalStory(entry, payload, userId);
     }));
     return reply({ stories, total: entries.length, nextOffset: null,
-      queueEnabled, preparationEnabled, ...(access.owner ? { cost, preparation, week } : {}) });
+      queueEnabled, preparationEnabled, ...(access.owner ? { cost, preparation, week, work } : {}) });
   } catch { return reply({ error: 'Historierne kunne ikke hentes. Prøv igen; dine gemte valg er ikke ændret.' }, 503); }
 }
 export async function POST(req: NextRequest) {

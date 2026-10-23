@@ -1,6 +1,7 @@
 import { beforeEach, afterEach, expect, it, vi } from 'vitest';
 import { NextRequest } from 'next/server';
-const mock = vi.hoisted(() => ({ auth: vi.fn(), state: vi.fn(), payload: vi.fn(), decide: vi.fn(), cost: vi.fn(), preparation: vi.fn(), week: vi.fn() }));
+const mock = vi.hoisted(() => ({ auth: vi.fn(), state: vi.fn(), payload: vi.fn(), decide: vi.fn(), cost: vi.fn(), preparation: vi.fn(), week: vi.fn(), work: vi.fn() }));
+vi.mock('@/lib/liv/work-overview', () => ({ readLivWorkOverview: mock.work }));
 vi.mock('@/lib/liv/weekly-plan', () => ({ readWeeklyPlan: mock.week }));
 vi.mock('@/lib/liv/preparation-status', () => ({ readNextLivPreparationStatus: mock.preparation }));
 vi.mock('@/lib/liv/cost-ledger', () => ({ readLivCostSummary: mock.cost }));
@@ -24,6 +25,7 @@ beforeEach(() => {
   mock.auth.mockResolvedValue({ uid: 'editor', owner: true }); mock.payload.mockResolvedValue(payload);
   mock.cost.mockResolvedValue({ status: 'unavailable', billedDkk: null, usageBasedUpperDkk: null });
   mock.week.mockResolvedValue([]);
+  mock.work.mockResolvedValue({ items: [], complete: true, checkedAt: '2026-09-10T12:00:00Z', sources: { submissions: 0, livCheckpoints: 0 } });
   mock.preparation.mockResolvedValue({ day: '2026-09-11', scope: 'prepare', status: 'blocked_saved_work', runStatus: 'skipped_factcheck', reasonCode: 'factcheck_required' });
   mock.state.mockResolvedValue({ entries: Array.from({ length: 7 }, (_, i) => ({ ...body,
     itemId: i.toString(16).padStart(24, '0'), title: 'Kultur', scheduledDay: `2026-09-${11 + i}`, expiresDay: `2026-09-${11 + i}`,
@@ -63,6 +65,22 @@ it('returns all seven prepared previews in one response without writes or cache'
 it('does not pretend to have articles when preparation is disabled', async () => {
   vi.stubEnv('LIV_DELIVERY_QUEUE_ENABLED', 'false'); vi.stubEnv('LIV_DELIVERY_PREPARE_ENABLED', 'false');
   expect((await (await GET(request())).json()).stories).toEqual([]); expect(mock.state).not.toHaveBeenCalled();
+  expect(mock.work).toHaveBeenCalledWith('editor');
+});
+it('shows saved Liv work even when automation is disabled, and marks archive failures as incomplete', async () => {
+  vi.stubEnv('LIV_DELIVERY_QUEUE_ENABLED', 'false'); vi.stubEnv('LIV_DELIVERY_PREPARE_ENABLED', 'false');
+  mock.work.mockResolvedValueOnce({ items: [{ id: 'christopher', title: 'Christopher' }], complete: true });
+  expect((await (await GET(request())).json()).work.items).toEqual([{ id: 'christopher', title: 'Christopher' }]);
+  mock.work.mockRejectedValueOnce(Error('offline'));
+  expect((await (await GET(request())).json()).work).toBeNull();
+});
+it('keeps saved drafts visible when the legacy delivery queue is unavailable', async () => {
+  mock.state.mockRejectedValueOnce(Error('offline'));
+  mock.work.mockResolvedValueOnce({ items: [{ id: 'christopher', title: 'Christopher' }], complete: true });
+  const response = await GET(request());
+  expect(response.status).toBe(200);
+  expect(await response.json()).toMatchObject({ queueUnavailable: true, work: { items: [{ title: 'Christopher' }] } });
+  expect(mock.payload).not.toHaveBeenCalled();
 });
 it('keeps the saved preview visible while accurately reporting paused automation', async () => {
   vi.stubEnv('LIV_DAILY_PAUSED', 'true');
@@ -131,6 +149,8 @@ it('lets colleagues read previews without loading private budget or operational 
   expect(data.stories).toHaveLength(7);
   expect(data).not.toHaveProperty('cost');
   expect(data).not.toHaveProperty('preparation');
+  expect(data).not.toHaveProperty('work');
+  expect(mock.work).not.toHaveBeenCalled();
   expect(mock.cost).not.toHaveBeenCalled();
   expect(mock.preparation).not.toHaveBeenCalled();
 });

@@ -6,16 +6,15 @@ import { useAuth } from '@/lib/auth-context';
 import { readJsonResponse } from '@/lib/api/read-json-response';
 import type { ApprovalFeed, ApprovalStory } from '@/lib/liv/approval-types';
 import LivContentColumn from './LivContentColumn';
-import LivTips from './LivTips';
 import LivPresentationEditor from './LivPresentationEditor';
 import LivShorteningEditor from './LivShorteningEditor';
 import LivCoverEditor from './LivCoverEditor';
-import { preparationMessage } from '@/lib/liv/preparation-message';
-import LivObservations from './LivObservations';
+import type { LivWorkItem } from '@/lib/liv/work-overview';
 
 const decisions = { pending: 'Afventer dit valg', approved: 'Godkendt', rejected: 'Afvist' };
-const weekStatuses = { unplanned: 'Mangler emne', planned: 'Planlagt', preparing: 'Under forberedelse',
-  blocked: 'Kræver rettelse', ready: 'Klar', published: 'Udgivet', off_day: 'Udgivelsesfri' };
+const fieldNames: Record<string, string> = { title: 'titel', intro: 'intro', subtitle: 'underrubrik', author: 'forfatter',
+  category: 'kategori', slug: 'adresse', seoTitle: 'SEO-titel', seoDescription: 'SEO-beskrivelse', cover: 'cover',
+  cover_credit: 'billedkredit', two_distinct_body_images: 'to brødtekstbilleder', body_image_alt: 'billedbeskrivelser' };
 function dateLabel(day: string) {
   return new Intl.DateTimeFormat('da-DK', { weekday: 'short', day: 'numeric', month: 'short', timeZone: 'Europe/Copenhagen' })
     .format(new Date(`${day}T12:00:00Z`));
@@ -93,6 +92,25 @@ export function LivApprovalCard({ story, disabled, saving, onDecide, canDecide =
   </article>;
 }
 
+function LivSavedWorkCard({ item }: { item: LivWorkItem }) {
+  const status = item.status === 'blocked' ? 'Stoppet ved en fejl' : item.status === 'prepared' ?
+    'Klargjort · kræver kontrol' : item.status === 'processing' ? 'Behandling i gang' : 'Gemt kladde · ikke godkendt';
+  return <article className="border-b border-white/15 py-5 first:pt-0 last:border-b-0">
+    <div className="flex flex-wrap items-center justify-between gap-2 text-xs text-white/55">
+      <span>{item.kind === 'reserve' ? 'Reserve' : item.scheduledDay ? `Oprindeligt planlagt ${dateLabel(item.scheduledDay)}` : 'Liv-artikel'}</span>
+      <span className={item.status === 'blocked' ? 'text-amber-200' : ''}>{status}</span>
+    </div>
+    <h3 className="mt-2 break-words text-lg font-medium leading-snug">{item.title}</h3>
+    <p className="mt-2 text-xs leading-relaxed text-white/55">{item.source === 'chatgpt-submission' ? `Gemt i ChatGPT-forløb${item.revision ? ` · version ${item.revision}` : ''}` :
+      item.source === 'editorial-desk' ? 'Gemt i Research og kilder' : item.source === 'cms-draft' ? 'Gemt som CMS-kladde' : 'Gemt i Livs artikelarkiv'}
+      {item.updatedAt ? ` · opdateret ${new Intl.DateTimeFormat('da-DK', { day: 'numeric', month: 'short', timeZone: 'Europe/Copenhagen' }).format(new Date(item.updatedAt))}` : ''}.
+      {item.researchCount ? ` ${item.researchCount} registrerede kilder, ikke faktatjekket.` : ' Ingen kilder registreret i denne artikelpost.'}
+      {item.missing.length ? ` Mangler registrerede felter: ${item.missing.map(name => fieldNames[name] || name).join(', ')}.` : ' Alle grundfelter findes; kvalitet og udgivelse er ikke godkendt.'}</p>
+    {item.previewUrl && <a href={item.previewUrl} className="mt-3 inline-block min-h-11 py-3 text-sm text-white underline underline-offset-4 focus-visible:outline focus-visible:outline-2 focus-visible:outline-white">Åbn gemt artikel →</a>}
+    {!item.previewUrl && <p className="mt-2 text-xs text-white/45">{item.source === 'editorial-desk' ? 'Åbn under Indstillinger → Research og kilder.' : item.source === 'cms-draft' ? 'Find kladden i artikelarkivet.' : 'Åbnes via Livs gemte arbejde i redaktionen.'}</p>}
+  </article>;
+}
+
 export default function LivApprovalFeed() {
   const { user, capabilities } = useAuth();
   const [feed, setFeed] = useState<ApprovalFeed | null>(null);
@@ -134,49 +152,38 @@ export default function LivApprovalFeed() {
       if (current !== version.current) return;
       setFeed(old => old && ({ ...old, stories: old.stories.map(s => s.itemId === story.itemId ?
         { ...s, decision: result.decision, revision: result.revision, feedback: result.feedback ?? null } : s) }));
-      setNotice(decision === 'approved' ? 'Godkendt. Historien får prioritet på sin udgivelsesdag.' : 'Afvist. Liv vælger ikke denne historie.');
+      setNotice(decision === 'approved' ? 'Dit valg er gemt. Artiklen er ikke udgivet endnu.' : 'Afvist. Liv vælger ikke denne historie.');
     } catch (e) {
       if (current !== version.current) return;
       await refresh();
       setError(e instanceof Error ? e.message : 'Valget kunne ikke gemmes. Opdater listen.');
     } finally { busy.current = false; setSaving(null); }
   }
+  const readyCmsIds = new Set(feed?.stories.map(story => story.itemId) || []);
+  const savedWork = feed?.work?.items.filter(item => !item.cmsItemId || !readyCmsIds.has(item.cmsItemId)) || [];
   return <div data-liv-story-scroll style={{ paddingTop: 'var(--liv-tabs-height, 0px)' }} className="min-h-0 flex-1 overflow-y-auto overscroll-contain">
     <LivContentColumn className="space-y-5 py-6">
       <header className="space-y-3">
-        <div className="flex items-center justify-between gap-3"><h2 className="text-xl font-medium">Ugens historier</h2>
+        <div className="flex items-center justify-between gap-3"><h2 className="text-xl font-medium">Artikler i arbejde</h2>
           <button className="min-h-11 px-2 text-sm text-white/70 underline underline-offset-4 disabled:opacity-40" disabled={loading || !!saving} onClick={() => void refresh()}>Opdater</button></div>
-        <p className="text-sm leading-relaxed text-white/65">Liv udkommer hver anden dag kl. 10. Her ser du de næste syv dage. Planlagte historier er ikke nødvendigvis færdige.</p>
-        <p className="text-xs leading-relaxed text-white/45">{capabilities.owner ? 'Godkend eller afvis. Uden et valg fortsætter Liv automatisk. Dit valg kan ændres, indtil historien er valgt til udgivelse.' : 'Her kan du læse kommende historier. Frederik styrer godkendelse og udgivelse.'}</p>
+        <p className="text-sm leading-relaxed text-white/65">Gemte artikler og eventuelle historier klar til din kontrol. Idéer, tomme kalenderdage og research uden artikeltekst er ikke artikler.</p>
+        <p className="text-xs leading-relaxed text-white/45">Kladder er ikke automatisk godkendt eller planlagt til udgivelse.</p>
+        {feed?.work && <p className="text-xs text-white/55">{feed.stories.length} i udgivelseskøen · {savedWork.length} gemte kladder</p>}
       </header>
-      <LivTips />
-      <LivObservations key={user?.uid || 'signed-out'} />
       {notice && <p role="status" className="rounded-xl border border-emerald-300/20 bg-emerald-300/5 p-4 text-sm text-emerald-200">{notice}</p>}
       {error && <p role="alert" className="rounded-xl border border-amber-200/20 p-4 text-sm text-amber-200">{error}</p>}
-      {feed && !feed.queueEnabled && <p className="rounded-xl border border-white/15 p-4 text-sm text-white/60">Automatisk udgivelse er ikke aktiveret. Dine valg udgiver ikke noget med det samme.</p>}
+      {feed?.queueUnavailable && <p role="alert" className="rounded-xl border border-amber-200/25 p-4 text-sm text-amber-200">Udgivelseskøen kunne ikke kontrolleres. Gemte kladder vises, men de er ikke klar til godkendelse her.</p>}
       {loading && !feed && <p role="status" className="p-5 text-sm text-white/60">Henter Livs historier…</p>}
-      {feed && !feed.stories.length && !feed.week?.length && <div className="rounded-2xl border border-dashed border-white/20 px-6 py-12 text-center">
-        <h3 className="text-lg">Den næste historie er ikke klar endnu</h3><p className="mt-3 text-sm leading-relaxed text-white/55">
-          {!feed.preparationEnabled ? 'Forberedelsen er ikke aktiveret. Gemte historier og dine valg er bevaret.' :
-            preparationMessage(feed.preparation)}</p>
-        {feed.preparation?.day && <p className="mt-3 text-xs text-white/45">Planlagt {dateLabel(feed.preparation.day)}</p>}
-      </div>}
-      {feed?.week?.map(day => {
-        const story = feed.stories.find(s => s.itemId === day.itemId);
-        return story ? <LivApprovalCard key={`${story.itemId}:${story.revision}`} story={story} canDecide={capabilities.owner}
-          disabled={loading || !!saving || !!error} saving={saving === story.itemId} onEdited={() => void refresh()}
-          onDecide={(decision, feedback) => void decide(story, decision, feedback)} /> :
-          <article key={day.day} className="space-y-2 rounded-2xl border border-white/15 p-5">
-            <div className="flex flex-wrap justify-between gap-2 text-xs text-white/60">
-              <span>{dateLabel(day.day)}</span><span className={day.status === 'blocked' ? 'text-amber-200' :
-                ['ready', 'published'].includes(day.status) ? 'text-emerald-200' : ''}>{weekStatuses[day.status]}</span>
-            </div>
-            <h3 className="break-words text-lg font-medium">{day.title}</h3>
-            <p className="text-sm leading-relaxed text-white/60">{day.detail}</p>
-          </article>;
-      })}
-      {feed?.stories.filter(story => !feed.week?.some(day => day.itemId === story.itemId)).map(story => <LivApprovalCard key={`${story.itemId}:${story.revision}`} story={story} canDecide={capabilities.owner} disabled={loading || !!saving || !!error}
+      {feed?.stories.map(story => <LivApprovalCard key={`${story.itemId}:${story.revision}`} story={story} canDecide={capabilities.owner} disabled={loading || !!saving || !!error}
         saving={saving === story.itemId} onEdited={() => void refresh()} onDecide={(decision, feedback) => void decide(story, decision, feedback)} />)}
+      {feed?.work === null && <p role="alert" className="rounded-xl border border-amber-200/25 p-4 text-sm text-amber-200">Gemte Liv-kladder kunne ikke hentes. Listen er ufuldstændig; prøv Opdater.</p>}
+      {feed?.work && !feed.work.complete && <p role="alert" className="rounded-xl border border-amber-200/25 p-4 text-sm text-amber-200">Ikke alle kilder kunne gennemgås fuldt ud. Listen kan mangle kladder.</p>}
+      {feed?.work && savedWork.length > 0 &&
+        <section aria-label="Gemte Liv-kladder" className="rounded-2xl border border-white/15 px-5 py-2">
+          {savedWork.map(item => <LivSavedWorkCard key={`${item.source}:${item.id}`} item={item} />)}
+        </section>}
+      {feed && !feed.stories.length && feed.work?.items.length === 0 &&
+        <p className="rounded-2xl border border-white/15 p-5 text-sm text-white/60">Ingen gemte Liv-artikler i de gennemgåede kilder. Planer uden artikeltekst vises ikke her.</p>}
     </LivContentColumn>
   </div>;
 }
