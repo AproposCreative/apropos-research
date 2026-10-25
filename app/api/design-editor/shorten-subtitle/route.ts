@@ -37,16 +37,18 @@ export async function POST(req: NextRequest) {
     title: input.title, subtitle: input.subtitle,
   });
   let key: string | null = null;
+  let generation: number | null = null;
   try {
     const claim = await claimSocialSubtitle(input, access.uid, prompt);
     if (claim.state === 'ready') return NextResponse.json({ candidates: claim.candidates, source: 'ai' }, { headers });
     if (claim.state === 'pending') return NextResponse.json({ code: 'subtitle_pending' }, { status: 202,
       headers: { ...headers, 'Retry-After': '1' } });
     if (claim.state === 'ambiguous') return NextResponse.json({ error: 'Det tidligere AI-kald har ukendt resultat og bliver ikke sendt igen automatisk.' }, { status: 503, headers });
-    if (claim.state === 'failed') return NextResponse.json({ error: claim.reason in providerFailureLabel
+    if (claim.state === 'failed') return NextResponse.json({ code: claim.reason, generation: claim.generation, error: claim.reason in providerFailureLabel
       ? `${providerFailureLabel[claim.reason as keyof typeof providerFailureLabel]} Kaldet bliver ikke gentaget automatisk.`
       : 'AI-forkortelsen mislykkedes tidligere for denne tekst. Den bliver ikke kørt igen automatisk.' }, { status: 502, headers });
     key = claim.key;
+    generation = claim.generation;
     const client = new OpenAI({ apiKey: config.openai.apiKey, maxRetries: 0, timeout: 30_000 });
     const result = await client.chat.completions.create({
       model: SOCIAL_SUBTITLE_MODEL, reasoning_effort: 'low', service_tier: 'default', store: false,
@@ -66,7 +68,7 @@ export async function POST(req: NextRequest) {
     if (key) await finishSocialSubtitle(key, null, null, failure ?? 'unknown').catch(() => undefined);
     const code = error instanceof Error ? error.message : '';
     const budget = code === 'social_subtitle_budget_exceeded';
-    return NextResponse.json({ error: budget ? 'Loftet på 10 kr. til AI-forkortelse er nået.' : failure
+    return NextResponse.json({ code: failure ?? undefined, generation, error: budget ? 'Loftet på 10 kr. til AI-forkortelse er nået.' : failure
       ? `${providerFailureLabel[failure]} Artiklen og den oprindelige undertekst er bevaret.`
       : 'AI-forkortelsen kunne ikke gennemføres. Artiklen og den oprindelige undertekst er bevaret.' },
     { status: budget ? 429 : 503, headers });

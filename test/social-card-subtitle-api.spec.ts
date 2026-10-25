@@ -2,22 +2,24 @@ import { afterEach, beforeEach, describe, expect, it, vi } from 'vitest';
 import { NextRequest } from 'next/server';
 import { fitSubtitleAutomatically } from '../app/design-editor/subtitleCopy';
 import { socialSubtitleKey, socialSubtitleQuoteDkkMicros, SOCIAL_SUBTITLE_LIMIT_DKK_MICROS } from '../lib/ai/social-subtitle-budget';
-const mocks = vi.hoisted(() => ({ auth: vi.fn(), claim: vi.fn(), finish: vi.fn(), create: vi.fn() }));
+const mocks = vi.hoisted(() => ({ auth: vi.fn(), claim: vi.fn(), finish: vi.fn(), resume: vi.fn(), create: vi.fn() }));
 vi.mock('@/lib/editorial-access', () => ({ editorialRequestAccess: mocks.auth }));
 vi.mock('@/lib/config/env', () => ({ config: { openai: { apiKey: 'test-key' } } }));
 vi.mock('@/lib/ai/social-subtitle-budget', async importOriginal => {
   const actual = await importOriginal<typeof import('../lib/ai/social-subtitle-budget')>();
-  return { ...actual, claimSocialSubtitle: mocks.claim, finishSocialSubtitle: mocks.finish };
+  return { ...actual, claimSocialSubtitle: mocks.claim, finishSocialSubtitle: mocks.finish, resumeSocialSubtitleBudget: mocks.resume };
 });
 vi.mock('openai', () => ({ default: class {
   chat = { completions: { create: mocks.create } };
 } }));
 import { POST } from '../app/api/design-editor/shorten-subtitle/route';
+import { POST as resumePOST } from '../app/api/design-editor/resume-subtitle/route';
 const source = 'Kontrapunkt har formet DSB og TV 2. Nu undersøger Designmuseum Danmark bureauets arbejde og grænsen mellem designhistorie og reklame.';
 const input = { articleId: '6accb9d4a4cfa06c22daba31', title: 'Kontrapunkt har tegnet Danmark. Men er kundearbejde kunst?', subtitle: source, size: 'square' };
 const request = (body: unknown) => new NextRequest('http://localhost/api/design-editor/shorten-subtitle', { method: 'POST', body: JSON.stringify(body) });
 beforeEach(() => { vi.resetAllMocks(); mocks.auth.mockResolvedValue({ uid: 'owner', role: 'admin', owner: true });
-  mocks.claim.mockResolvedValue({ state: 'reserved', key: 'cache-key' }); mocks.finish.mockResolvedValue(undefined);
+  mocks.claim.mockResolvedValue({ state: 'reserved', key: 'cache-key', generation: 0 }); mocks.finish.mockResolvedValue(undefined);
+  mocks.resume.mockResolvedValue({ generation: 1 });
   mocks.create.mockResolvedValue({ choices: [{ finish_reason: 'stop', message: { content: '{"main":"Kontrapunkt former vores visuelle hverdag.","shorter":"Design sætter spor."}' } }],
     usage: { prompt_tokens: 100, completion_tokens: 40 } }); });
 afterEach(() => { vi.unstubAllGlobals(); });
@@ -65,6 +67,20 @@ describe('SoMe subtitle AI', () => {
     mocks.claim.mockRejectedValue(new Error('social_subtitle_budget_exceeded'));
     expect((await POST(request(input))).status).toBe(429);
     expect(mocks.create).not.toHaveBeenCalled();
+  });
+  it('requires the owner and matching generation to reopen without calling the provider', async () => {
+    const req = () => new NextRequest('http://localhost/api/design-editor/resume-subtitle',
+      { method: 'POST', body: JSON.stringify({ expectedGeneration: 0 }) });
+    mocks.auth.mockResolvedValueOnce({ uid: 'editor', role: 'editor', owner: false });
+    expect((await resumePOST(req())).status).toBe(403);
+    expect(mocks.resume).not.toHaveBeenCalled();
+    const result = await resumePOST(req());
+    expect(result.status).toBe(200);
+    expect(await result.json()).toEqual({ resumed: true, generation: 1 });
+    expect(mocks.resume).toHaveBeenCalledWith('owner', 0);
+    expect(mocks.create).not.toHaveBeenCalled();
+    mocks.resume.mockRejectedValueOnce(Error('social_subtitle_resume_conflict'));
+    expect((await resumePOST(req())).status).toBe(409);
   });
   it('uses a stable content key and a bounded per-call reserve below 10 kr.', () => {
     expect(socialSubtitleKey(input)).toBe(socialSubtitleKey({ ...input }));

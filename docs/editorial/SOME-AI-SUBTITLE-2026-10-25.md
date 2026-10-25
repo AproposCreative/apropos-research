@@ -69,3 +69,14 @@ separate Writer-loft eller Livs forbud mod betalt automatisk artikelproduktion.
   uden automatisk ny betaling: “Kaldet bliver ikke gentaget automatisk.”
   Et første transient indlæsningssvigt af Webflow-listen forsvandt ved at
   lukke og genåbne SoMe-panelet; listen og kortet blev derefter vist.
+
+## Manuel genoptagelse efter dokumenteret optankning
+
+Når OpenAI igen viser positiv API-saldo, kan ejeren åbne det afviste kort og
+vælge **Prøv AI igen efter optankning**. En særskilt ejerbeskyttet API-handling
+genåbner kun SoMe-budgettet og øger dets cache-generation. Gamle fejlede kald,
+reservationer og 10 DKK-engangsloftet bevares. Dobbeltklik med samme generation
+afvises. Et nyt providerkald sker først, når ejeren har valgt genoptagelse;
+andre redaktører kan ikke aktivere det. Dette beviser ikke, at optankningen er
+gennemført eller at modellen har returneret et gyldigt svar; begge dele kræver
+frisk produktionskontrol.

@@ -4,7 +4,7 @@ const mocks = vi.hoisted(() => ({ db: null as unknown, allowed: vi.fn() }));
 vi.mock('@/lib/firebase-admin', () => ({ getAdminDb: () => mocks.db }));
 vi.mock('@/lib/ai/no-paid-calls', () => ({ assertPaidAiAllowed: mocks.allowed }));
 vi.mock('@/lib/ai/provider-hold', () => ({ providerHoldRef: () => ({ path: 'holds/provider' }) }));
-import { claimSocialSubtitle, finishSocialSubtitle, socialSubtitleKey, socialSubtitleQuoteDkkMicros,
+import { claimSocialSubtitle, finishSocialSubtitle, resumeSocialSubtitleBudget, socialSubtitleKey, socialSubtitleQuoteDkkMicros,
   SOCIAL_SUBTITLE_LIMIT_DKK_MICROS } from '../lib/ai/social-subtitle-budget';
 
 const input = { articleId: '6accb9d4a4cfa06c22daba31', title: 'En titel',
@@ -43,7 +43,7 @@ describe('one-time SoMe AI cap', () => {
   it('reserves before transport and reuses the same cached result without paying twice', async () => {
     const rows = fakeStore(), prompt = JSON.stringify(input);
     const first = await claimSocialSubtitle(input, 'editor-1', prompt);
-    expect(first).toEqual({ state: 'reserved', key: socialSubtitleKey(input) });
+    expect(first).toEqual({ state: 'reserved', key: socialSubtitleKey(input), generation: 0 });
     expect(rows.get(budgetPath)?.usedUpperDkkMicros).toBe(socialSubtitleQuoteDkkMicros(prompt));
     expect(rows.get(budgetPath)?.calls).toBe(1);
     expect(await claimSocialSubtitle(input, 'editor-1', prompt)).toEqual({ state: 'pending' });
@@ -55,7 +55,7 @@ describe('one-time SoMe AI cap', () => {
     const rows = fakeStore();
     await claimSocialSubtitle(input, 'editor-1', JSON.stringify(input));
     await finishSocialSubtitle(socialSubtitleKey(input), null);
-    expect(await claimSocialSubtitle(input, 'editor-1', JSON.stringify(input))).toEqual({ state: 'failed', reason: 'unknown' });
+    expect(await claimSocialSubtitle(input, 'editor-1', JSON.stringify(input))).toEqual({ state: 'failed', reason: 'unknown', generation: 0 });
     expect(rows.get(budgetPath)?.calls).toBe(1);
   });
   it('stops all later SoMe provider calls after a terminal quota rejection', async () => {
@@ -66,7 +66,7 @@ describe('one-time SoMe AI cap', () => {
     expect(rows.get(budgetPath)?.blockedReason).toBe('quota_exhausted');
     const another = { ...input, articleId: '6accb9d4a4cfa06c22daba32' };
     expect(await claimSocialSubtitle(another, 'editor-1', JSON.stringify(another)))
-      .toEqual({ state: 'failed', reason: 'quota_exhausted' });
+      .toEqual({ state: 'failed', reason: 'quota_exhausted', generation: 0 });
     expect(rows.get(budgetPath)?.calls).toBe(1);
   });
   it('closes the SoMe circuit when reading an older cached quota failure', async () => {
@@ -74,9 +74,23 @@ describe('one-time SoMe AI cap', () => {
     await claimSocialSubtitle(input, 'editor-1', prompt);
     rows.set(`socialSubtitleAI/${socialSubtitleKey(input)}`, { status: 'failed', failure: 'quota_exhausted' });
     expect(await claimSocialSubtitle(input, 'editor-1', prompt))
-      .toEqual({ state: 'failed', reason: 'quota_exhausted' });
+      .toEqual({ state: 'failed', reason: 'quota_exhausted', generation: 0 });
     expect(rows.get(budgetPath)?.blocked).toBe(true);
     expect(rows.get(budgetPath)?.calls).toBe(1);
+  });
+  it('reopens only a quota-blocked budget with the matching generation and preserves prior failure', async () => {
+    const rows = fakeStore(), prompt = JSON.stringify(input), firstKey = socialSubtitleKey(input);
+    await claimSocialSubtitle(input, 'editor-1', prompt);
+    await finishSocialSubtitle(firstKey, null, null, 'quota_exhausted');
+    await expect(resumeSocialSubtitleBudget('owner', 1)).rejects.toThrow('social_subtitle_resume_conflict');
+    expect(await resumeSocialSubtitleBudget('owner', 0)).toEqual({ generation: 1 });
+    await expect(resumeSocialSubtitleBudget('owner', 0)).rejects.toThrow('social_subtitle_resume_conflict');
+    const second = await claimSocialSubtitle(input, 'editor-1', prompt);
+    expect(second).toEqual({ state: 'reserved', key: socialSubtitleKey(input, 1), generation: 1 });
+    expect(second.state === 'reserved' && second.key).not.toBe(firstKey);
+    expect(rows.get(`socialSubtitleAI/${firstKey}`)?.failure).toBe('quota_exhausted');
+    expect(rows.get(budgetPath)?.calls).toBe(2);
+    expect(rows.get(budgetPath)?.limitDkkMicros).toBe(SOCIAL_SUBTITLE_LIMIT_DKK_MICROS);
   });
   it('rejects a new call before transport if the fixed lifetime cap is exhausted', async () => {
     const rows = fakeStore();

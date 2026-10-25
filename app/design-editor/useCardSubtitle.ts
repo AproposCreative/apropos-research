@@ -15,7 +15,8 @@ export function subtitleIsReadable(text: string, size: SocialCardSize, family: s
   } catch { return false; }
 }
 
-type AiCopy = { state: 'ready'; candidates: string[] } | { state: 'failed'; error: string };
+type AiCopy = { state: 'ready'; candidates: string[] } |
+  { state: 'failed'; error: string; code?: string; generation?: number };
 
 /** Generate only when the original and any version-bound saved copy do not fit.
  * Per-key local and server caches avoid another paid call on format switching.
@@ -24,6 +25,7 @@ export function useCardSubtitle(id: string, title: string, original: string, siz
   const key = JSON.stringify([id, title, original, size, prepared ?? null]);
   const [entries, setEntries] = useState<Record<string, { text: string; status: 'manual' | 'original' }>>({});
   const [aiCopy, setAiCopy] = useState<Record<string, AiCopy>>({});
+  const [resuming, setResuming] = useState(false);
   const inFlight = useRef(new Set<string>());
   const [refresh, setRefresh] = useState(0);
   const entry = entries[key];
@@ -64,10 +66,18 @@ export function useCardSubtitle(id: string, title: string, original: string, siz
         }
         if (!response || response.status === 202) throw new Error('AI-forkortelsen tager for lang tid. Prøv at åbne artiklen igen.');
         const payload = await response.json();
-        if (!response.ok || !Array.isArray(payload.candidates)) throw new Error(payload.error || 'AI-forkortelsen kunne ikke gennemføres.');
+        if (!response.ok || !Array.isArray(payload.candidates)) {
+          const failure = new Error(payload.error || 'AI-forkortelsen kunne ikke gennemføres.') as Error &
+            { code?: string; generation?: number };
+          failure.code = payload.code;
+          failure.generation = payload.generation;
+          throw failure;
+        }
         setAiCopy(prev => ({ ...prev, [key]: { state: 'ready', candidates: payload.candidates } }));
       } catch (error) {
-        setAiCopy(prev => ({ ...prev, [key]: { state: 'failed', error: error instanceof Error ? error.message : 'AI-forkortelsen kunne ikke gennemføres.' } }));
+        const failure = error as Error & { code?: string; generation?: number };
+        setAiCopy(prev => ({ ...prev, [key]: { state: 'failed', error: error instanceof Error ? error.message : 'AI-forkortelsen kunne ikke gennemføres.',
+          code: failure?.code, generation: failure?.generation } }));
       } finally { inFlight.current.delete(key); }
     })();
   }, [key, needsAi, aiCopy, id, title, original, size]);
@@ -75,6 +85,27 @@ export function useCardSubtitle(id: string, title: string, original: string, siz
     setEntries(prev => ({ ...prev, [key]: { text: value, status } }));
   };
   const ai = aiCopy[key];
+  const failedGeneration = ai?.state === 'failed' ? ai.generation : undefined;
+  const canResume = ai?.state === 'failed' && ai.code === 'quota_exhausted' && Number.isSafeInteger(failedGeneration);
+  const resume = async () => {
+    if (!canResume || resuming) return;
+    setResuming(true);
+    try {
+      await auth?.authStateReady();
+      const token = await auth?.currentUser?.getIdToken();
+      if (!token) throw new Error('Log ind som ejer for at genoptage AI-forkortelse.');
+      const response = await fetch('/api/design-editor/resume-subtitle', {
+        method: 'POST', headers: { 'Content-Type': 'application/json', Authorization: `Bearer ${token}` },
+        body: JSON.stringify({ expectedGeneration: failedGeneration }), cache: 'no-store',
+      });
+      const payload = await response.json();
+      if (!response.ok || !payload.resumed) throw new Error(payload.error || 'Genoptagelsen mislykkedes.');
+      setAiCopy(prev => { const next = { ...prev }; delete next[key]; return next; });
+      setRefresh(value => value + 1);
+    } catch (error) {
+      setAiCopy(prev => ({ ...prev, [key]: { state: 'failed', error: error instanceof Error ? error.message : 'Genoptagelsen mislykkedes.' } }));
+    } finally { setResuming(false); }
+  };
   const aiCandidate = current && automatic && needsAi && ai?.state === 'ready'
     ? ai.candidates.find(value => subtitleIsReadable(value, size, family)) : undefined;
   const fit = aiCandidate
@@ -86,6 +117,7 @@ export function useCardSubtitle(id: string, title: string, original: string, siz
     key, text: fit?.text ?? input,
     status: entry?.status ?? fit?.source,
     truncated: fit?.truncated ?? false, error, edit, restore: () => edit(original, 'original'),
+    canResume, resuming, resume,
     reset: () => { setEntries(prev => { const next = { ...prev }; delete next[key]; return next; }); setRefresh(value => value + 1); },
     ready: !!(fit?.readable && (!needsAi || !!ai)),
     checking: !current || (needsAi && !ai),

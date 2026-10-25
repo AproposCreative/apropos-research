@@ -21,6 +21,12 @@ export default function SubtitleControls({ subtitle }: { subtitle: ReturnType<ty
       {subtitle.status === 'chatgpt' && <p className="mt-2 text-white/70">Bruger den SoMe-tekst, ChatGPT gemte med denne artikelversion.</p>}
       {subtitle.status === 'excerpt' && <p className="mt-2 text-white/70">{subtitle.truncated ? 'Viser begyndelsen af originalen med …' : 'Viser et afsluttet, ordret uddrag fra originalen.'} Dette er et uddrag, ikke en AI-omskrivning.</p>}
       {subtitle.error && <p className="mt-2 text-amber-300" role="alert">{subtitle.error}</p>}
+      {subtitle.canResume && <div className="mt-3">
+        <p className="mb-2 text-white/70">Brug kun genoptagelse, når OpenAI viser en positiv API-saldo. Det eksisterende engangsloft på 10 kr. gælder stadig.</p>
+        <button type="button" onClick={subtitle.resume} disabled={subtitle.resuming} className={buttonClass}>
+          {subtitle.resuming ? 'Genoptager…' : 'Prøv AI igen efter optankning'}
+        </button>
+      </div>}
       {!subtitle.ready && !subtitle.checking && <p className="mt-2 text-amber-300">Denne tekst passer ikke i læsbar størrelse. Vælg Tilpas automatisk, eller redigér den.</p>}
     </details>
   );
