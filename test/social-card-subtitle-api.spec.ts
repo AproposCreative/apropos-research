@@ -36,6 +36,17 @@ describe('SoMe subtitle AI', () => {
     expect(mocks.create).toHaveBeenCalledOnce();
     expect(mocks.finish).toHaveBeenCalledWith('cache-key', ['Kontrapunkt former vores visuelle hverdag.', 'Design sætter spor.'], expect.any(Object), undefined);
   });
+  it('shortens the card title using the same budget but a distinct cache key', async () => {
+    mocks.create.mockResolvedValueOnce({ choices: [{ finish_reason: 'stop', message: { content:
+      '{"main":"Kontrapunkt tegner Danmark på ny","shorter":"Er kundearbejde kunst?"}' } }],
+      usage: { prompt_tokens: 120, completion_tokens: 35 } });
+    const titleInput = { ...input, field: 'title' as const };
+    const response = await POST(request(titleInput));
+    expect(response.status).toBe(200);
+    expect((await response.json()).candidates).toEqual(['Kontrapunkt tegner Danmark på ny', 'Er kundearbejde kunst?']);
+    expect(mocks.claim).toHaveBeenCalledWith(titleInput, 'owner', expect.stringContaining('overskrifter'), 0);
+    expect(socialSubtitleKey(titleInput)).not.toBe(socialSubtitleKey(input));
+  });
   it('returns cached or pending copy without another provider request', async () => {
     mocks.claim.mockResolvedValueOnce({ state: 'ready', candidates: ['En gemt sætning.'] })
       .mockResolvedValueOnce({ state: 'pending' });
@@ -63,7 +74,7 @@ describe('SoMe subtitle AI', () => {
   });
   it('rejects malformed input before reservation', async () => {
     for (const body of [null, [], {}, { ...input, articleId: 'bad' }, { ...input, size: 'bad' }, { ...input, subtitle: 'x'.repeat(5001) }, { ...input, title: 'x'.repeat(1001) }, { ...input, subtitle: ' ' },
-      { ...input, variant: -1 }, { ...input, variant: 6 }, { ...input, variant: 1.5 }])
+      { ...input, variant: -1 }, { ...input, variant: 6 }, { ...input, variant: 1.5 }, { ...input, field: 'body' }])
       expect((await POST(request(body))).status).toBe(400);
     const invalid = new NextRequest('http://localhost/api/design-editor/shorten-subtitle', { method: 'POST', body: '{' });
     expect((await POST(invalid)).status).toBe(400);

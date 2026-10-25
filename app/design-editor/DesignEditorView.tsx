@@ -7,6 +7,8 @@ import SocialCardCanvas, { type SocialCardData, type SocialCardSize, DIMENSIONS 
 import { exportCardToPng, exportCardToJpegBlob } from './exportCardToPng';
 import { useCardSubtitle } from './useCardSubtitle';
 import SubtitleControls from './SubtitleControls';
+import { useCardTitle } from './useCardTitle';
+import TitleControls from './TitleControls';
 import { storage } from '@/lib/firebase';
 import { ref, uploadBytes, getDownloadURL } from 'firebase/storage';
 import { socialConfigured, socialPublishFeedback, uncertainSocialPublish } from '@/lib/social-publish-feedback';
@@ -215,6 +217,7 @@ export default function DesignEditorView({ onBack, embedMode }: DesignEditorView
   const [selected, setSelected] = useState<NormalizedArticle | null>(null);
   const [theme, setTheme] = useState<'light' | 'dark'>('light');
   const [size, setSize] = useState<SocialCardSize>('square');
+  const cardTitle = useCardTitle(selected?.id ?? '', selected?.title ?? '', selected?.excerpt ?? '', size);
   const subtitle = useCardSubtitle(selected?.id ?? '', selected?.title ?? '', selected?.excerpt ?? '', size, amiri.style.fontFamily, selected?.socialSubtitles?.[size]);
   const [exporting, setExporting] = useState(false);
   /** I AI Writer (embed) start med kanvas: undgå overlap med header. Desktop viser artikelpanel. */
@@ -524,7 +527,7 @@ export default function DesignEditorView({ onBack, embedMode }: DesignEditorView
     }
 
     return {
-      title: selected?.title ?? '',
+      title: cardTitle.text,
       excerpt: subtitle.text || undefined,
       theme,
       imageUrl: selected?.imageUrl ?? undefined,
@@ -538,7 +541,7 @@ export default function DesignEditorView({ onBack, embedMode }: DesignEditorView
         : (dedupedStoryBottomMetaLabels.length > 0 ? dedupedStoryBottomMetaLabels : undefined),
       rating: selected?.rating ?? undefined,
     };
-  }, [subtitle.text, selected?.title, selected?.excerpt, selected?.imageUrl, selected?.category, selected?.section, selected?.primaryTopic, selected?.topics, selected?.rating, selected?.authorId, eyebrowChips, authors, sections, topics, resolveName, size, storyMetaShuffleSeed, theme]);
+  }, [subtitle.text, cardTitle.text, selected?.excerpt, selected?.imageUrl, selected?.category, selected?.section, selected?.primaryTopic, selected?.topics, selected?.rating, selected?.authorId, eyebrowChips, authors, sections, topics, resolveName, size, storyMetaShuffleSeed, theme]);
 
   const filteredArticles = useMemo(() => {
     const q = articleSearch.trim().toLowerCase();
@@ -757,6 +760,7 @@ export default function DesignEditorView({ onBack, embedMode }: DesignEditorView
           className="flex-1 min-h-0 w-full flex flex-col items-center overflow-y-auto overflow-x-hidden touch-pan-y [overscroll-behavior:contain] justify-start bg-black/25 p-3 md:p-6 app-safe-bottom"
         >
           <div className="w-full flex min-h-min flex-col items-center gap-5 md:gap-6 pt-3 md:pt-6 pb-8">
+            {selected && <TitleControls key={cardTitle.key} title={cardTitle} />}
             {selected?.excerpt && (
               <SubtitleControls key={subtitle.key} subtitle={subtitle} />
             )}

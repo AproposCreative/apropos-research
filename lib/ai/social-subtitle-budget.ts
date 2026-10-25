@@ -12,7 +12,7 @@ const MAX_OUTPUT_TOKENS = 1024;
 export const SOCIAL_SUBTITLE_MAX_VARIANT = 5;
 const TERMINAL_PROVIDER_FAILURES = new Set(['quota_exhausted', 'authentication_failed', 'access_denied']);
 
-export type SocialSubtitleInput = { articleId: string; title: string; subtitle: string; size: 'square' | 'story' };
+export type SocialSubtitleInput = { articleId: string; title: string; subtitle: string; size: 'square' | 'story'; field?: 'title' };
 export type SocialSubtitleClaim =
   | { state: 'ready'; candidates: string[] }
   | { state: 'pending' }
@@ -28,7 +28,8 @@ function database() {
 
 export function socialSubtitleKey(input: SocialSubtitleInput, generation = 0, variant = 0) {
   return createHash('sha256').update(JSON.stringify([VERSION, input.articleId, input.title, input.subtitle, input.size,
-    ...(generation ? [generation] : []), ...(variant ? [`variant:${variant}`] : [])])).digest('hex');
+    ...(generation ? [generation] : []), ...(variant ? [`variant:${variant}`] : []),
+    ...(input.field === 'title' ? ['field:title'] : [])])).digest('hex');
 }
 
 /** Read only: grounds a requested new batch in the actual earlier suggestions. */
@@ -111,7 +112,7 @@ export async function claimSocialSubtitle(input: SocialSubtitleInput, uid: strin
       blocked: old?.blocked ?? false, generation, activatedAt: old?.activatedAt ?? now,
       activatedBy: old?.activatedBy ?? uid, pricingSource: 'https://developers.openai.com/api/docs/models/gpt-6-luna',
       priceCheckedAt: '2026-10-25', usdToDkkCeiling: 12, priceMultiplier: 2, updatedAt: now });
-    tx.create(cacheRef, { status: 'pending', articleId: input.articleId, size: input.size, variant,
+    tx.create(cacheRef, { status: 'pending', articleId: input.articleId, size: input.size, field: input.field ?? 'subtitle', variant,
       model: SOCIAL_SUBTITLE_MODEL, reservedUpperDkkMicros: amount, createdAt: now, createdBy: uid });
     return { state: 'reserved', key, generation };
   });
