@@ -80,3 +80,11 @@ afvises. Et nyt providerkald sker først, når ejeren har valgt genoptagelse;
 andre redaktører kan ikke aktivere det. Dette beviser ikke, at optankningen er
 gennemført eller at modellen har returneret et gyldigt svar; begge dele kræver
 frisk produktionskontrol.
+
+Genoptagelsesflowet er commit `810d2bc2`, deploy
+`dpl_98xuPEvcm3L189kFifShuoXjiAmM`, og det faktiske
+`ai.aproposmagazine.com`-alias pegede på denne READY deployment ved readback.
+27 målrettede tests, typekontrol og produktionsbuild bestod. Under den seneste
+billingkontrol viste OpenAI negativ API-saldo; ingen betaling eller
+genoptagelse er udført af dette arbejde. En reel AI-respons på det genåbnede
+flow er derfor endnu ikke verificeret.
