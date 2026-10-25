@@ -13,7 +13,7 @@ const budgetPath = 'aiExecutionPolicies/social-subtitle-10dkk-2026-10-25-v1';
 
 function fakeStore() {
   const rows = new Map<string, Record<string, unknown>>();
-  const ref = (path: string) => ({ path });
+  const ref = (path: string) => ({ path, get: async () => ({ exists: rows.has(path), data: () => rows.get(path) }) });
   const db = {
     collection: (name: string) => ({ doc: (id: string) => ref(`${name}/${id}`) }),
     runTransaction: async <T>(work: (tx: {
@@ -50,6 +50,21 @@ describe('one-time SoMe AI cap', () => {
     await finishSocialSubtitle(socialSubtitleKey(input), ['En afsluttet AI-sætning.']);
     expect(await claimSocialSubtitle(input, 'editor-1', prompt)).toEqual({ state: 'ready', candidates: ['En afsluttet AI-sætning.'] });
     expect(rows.get(budgetPath)?.calls).toBe(1);
+  });
+  it('only buys a new cached variant after the previous one is ready', async () => {
+    const rows = fakeStore(), prompt = JSON.stringify(input);
+    await expect(claimSocialSubtitle(input, 'editor-1', prompt, 1)).rejects.toThrow('social_subtitle_variant_not_ready');
+    expect(rows.has(budgetPath)).toBe(false);
+    await claimSocialSubtitle(input, 'editor-1', prompt);
+    await expect(claimSocialSubtitle(input, 'editor-1', prompt, 1)).rejects.toThrow('social_subtitle_variant_not_ready');
+    await finishSocialSubtitle(socialSubtitleKey(input), ['Første bud.']);
+    const next = await claimSocialSubtitle(input, 'editor-1', prompt, 1);
+    expect(next).toEqual({ state: 'reserved', key: socialSubtitleKey(input, 0, 1), generation: 0 });
+    expect(next.state === 'reserved' && next.key).not.toBe(socialSubtitleKey(input));
+    expect(await claimSocialSubtitle(input, 'editor-1', prompt, 1)).toEqual({ state: 'pending' });
+    await finishSocialSubtitle(socialSubtitleKey(input, 0, 1), ['Et andet bud.']);
+    expect(await claimSocialSubtitle(input, 'editor-1', prompt, 1)).toEqual({ state: 'ready', candidates: ['Et andet bud.'] });
+    expect(rows.get(budgetPath)?.calls).toBe(2);
   });
   it('treats an uncertain response as spent upper bound and never retries the same key', async () => {
     const rows = fakeStore();

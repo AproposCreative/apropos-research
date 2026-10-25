@@ -2,12 +2,13 @@ import { afterEach, beforeEach, describe, expect, it, vi } from 'vitest';
 import { NextRequest } from 'next/server';
 import { fitSubtitleAutomatically } from '../app/design-editor/subtitleCopy';
 import { socialSubtitleKey, socialSubtitleQuoteDkkMicros, SOCIAL_SUBTITLE_LIMIT_DKK_MICROS } from '../lib/ai/social-subtitle-budget';
-const mocks = vi.hoisted(() => ({ auth: vi.fn(), claim: vi.fn(), finish: vi.fn(), resume: vi.fn(), create: vi.fn() }));
+const mocks = vi.hoisted(() => ({ auth: vi.fn(), claim: vi.fn(), finish: vi.fn(), resume: vi.fn(), create: vi.fn(), previous: vi.fn() }));
 vi.mock('@/lib/editorial-access', () => ({ editorialRequestAccess: mocks.auth }));
 vi.mock('@/lib/config/env', () => ({ config: { openai: { apiKey: 'test-key' } } }));
 vi.mock('@/lib/ai/social-subtitle-budget', async importOriginal => {
   const actual = await importOriginal<typeof import('../lib/ai/social-subtitle-budget')>();
-  return { ...actual, claimSocialSubtitle: mocks.claim, finishSocialSubtitle: mocks.finish, resumeSocialSubtitleBudget: mocks.resume };
+  return { ...actual, claimSocialSubtitle: mocks.claim, finishSocialSubtitle: mocks.finish,
+    resumeSocialSubtitleBudget: mocks.resume, previousSocialSubtitleCandidates: mocks.previous };
 });
 vi.mock('openai', () => ({ default: class {
   chat = { completions: { create: mocks.create } };
@@ -18,6 +19,7 @@ const source = 'Kontrapunkt har formet DSB og TV 2. Nu undersøger Designmuseum 
 const input = { articleId: '6accb9d4a4cfa06c22daba31', title: 'Kontrapunkt har tegnet Danmark. Men er kundearbejde kunst?', subtitle: source, size: 'square' };
 const request = (body: unknown) => new NextRequest('http://localhost/api/design-editor/shorten-subtitle', { method: 'POST', body: JSON.stringify(body) });
 beforeEach(() => { vi.resetAllMocks(); mocks.auth.mockResolvedValue({ uid: 'owner', role: 'admin', owner: true });
+  mocks.previous.mockResolvedValue([]);
   mocks.claim.mockResolvedValue({ state: 'reserved', key: 'cache-key', generation: 0 }); mocks.finish.mockResolvedValue(undefined);
   mocks.resume.mockResolvedValue({ generation: 1 });
   mocks.create.mockResolvedValue({ choices: [{ finish_reason: 'stop', message: { content: '{"main":"Kontrapunkt former vores visuelle hverdag.","shorter":"Design sætter spor."}' } }],
@@ -43,13 +45,25 @@ describe('SoMe subtitle AI', () => {
     expect(pending.headers.get('retry-after')).toBe('1');
     expect(mocks.create).not.toHaveBeenCalled();
   });
+  it('requests a distinct, explicit variant and excludes earlier suggestions', async () => {
+    mocks.previous.mockResolvedValue(['Kontrapunkt former vores visuelle hverdag.']);
+    mocks.create.mockResolvedValueOnce({ choices: [{ finish_reason: 'stop', message: { content:
+      '{"main":"Designhistorie møder reklame på museet.","shorter":"Kontrapunkt former vores visuelle hverdag."}' } }],
+      usage: { prompt_tokens: 120, completion_tokens: 45 } });
+    const response = await POST(request({ ...input, variant: 1 }));
+    expect(response.status).toBe(200);
+    expect((await response.json()).candidates).toEqual(['Designhistorie møder reklame på museet.']);
+    expect(mocks.claim).toHaveBeenCalledWith(input, 'owner', expect.stringContaining('previousSuggestionsToAvoid'), 1);
+    expect(mocks.finish).toHaveBeenCalledWith('cache-key', ['Designhistorie møder reklame på museet.'], expect.any(Object), undefined);
+  });
   it('preserves authentication', async () => {
     mocks.auth.mockResolvedValue(null);
     expect((await POST(request(input))).status).toBe(401);
     expect(mocks.claim).not.toHaveBeenCalled();
   });
   it('rejects malformed input before reservation', async () => {
-    for (const body of [null, [], {}, { ...input, articleId: 'bad' }, { ...input, size: 'bad' }, { ...input, subtitle: 'x'.repeat(5001) }, { ...input, title: 'x'.repeat(1001) }, { ...input, subtitle: ' ' }])
+    for (const body of [null, [], {}, { ...input, articleId: 'bad' }, { ...input, size: 'bad' }, { ...input, subtitle: 'x'.repeat(5001) }, { ...input, title: 'x'.repeat(1001) }, { ...input, subtitle: ' ' },
+      { ...input, variant: -1 }, { ...input, variant: 6 }, { ...input, variant: 1.5 }])
       expect((await POST(request(body))).status).toBe(400);
     const invalid = new NextRequest('http://localhost/api/design-editor/shorten-subtitle', { method: 'POST', body: '{' });
     expect((await POST(invalid)).status).toBe(400);

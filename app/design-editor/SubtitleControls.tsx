@@ -14,9 +14,23 @@ export default function SubtitleControls({ subtitle }: { subtitle: ReturnType<ty
       </label>
       <div className="mt-3 flex flex-wrap gap-2">
         <button type="button" onClick={subtitle.reset} className={buttonClass}>Tilpas automatisk</button>
+        <button type="button" onClick={subtitle.nextVariant} disabled={!subtitle.canGetMore} className={buttonClass}>
+          {subtitle.checking ? 'Henter forslag…' : 'Nye forslag med AI'}
+        </button>
         <button type="button" onClick={subtitle.restore} className={buttonClass}>Gendan original</button>
       </div>
-      <p className="mt-3 text-white/70 leading-relaxed">Kun underteksten på billedet ændres. Den oprindelige artikel bevares.</p>
+      {subtitle.options.length > 0 && <div className="mt-3" aria-label="Forslag til undertekst">
+        <p className="mb-2 text-white/70">Vælg den vinkel, der passer bedst til artiklen:</p>
+        <div className="flex flex-col gap-2">
+          {subtitle.options.map((option, index) => <button key={`${index}-${option}`} type="button"
+            onClick={() => subtitle.choose(option)} aria-pressed={subtitle.status === 'ai' && subtitle.text === option}
+            className={`${buttonClass} text-left leading-relaxed ${subtitle.status === 'ai' && subtitle.text === option ? 'border-white bg-white/15' : ''}`}>
+            {option}
+          </button>)}
+        </div>
+      </div>}
+      {subtitle.maxVariantsReached && <p className="mt-2 text-white/70">Alle forslag til denne artikelversion er hentet. Du kan stadig vælge eller redigere dem.</p>}
+      <p className="mt-3 text-white/70 leading-relaxed">Kun underteksten på billedet ændres. Den oprindelige artikel bevares. Hvert nyt forslagssæt bruger ét AI-kald inden for det eksisterende engangsloft på 10 kr.</p>
       {subtitle.status === 'ai' && <p className="mt-2 text-white/70">Forkortet automatisk med AI til dette billedformat. Kontrollér teksten før udgivelse.</p>}
       {subtitle.status === 'chatgpt' && <p className="mt-2 text-white/70">Bruger den SoMe-tekst, ChatGPT gemte med denne artikelversion.</p>}
       {subtitle.status === 'excerpt' && <p className="mt-2 text-white/70">{subtitle.truncated ? 'Viser begyndelsen af originalen med …' : 'Viser et afsluttet, ordret uddrag fra originalen.'} Dette er et uddrag, ikke en AI-omskrivning.</p>}

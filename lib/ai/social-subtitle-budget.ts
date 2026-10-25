@@ -9,6 +9,7 @@ export const SOCIAL_SUBTITLE_MODEL = 'gpt-6-luna';
 const VERSION = 'social-subtitle-ai-v1';
 const BUDGET_ID = 'social-subtitle-10dkk-2026-10-25-v1';
 const MAX_OUTPUT_TOKENS = 512;
+export const SOCIAL_SUBTITLE_MAX_VARIANT = 5;
 const TERMINAL_PROVIDER_FAILURES = new Set(['quota_exhausted', 'authentication_failed', 'access_denied']);
 
 export type SocialSubtitleInput = { articleId: string; title: string; subtitle: string; size: 'square' | 'story' };
@@ -25,9 +26,25 @@ function database() {
   return db;
 }
 
-export function socialSubtitleKey(input: SocialSubtitleInput, generation = 0) {
+export function socialSubtitleKey(input: SocialSubtitleInput, generation = 0, variant = 0) {
   return createHash('sha256').update(JSON.stringify([VERSION, input.articleId, input.title, input.subtitle, input.size,
-    ...(generation ? [generation] : [])])).digest('hex');
+    ...(generation ? [generation] : []), ...(variant ? [`variant:${variant}`] : [])])).digest('hex');
+}
+
+/** Read only: grounds a requested new batch in the actual earlier suggestions. */
+export async function previousSocialSubtitleCandidates(input: SocialSubtitleInput, variant: number): Promise<string[]> {
+  if (!Number.isSafeInteger(variant) || variant < 0 || variant > SOCIAL_SUBTITLE_MAX_VARIANT) throw new Error('social_subtitle_variant_invalid');
+  if (!variant) return [];
+  const db = database();
+  const budget = (await db.collection('aiExecutionPolicies').doc(BUDGET_ID).get()).data();
+  const generation = budget?.generation ?? 0;
+  if (!Number.isSafeInteger(generation) || generation < 0 || generation > 100) throw new Error('social_subtitle_budget_invalid');
+  const snapshots = await Promise.all(Array.from({ length: variant }, (_, index) =>
+    db.collection('socialSubtitleAI').doc(socialSubtitleKey(input, generation, index)).get()));
+  return [...new Set(snapshots.flatMap(snapshot => {
+    const row = snapshot.data();
+    return row?.status === 'ready' && Array.isArray(row.candidates) ? row.candidates.filter((x: unknown): x is string => typeof x === 'string') : [];
+  }))];
 }
 
 /** Byte count plus protocol overhead bounds input tokens; double current Standard
@@ -41,7 +58,8 @@ export function socialSubtitleQuoteDkkMicros(prompt: string) {
   return Math.ceil(usdMicros * 12 * 2);
 }
 
-export async function claimSocialSubtitle(input: SocialSubtitleInput, uid: string, prompt: string): Promise<SocialSubtitleClaim> {
+export async function claimSocialSubtitle(input: SocialSubtitleInput, uid: string, prompt: string, variant = 0): Promise<SocialSubtitleClaim> {
+  if (!Number.isSafeInteger(variant) || variant < 0 || variant > SOCIAL_SUBTITLE_MAX_VARIANT) throw new Error('social_subtitle_variant_invalid');
   assertPaidAiAllowed();
   const db = database();
   const budgetRef = db.collection('aiExecutionPolicies').doc(BUDGET_ID);
@@ -53,9 +71,10 @@ export async function claimSocialSubtitle(input: SocialSubtitleInput, uid: strin
     const old = budgetSnap.data();
     const generation = old?.generation ?? 0;
     if (!Number.isSafeInteger(generation) || generation < 0 || generation > 100) throw new Error('social_subtitle_budget_invalid');
-    const key = socialSubtitleKey(input, generation);
+    const key = socialSubtitleKey(input, generation, variant);
     const cacheRef = db.collection('socialSubtitleAI').doc(key);
-    const [cacheSnap, holdSnap] = await Promise.all([tx.get(cacheRef), tx.get(holdRef)]);
+    const priorRef = variant ? db.collection('socialSubtitleAI').doc(socialSubtitleKey(input, generation, variant - 1)) : null;
+    const [cacheSnap, holdSnap, priorSnap] = await Promise.all([tx.get(cacheRef), tx.get(holdRef), priorRef ? tx.get(priorRef) : Promise.resolve(null)]);
     const cache = cacheSnap.data();
     if (cache?.status === 'ready' && Array.isArray(cache.candidates) && cache.candidates.every((x: unknown) => typeof x === 'string')) {
       return { state: 'ready', candidates: cache.candidates };
@@ -75,6 +94,9 @@ export async function claimSocialSubtitle(input: SocialSubtitleInput, uid: strin
       }
       return { state: 'failed', reason: typeof cache.failure === 'string' ? cache.failure : 'unknown', generation };
     }
+    // A fresh paid variant must follow a completed earlier batch. Repeated clicks
+    // and forged high variant numbers cannot skip ahead to spend the budget.
+    if (variant && priorSnap?.data()?.status !== 'ready') throw new Error('social_subtitle_variant_not_ready');
     if (holdSnap.data()?.blocked === true) throw new Error('social_subtitle_provider_hold');
     const used = old?.usedUpperDkkMicros ?? 0;
     if (old && (old.id !== BUDGET_ID || old.mode !== VERSION || old.limitDkkMicros !== SOCIAL_SUBTITLE_LIMIT_DKK_MICROS ||
@@ -89,7 +111,7 @@ export async function claimSocialSubtitle(input: SocialSubtitleInput, uid: strin
       blocked: old?.blocked ?? false, generation, activatedAt: old?.activatedAt ?? now,
       activatedBy: old?.activatedBy ?? uid, pricingSource: 'https://developers.openai.com/api/docs/models/gpt-6-luna',
       priceCheckedAt: '2026-10-25', usdToDkkCeiling: 12, priceMultiplier: 2, updatedAt: now });
-    tx.create(cacheRef, { status: 'pending', articleId: input.articleId, size: input.size,
+    tx.create(cacheRef, { status: 'pending', articleId: input.articleId, size: input.size, variant,
       model: SOCIAL_SUBTITLE_MODEL, reservedUpperDkkMicros: amount, createdAt: now, createdBy: uid });
     return { state: 'reserved', key, generation };
   });
