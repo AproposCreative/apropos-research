@@ -54,6 +54,28 @@ describe('SoMe subtitles without paid backend AI', () => {
     expect(result.text).toBe('Første sætning Første sætning…');
     expect(result.truncated).toBe(true);
   });
+  it('keeps the Lanterns verdict as a complete, source-exact clause instead of clipping its lead', () => {
+    const original = 'Aaron Pierre og Kyle Chandler efterforsker en kosmisk forbrydelse, men HBO-serien giver mig hverken nok superhelt eller nok menneske.';
+    expect(fitSubtitleAutomatically(original, undefined, text => text.length <= 75)).toEqual({
+      text: 'HBO-serien giver mig hverken nok superhelt eller nok menneske.',
+      source: 'excerpt', readable: true, truncated: false,
+    });
+    expect(fitSubtitleAutomatically(original, undefined, text => text.length <= 140).text).toBe(original);
+    const segmenter = Intl.Segmenter;
+    try {
+      Object.defineProperty(Intl, 'Segmenter', { value: undefined, configurable: true });
+      expect(fitSubtitleAutomatically(original, undefined, text => text.length <= 75).text)
+        .toBe('HBO-serien giver mig hverken nok superhelt eller nok menneske.');
+    } finally {
+      Object.defineProperty(Intl, 'Segmenter', { value: segmenter, configurable: true });
+    }
+  });
+  it('does not promote a dependent contrast fragment to standalone copy', () => {
+    const original = 'Serien undersøger de to helte, men ikke deres venskab.';
+    expect(fitSubtitleAutomatically(original, undefined, text => text.length <= 35)).toMatchObject({
+      source: 'excerpt', truncated: true,
+    });
+  });
   it('uses marked word-boundary excerpts when native segmentation is unavailable', () => {
     const original = Intl.Segmenter;
     try { Object.defineProperty(Intl, 'Segmenter', { value: undefined, configurable: true });

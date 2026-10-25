@@ -18,10 +18,11 @@ export function subtitleIsReadable(text: string, size: SocialCardSize, family: s
 export function useCardSubtitle(id: string, title: string, original: string, size: SocialCardSize, family: string, prepared?: string) {
   const key = JSON.stringify([id, title, original, size, prepared ?? null]);
   const [entries, setEntries] = useState<Record<string, { text: string; status: 'manual' | 'original' }>>({});
+  const [refresh, setRefresh] = useState(0);
   const entry = entries[key];
   const input = entry?.text ?? original;
   const automatic = !entry;
-  const [checked, setChecked] = useState<{ key: string; input: string; family: string; automatic: boolean; fit: SubtitleFit } | null>(null);
+  const [checked, setChecked] = useState<{ key: string; input: string; family: string; automatic: boolean; refresh: number; fit: SubtitleFit } | null>(null);
   useEffect(() => {
     let cancelled = false;
     document.fonts.load(`italic 48px ${family}`).then(() => {
@@ -29,20 +30,20 @@ export function useCardSubtitle(id: string, title: string, original: string, siz
       const fits = (value: string) => !value.trim() || subtitleIsReadable(value, size, family);
       const fit = automatic ? fitSubtitleAutomatically(original, prepared, fits) :
         { text: input, readable: fits(input), source: 'original' as const, truncated: false };
-      setChecked({ key, input, family, automatic, fit });
-    }).catch(() => { if (!cancelled) setChecked({ key, input, family, automatic,
+      setChecked({ key, input, family, automatic, refresh, fit });
+    }).catch(() => { if (!cancelled) setChecked({ key, input, family, automatic, refresh,
       fit: { text: input, readable: false, source: 'original', truncated: false } }); });
     return () => { cancelled = true; };
-  }, [key, input, size, family, automatic, original, prepared]);
+  }, [key, input, size, family, automatic, original, prepared, refresh]);
   const edit = (value: string, status: 'manual' | 'original' = 'manual') => {
     setEntries(prev => ({ ...prev, [key]: { text: value, status } }));
   };
-  const current = checked?.key === key && checked.input === input && checked.family === family && checked.automatic === automatic;
+  const current = checked?.key === key && checked.input === input && checked.family === family && checked.automatic === automatic && checked.refresh === refresh;
   return {
     key, text: current ? checked.fit.text : input,
     status: entry?.status ?? (current ? checked.fit.source : undefined),
     truncated: current && checked.fit.truncated, edit, restore: () => edit(original, 'original'),
-    reset: () => setEntries(prev => { const next = { ...prev }; delete next[key]; return next; }),
+    reset: () => { setEntries(prev => { const next = { ...prev }; delete next[key]; return next; }); setRefresh(value => value + 1); },
     ready: current && checked.fit.readable,
     checking: !current,
   };

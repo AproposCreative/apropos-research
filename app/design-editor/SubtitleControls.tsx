@@ -18,7 +18,7 @@ export default function SubtitleControls({ subtitle }: { subtitle: ReturnType<ty
       </div>
       <p className="mt-3 text-white/70 leading-relaxed">Kun underteksten på billedet ændres. Den oprindelige artikel bevares.</p>
       {subtitle.status === 'chatgpt' && <p className="mt-2 text-white/70">Bruger den SoMe-tekst, ChatGPT gemte med denne artikelversion.</p>}
-      {subtitle.status === 'excerpt' && <p className="mt-2 text-white/70">{subtitle.truncated ? 'Viser begyndelsen af originalen med …' : 'Viser et afsluttet uddrag fra begyndelsen af originalen.'} Dette er et uddrag, ikke en AI-omskrivning.</p>}
+      {subtitle.status === 'excerpt' && <p className="mt-2 text-white/70">{subtitle.truncated ? 'Viser begyndelsen af originalen med …' : 'Viser et afsluttet, ordret uddrag fra originalen.'} Dette er et uddrag, ikke en AI-omskrivning.</p>}
       {!subtitle.ready && !subtitle.checking && <p className="mt-2 text-amber-300">Denne tekst passer ikke i læsbar størrelse. Vælg Tilpas automatisk, eller redigér den.</p>}
     </details>
   );

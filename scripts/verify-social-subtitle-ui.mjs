@@ -11,6 +11,9 @@ import { chromium } from 'playwright';
 const title = 'Kontrapunkt har tegnet Danmark. Men er kundearbejde kunst?';
 const subtitle = 'Kontrapunkt har formet DSB og TV 2. Nu undersøger Designmuseum Danmark bureauets arbejde og grænsen mellem designhistorie og reklame.';
 const first = 'Kontrapunkt har formet DSB og TV 2.';
+const lanternsTitle = 'Anmeldelse: Lanterns, sæson 1. Hvornår bliver det sejt?';
+const lanternsSubtitle = 'Aaron Pierre og Kyle Chandler efterforsker en kosmisk forbrydelse, men HBO-serien giver mig hverken nok superhelt eller nok menneske.';
+const lanternsShort = 'HBO-serien giver mig hverken nok superhelt eller nok menneske.';
 // Optional real bundled fonts; never downloads fonts during verification.
 const buildDir = process.env.APROPOS_BUILD_DIR;
 let fontCss = '';
@@ -32,7 +35,8 @@ window.fetch=async(url,options={})=>{
  if(options.method&&options.method!=='GET')throw Error('Unexpected mutation');
  if(url==='/api/webflow/sample-articles')return Response.json({items:[
   {id:'kontrapunkt',fieldData:{name:${JSON.stringify(title)},subtitle:${JSON.stringify(subtitle)},slug:'kontrapunkt',section:'Kultur',topic:'Kultur & Mening','post-body':'<p>Uændret artikel.</p>','mobile-image':'/fixture.svg'}},
-  {id:'other',fieldData:{name:'Anden artikel',subtitle:'En helt anden artikel.',section:'Kultur','mobile-image':'/fixture.svg'},socialSubtitles:{square:'En gemt kort SoMe-tekst.',story:'En gemt længere SoMe-tekst til story.'}}]});
+  {id:'other',fieldData:{name:'Anden artikel',subtitle:'En helt anden artikel.',section:'Kultur','mobile-image':'/fixture.svg'},socialSubtitles:{square:'En gemt kort SoMe-tekst.',story:'En gemt længere SoMe-tekst til story.'}},
+  {id:'lanterns',fieldData:{name:${JSON.stringify(lanternsTitle)},subtitle:${JSON.stringify(lanternsSubtitle)},section:'Serier & Film','mobile-image':'/fixture.svg'}}]});
  if(['/api/webflow/authors','/api/webflow/sections','/api/webflow/topics'].includes(url))return Response.json({items:[]});
  if(url==='/api/instagram/publish')return Response.json({configured:false});
  throw Error('Unexpected request '+url);
@@ -112,11 +116,21 @@ try {
     await page.waitForFunction(()=>document.querySelector('summary')?.textContent.endsWith(' · Automatisk tilpasset'));
     assert.equal(await field.inputValue(),'En gemt længere SoMe-tekst til story.');
     await page.screenshot({path:'output/social-subtitle/'+viewport.width+'-prepared-story.png'});
+    await page.getByRole('button',{name:'1:1',exact:true}).click();
+    if(viewport.width<768)await page.getByRole('button',{name:'Artikler',exact:true}).click();
+    await page.getByRole('button',{name:lanternsTitle,exact:true}).filter({visible:true}).click();
+    await page.locator('summary').click();
+    await page.waitForFunction(()=>document.querySelector('summary')?.textContent.endsWith(' · Automatisk tilpasset'));
+    assert.equal(await field.inputValue(),lanternsShort);
+    await page.getByRole('button',{name:'Tilpas automatisk',exact:true}).click();
+    await page.waitForFunction(()=>document.querySelector('summary')?.textContent.endsWith(' · Automatisk tilpasset'));
+    assert.equal(await field.inputValue(),lanternsShort);
+    await page.screenshot({path:'output/social-subtitle/'+viewport.width+'-lanterns.png'});
     const state=await page.evaluate(()=>({calls:fixture.calls,errors:fixture.errors,overflow:document.documentElement.scrollWidth>innerWidth}));
     assert.deepEqual(state.errors,[]);
     assert(!state.overflow);
     assert(state.calls.every(call=>call.method==='GET'&&!call.url.includes('design-editor')));
-    reports.push({viewport,requests:state.calls.length,modelRequests:0,automaticFit:true,preparedCopy:true,shorteningClicks:0,manualEdit:true,restore:true,formatIsolation:true,export:true});
+    reports.push({viewport,requests:state.calls.length,modelRequests:0,automaticFit:true,preparedCopy:true,lanternsCompleteVerdict:true,manualEdit:true,restore:true,formatIsolation:true,export:true});
     await page.close();
   }
   console.log(JSON.stringify({fixture:true,realHeader:true,font:buildDir?'Production bundled Amiri':'Georgia (not production Amiri)',reports},null,2));
