@@ -1,42 +1,77 @@
 import { afterEach, beforeEach, describe, expect, it, vi } from 'vitest';
-import { readFileSync } from 'node:fs';
 import { NextRequest } from 'next/server';
 import { fitSubtitleAutomatically } from '../app/design-editor/subtitleCopy';
-const mocks = vi.hoisted(() => ({ auth: vi.fn(), client: vi.fn(), create: vi.fn() }));
-vi.mock('@/lib/newsletter/auth-request', () => ({ getNewsletterUserIdFromRequest: mocks.auth }));
-vi.mock('@/lib/openai', () => ({ getOpenAIClient: mocks.client, models: { default: 'must-not-run' } }));
+import { socialSubtitleKey, socialSubtitleQuoteDkkMicros, SOCIAL_SUBTITLE_LIMIT_DKK_MICROS } from '../lib/ai/social-subtitle-budget';
+const mocks = vi.hoisted(() => ({ auth: vi.fn(), claim: vi.fn(), finish: vi.fn(), create: vi.fn() }));
+vi.mock('@/lib/editorial-access', () => ({ editorialRequestAccess: mocks.auth }));
+vi.mock('@/lib/config/env', () => ({ config: { openai: { apiKey: 'test-key' } } }));
+vi.mock('@/lib/ai/social-subtitle-budget', async importOriginal => {
+  const actual = await importOriginal<typeof import('../lib/ai/social-subtitle-budget')>();
+  return { ...actual, claimSocialSubtitle: mocks.claim, finishSocialSubtitle: mocks.finish };
+});
+vi.mock('openai', () => ({ default: class {
+  chat = { completions: { create: mocks.create } };
+} }));
 import { POST } from '../app/api/design-editor/shorten-subtitle/route';
 const source = 'Kontrapunkt har formet DSB og TV 2. Nu undersøger Designmuseum Danmark bureauets arbejde og grænsen mellem designhistorie og reklame.';
-const input = { title: 'Kontrapunkt har tegnet Danmark. Men er kundearbejde kunst?', subtitle: source, size: 'square' };
+const input = { articleId: '6accb9d4a4cfa06c22daba31', title: 'Kontrapunkt har tegnet Danmark. Men er kundearbejde kunst?', subtitle: source, size: 'square' };
 const request = (body: unknown) => new NextRequest('http://localhost/api/design-editor/shorten-subtitle', { method: 'POST', body: JSON.stringify(body) });
-beforeEach(() => { vi.resetAllMocks(); mocks.auth.mockResolvedValue('user'); mocks.client.mockReturnValue({ chat: { completions: { create: mocks.create } } }); });
-afterEach(() => { expect(mocks.client).not.toHaveBeenCalled(); expect(mocks.create).not.toHaveBeenCalled(); vi.unstubAllGlobals(); });
+beforeEach(() => { vi.resetAllMocks(); mocks.auth.mockResolvedValue({ uid: 'owner', role: 'admin', owner: true });
+  mocks.claim.mockResolvedValue({ state: 'reserved', key: 'cache-key' }); mocks.finish.mockResolvedValue(undefined);
+  mocks.create.mockResolvedValue({ choices: [{ finish_reason: 'stop', message: { content: '{"main":"Kontrapunkt former vores visuelle hverdag.","shorter":"Design sætter spor."}' } }],
+    usage: { prompt_tokens: 100, completion_tokens: 40 } }); });
+afterEach(() => { vi.unstubAllGlobals(); });
 
-describe('SoMe subtitles without paid backend AI', () => {
-  it('retires paid requests from old tabs even when a client could exist', async () => {
-    for (let attempt = 0; attempt < 3; attempt++) {
-      const response = await POST(request(input));
-      expect(response.status).toBe(410);
-      expect(response.headers.get('cache-control')).toBe('no-store');
-      expect(await response.json()).toMatchObject({ code: 'subtitle_chatgpt_first', paidAiCalls: 0 });
-    }
-    expect(input.subtitle).toBe(source);
+describe('SoMe subtitle AI', () => {
+  it('generates complete Danish candidates after one budget reservation', async () => {
+    const response = await POST(request(input));
+    expect(response.status).toBe(200);
+    expect(response.headers.get('cache-control')).toBe('no-store');
+    expect(await response.json()).toEqual({ candidates: ['Kontrapunkt former vores visuelle hverdag.', 'Design sætter spor.'], source: 'ai' });
+    expect(mocks.claim).toHaveBeenCalledOnce();
+    expect(mocks.create).toHaveBeenCalledOnce();
+    expect(mocks.finish).toHaveBeenCalledWith('cache-key', ['Kontrapunkt former vores visuelle hverdag.', 'Design sætter spor.'], expect.any(Object), undefined);
   });
-  it('works without an OpenAI client', async () => {
-    mocks.client.mockReturnValue(null);
-    const result = await (await POST(request(input))).json();
-    expect(result.error).toContain('Genindlæs');
-    expect(result).not.toHaveProperty('candidates');
+  it('returns cached or pending copy without another provider request', async () => {
+    mocks.claim.mockResolvedValueOnce({ state: 'ready', candidates: ['En gemt sætning.'] })
+      .mockResolvedValueOnce({ state: 'pending' });
+    expect((await (await POST(request(input))).json()).candidates).toEqual(['En gemt sætning.']);
+    const pending = await POST(request(input));
+    expect(pending.status).toBe(202);
+    expect(pending.headers.get('retry-after')).toBe('1');
+    expect(mocks.create).not.toHaveBeenCalled();
   });
   it('preserves authentication', async () => {
     mocks.auth.mockResolvedValue(null);
     expect((await POST(request(input))).status).toBe(401);
+    expect(mocks.claim).not.toHaveBeenCalled();
   });
-  it('rejects malformed input without any generation', async () => {
-    for (const body of [null, [], {}, { ...input, size: 'bad' }, { ...input, subtitle: 'x'.repeat(5001) }, { ...input, title: 'x'.repeat(1001) }, { ...input, subtitle: ' ' }])
+  it('rejects malformed input before reservation', async () => {
+    for (const body of [null, [], {}, { ...input, articleId: 'bad' }, { ...input, size: 'bad' }, { ...input, subtitle: 'x'.repeat(5001) }, { ...input, title: 'x'.repeat(1001) }, { ...input, subtitle: ' ' }])
       expect((await POST(request(body))).status).toBe(400);
     const invalid = new NextRequest('http://localhost/api/design-editor/shorten-subtitle', { method: 'POST', body: '{' });
     expect((await POST(invalid)).status).toBe(400);
+    expect(mocks.claim).not.toHaveBeenCalled();
+  });
+  it('does not retry a paid failure or claim an invalid model response', async () => {
+    mocks.create.mockResolvedValueOnce({ choices: [{ finish_reason: 'stop', message: { content: '{"main":"En ufærdig…","shorter":"Også ufærdig…"}' } }] });
+    expect((await POST(request(input))).status).toBe(502);
+    expect(mocks.finish).toHaveBeenCalledWith('cache-key', null, undefined, 'invalid_response');
+    mocks.claim.mockResolvedValue({ state: 'failed', reason: 'invalid_response' });
+    expect((await POST(request(input))).status).toBe(502);
+    expect(mocks.create).toHaveBeenCalledOnce();
+  });
+  it('returns a clear cap error before transport', async () => {
+    mocks.claim.mockRejectedValue(new Error('social_subtitle_budget_exceeded'));
+    expect((await POST(request(input))).status).toBe(429);
+    expect(mocks.create).not.toHaveBeenCalled();
+  });
+  it('uses a stable content key and a bounded per-call reserve below 10 kr.', () => {
+    expect(socialSubtitleKey(input)).toBe(socialSubtitleKey({ ...input }));
+    expect(socialSubtitleKey(input)).not.toBe(socialSubtitleKey({ ...input, subtitle: source + ' Ny version.' }));
+    const quote = socialSubtitleQuoteDkkMicros(JSON.stringify(input));
+    expect(quote).toBeGreaterThan(0);
+    expect(quote).toBeLessThan(SOCIAL_SUBTITLE_LIMIT_DKK_MICROS);
   });
   it('automatically fits Kontrapunkt without a click or a rewrite', () => {
     expect(fitSubtitleAutomatically(source, undefined, text => text.length <= 90)).toEqual({
@@ -94,16 +129,5 @@ describe('SoMe subtitles without paid backend AI', () => {
     const text = 'Museet undersøger bureauets arbejde og grænsen mellem designhistorie og reklame';
     const result = fitSubtitleAutomatically(text, undefined, t => t.length <= 35);
     expect(result).toMatchObject({ text: 'Museet undersøger bureauets…', readable: true, truncated: true });
-  });
-  it('contains no model imports or network generation in route, hook or controls', () => {
-    for (const file of ['app/api/design-editor/shorten-subtitle/route.ts', 'app/design-editor/useCardSubtitle.ts', 'app/design-editor/SubtitleControls.tsx', 'app/design-editor/subtitleCopy.ts']) {
-      const code = readFileSync(file, 'utf8');
-      expect(code).not.toMatch(/getOpenAIClient|withSharedCostContext|chat\.completions|fetch\s*\(/);
-    }
-    const view = readFileSync('app/design-editor/DesignEditorView.tsx', 'utf8');
-    expect(view).not.toContain('Forkort med AI');
-    expect(view).toContain('if (!subtitle.ready)');
-    expect(view).toContain('excerpt: subtitle.text || undefined');
-    expect(readFileSync('app/design-editor/SubtitleControls.tsx', 'utf8')).not.toContain('clipboard');
   });
 });

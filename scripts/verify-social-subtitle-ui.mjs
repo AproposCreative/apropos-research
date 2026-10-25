@@ -1,5 +1,5 @@
 // Real SoMe view/hook/canvas/export; isolated CMS, font and Firebase fixtures.
-// No credentials, remote services, CMS writes, model calls or social publishing.
+// No credentials, remote services, CMS writes, real model calls or social publishing.
 import assert from 'node:assert/strict';
 import { build } from 'esbuild';
 import { createServer } from 'node:http';
@@ -10,10 +10,10 @@ import { chromium } from 'playwright';
 
 const title = 'Kontrapunkt har tegnet Danmark. Men er kundearbejde kunst?';
 const subtitle = 'Kontrapunkt har formet DSB og TV 2. Nu undersøger Designmuseum Danmark bureauets arbejde og grænsen mellem designhistorie og reklame.';
-const first = 'Kontrapunkt har formet DSB og TV 2.';
+const first = 'Kontrapunkt præger Danmarks visuelle hverdag.';
 const lanternsTitle = 'Anmeldelse: Lanterns, sæson 1. Hvornår bliver det sejt?';
 const lanternsSubtitle = 'Aaron Pierre og Kyle Chandler efterforsker en kosmisk forbrydelse, men HBO-serien giver mig hverken nok superhelt eller nok menneske.';
-const lanternsShort = 'HBO-serien giver mig hverken nok superhelt eller nok menneske.';
+const lanternsShort = 'HBO-serien mangler både superhelt og menneske.';
 // Optional real bundled fonts; never downloads fonts during verification.
 const buildDir = process.env.APROPOS_BUILD_DIR;
 let fontCss = '';
@@ -32,11 +32,16 @@ window.addEventListener('error',e=>fixture.errors.push(e.message));
 window.addEventListener('unhandledrejection',e=>fixture.errors.push(String(e.reason)));
 window.fetch=async(url,options={})=>{
  fixture.calls.push({url:String(url),method:options.method||'GET'});
+ if(url==='/api/design-editor/shorten-subtitle'&&options.method==='POST'){
+  const body=JSON.parse(options.body);
+  if(!options.headers?.Authorization?.startsWith('Bearer '))throw Error('Missing editor token');
+  return Response.json({candidates:[body.subtitle.includes('HBO-serien')?${JSON.stringify(lanternsShort)}:${JSON.stringify(first)}]});
+ }
  if(options.method&&options.method!=='GET')throw Error('Unexpected mutation');
  if(url==='/api/webflow/sample-articles')return Response.json({items:[
-  {id:'kontrapunkt',fieldData:{name:${JSON.stringify(title)},subtitle:${JSON.stringify(subtitle)},slug:'kontrapunkt',section:'Kultur',topic:'Kultur & Mening','post-body':'<p>Uændret artikel.</p>','mobile-image':'/fixture.svg'}},
+  {id:'6accb9d4a4cfa06c22daba31',fieldData:{name:${JSON.stringify(title)},subtitle:${JSON.stringify(subtitle)},slug:'kontrapunkt',section:'Kultur',topic:'Kultur & Mening','post-body':'<p>Uændret artikel.</p>','mobile-image':'/fixture.svg'}},
   {id:'other',fieldData:{name:'Anden artikel',subtitle:'En helt anden artikel.',section:'Kultur','mobile-image':'/fixture.svg'},socialSubtitles:{square:'En gemt kort SoMe-tekst.',story:'En gemt længere SoMe-tekst til story.'}},
-  {id:'lanterns',fieldData:{name:${JSON.stringify(lanternsTitle)},subtitle:${JSON.stringify(lanternsSubtitle)},section:'Serier & Film','mobile-image':'/fixture.svg'}}]});
+  {id:'6accb9d4a4cfa06c22daba32',fieldData:{name:${JSON.stringify(lanternsTitle)},subtitle:${JSON.stringify(lanternsSubtitle)},section:'Serier & Film','mobile-image':'/fixture.svg'}}]});
  if(['/api/webflow/authors','/api/webflow/sections','/api/webflow/topics'].includes(url))return Response.json({items:[]});
  if(url==='/api/instagram/publish')return Response.json({configured:false});
  throw Error('Unexpected request '+url);
@@ -47,7 +52,7 @@ createRoot(document.getElementById('root')).render(<StrictMode><View/></StrictMo
   b.onLoad({ filter: /.*/, namespace: 'fixture' }, args => ({ resolveDir: process.cwd(), contents:
     args.path === 'next/font/google' ? `export const Amiri=()=>({style:{fontFamily:${JSON.stringify(buildDir ? 'Amiri' : 'Georgia')}},variable:'fixture-font'});` :
     args.path === 'next/link' ? `import React from 'react';export default function Link(p){return React.createElement('a',p);}` :
-    args.path === 'firebase/storage' ? `export const ref=()=>{throw Error('Forbidden storage')};export const uploadBytes=ref;export const getDownloadURL=ref;` : `export const storage=null;` }));
+    args.path === 'firebase/storage' ? `export const ref=()=>{throw Error('Forbidden storage')};export const uploadBytes=ref;export const getDownloadURL=ref;` : `export const storage=null;export const auth={authStateReady:async()=>{},currentUser:{getIdToken:async()=> 'fixture-token'}};` }));
 } }] });
 const server = createServer(async (req,res) => {
   if(req.url==='/bundle.js'){res.setHeader('Content-Type','text/javascript');res.end(bundle.outputFiles.find(file=>file.path.endsWith('.js')).text);return;}
@@ -80,7 +85,7 @@ try {
     const field=page.getByRole('textbox',{name:'Undertekst på billedet',exact:true});
     await page.locator('summary').click();
     await page.waitForFunction(()=>document.querySelector('summary')?.textContent.endsWith(' · Automatisk tilpasset'));
-    assert.equal(await field.inputValue(),first); // Automatic, zero shortening clicks.
+    assert.equal(await field.inputValue(),first); // AI, zero shortening clicks.
     assert.equal(await page.getByRole('button',{name:'Forkort med AI',exact:true}).count(),0);
     assert.equal(await page.getByRole('button',{name:'Kopiér til ChatGPT',exact:true}).count(),0);
     await page.screenshot({path:'output/social-subtitle/'+viewport.width+'-automatic.png'});
@@ -99,10 +104,10 @@ try {
     await page.waitForFunction(()=>document.querySelector('summary')?.textContent.endsWith(' · Klar'));
     await page.getByRole('button',{name:'9:16',exact:true}).click();
     await page.locator('summary').click();
-    await page.waitForFunction(()=>!document.querySelector('summary')?.textContent.includes('Tilpasser automatisk'));
+    await page.waitForFunction(()=>!document.querySelector('summary')?.textContent.includes('AI forkorter automatisk'));
     const storyText=await field.inputValue();
     assert.notEqual(storyText,'Kontrapunkt på Designmuseum: Mellem designhistorie og reklame.'); // Per-format isolation.
-    assert(subtitle.startsWith(storyText));
+    assert(storyText.endsWith('.'));
     await page.getByRole('button',{name:'1:1',exact:true}).click();
     await page.locator('summary').click();
     assert.equal(await field.inputValue(),'Kontrapunkt på Designmuseum: Mellem designhistorie og reklame.');
@@ -129,8 +134,9 @@ try {
     const state=await page.evaluate(()=>({calls:fixture.calls,errors:fixture.errors,overflow:document.documentElement.scrollWidth>innerWidth}));
     assert.deepEqual(state.errors,[]);
     assert(!state.overflow);
-    assert(state.calls.every(call=>call.method==='GET'&&!call.url.includes('design-editor')));
-    reports.push({viewport,requests:state.calls.length,modelRequests:0,automaticFit:true,preparedCopy:true,lanternsCompleteVerdict:true,manualEdit:true,restore:true,formatIsolation:true,export:true});
+    assert(state.calls.filter(call=>call.method==='POST').every(call=>call.url==='/api/design-editor/shorten-subtitle'));
+    assert(state.calls.some(call=>call.url==='/api/design-editor/shorten-subtitle'));
+    reports.push({viewport,requests:state.calls.length,modelRequests:state.calls.filter(call=>call.method==='POST').length,automaticAi:true,preparedCopy:true,lanternsCompleteVerdict:true,manualEdit:true,restore:true,formatIsolation:true,export:true});
     await page.close();
   }
   console.log(JSON.stringify({fixture:true,realHeader:true,font:buildDir?'Production bundled Amiri':'Georgia (not production Amiri)',reports},null,2));

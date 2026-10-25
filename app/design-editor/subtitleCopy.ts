@@ -1,4 +1,4 @@
-export type SubtitleFit = { text: string; source: 'original' | 'chatgpt' | 'excerpt'; readable: boolean; truncated: boolean };
+export type SubtitleFit = { text: string; source: 'original' | 'chatgpt' | 'ai' | 'excerpt'; readable: boolean; truncated: boolean };
 
 /** A complete adversative clause can retain the review's verdict when its
  * scene-setting lead is too long. Only lift words already present in the
