@@ -8,7 +8,7 @@ export const SOCIAL_SUBTITLE_LIMIT_DKK_MICROS = 10_000_000;
 export const SOCIAL_SUBTITLE_MODEL = 'gpt-6-luna';
 const VERSION = 'social-subtitle-ai-v1';
 const BUDGET_ID = 'social-subtitle-10dkk-2026-10-25-v1';
-const MAX_OUTPUT_TOKENS = 512;
+const MAX_OUTPUT_TOKENS = 1024;
 export const SOCIAL_SUBTITLE_MAX_VARIANT = 5;
 const TERMINAL_PROVIDER_FAILURES = new Set(['quota_exhausted', 'authentication_failed', 'access_denied']);
 
@@ -94,9 +94,9 @@ export async function claimSocialSubtitle(input: SocialSubtitleInput, uid: strin
       }
       return { state: 'failed', reason: typeof cache.failure === 'string' ? cache.failure : 'unknown', generation };
     }
-    // A fresh paid variant must follow a completed earlier batch. Repeated clicks
-    // and forged high variant numbers cannot skip ahead to spend the budget.
-    if (variant && priorSnap?.data()?.status !== 'ready') throw new Error('social_subtitle_variant_not_ready');
+    // A new numbered batch may follow a completed failure, but only after a
+    // separate explicit click. Pending or ambiguous work cannot be skipped.
+    if (variant && !['ready', 'failed'].includes(priorSnap?.data()?.status)) throw new Error('social_subtitle_variant_not_ready');
     if (holdSnap.data()?.blocked === true) throw new Error('social_subtitle_provider_hold');
     const used = old?.usedUpperDkkMicros ?? 0;
     if (old && (old.id !== BUDGET_ID || old.mode !== VERSION || old.limitDkkMicros !== SOCIAL_SUBTITLE_LIMIT_DKK_MICROS ||

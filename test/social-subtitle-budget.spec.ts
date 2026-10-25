@@ -66,6 +66,19 @@ describe('one-time SoMe AI cap', () => {
     expect(await claimSocialSubtitle(input, 'editor-1', prompt, 1)).toEqual({ state: 'ready', candidates: ['Et andet bud.'] });
     expect(rows.get(budgetPath)?.calls).toBe(2);
   });
+  it('allows an explicit later variant after a completed failure without retrying the failed key', async () => {
+    const rows = fakeStore(), prompt = JSON.stringify(input);
+    await claimSocialSubtitle(input, 'editor-1', prompt);
+    await finishSocialSubtitle(socialSubtitleKey(input), ['Første bud.']);
+    await claimSocialSubtitle(input, 'editor-1', prompt, 1);
+    await finishSocialSubtitle(socialSubtitleKey(input, 0, 1), null, { prompt_tokens: 314, completion_tokens: 248 }, 'incomplete_response');
+    expect(await claimSocialSubtitle(input, 'editor-1', prompt, 1))
+      .toEqual({ state: 'failed', reason: 'incomplete_response', generation: 0 });
+    expect(await claimSocialSubtitle(input, 'editor-1', prompt, 2))
+      .toEqual({ state: 'reserved', key: socialSubtitleKey(input, 0, 2), generation: 0 });
+    expect(rows.get(budgetPath)?.calls).toBe(3);
+    expect(rows.get(`socialSubtitleAI/${socialSubtitleKey(input, 0, 1)}`)?.status).toBe('failed');
+  });
   it('treats an uncertain response as spent upper bound and never retries the same key', async () => {
     const rows = fakeStore();
     await claimSocialSubtitle(input, 'editor-1', JSON.stringify(input));

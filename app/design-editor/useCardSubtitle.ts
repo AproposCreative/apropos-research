@@ -91,6 +91,7 @@ export function useCardSubtitle(id: string, title: string, original: string, siz
     setEntries(prev => ({ ...prev, [key]: { text: value, status } }));
   };
   const ai = aiCopy[aiKey];
+  const latestCopy = aiCopy[JSON.stringify([key, variants[key]?.latest ?? 0])];
   const failedGeneration = ai?.state === 'failed' ? ai.generation : undefined;
   const canResume = ai?.state === 'failed' && ai.code === 'quota_exhausted' && Number.isSafeInteger(failedGeneration);
   const resume = async () => {
@@ -128,7 +129,8 @@ export function useCardSubtitle(id: string, title: string, original: string, siz
   const error = ai?.state === 'failed' ? ai.error : ai?.state === 'ready' && !aiCandidate && needsAi
     ? 'AI-teksten passer ikke på kortet. Et ordret uddrag vises i stedet.' : null;
   const nextVariant = () => {
-    if (requestLocked.current || inFlight.current.has(aiKey) || (needsAi && !ai) || ai?.state === 'failed') return;
+    if (requestLocked.current || inFlight.current.has(aiKey) || (needsAi && !ai) ||
+      (latestCopy?.state === 'failed' && ['quota_exhausted', 'authentication_failed', 'access_denied'].includes(latestCopy.code ?? ''))) return;
     const latest = variants[key]?.latest ?? 0;
     const next = !aiCopy[JSON.stringify([key, 0])] ? 0 : latest + 1;
     if (next > MAX_VARIANTS) return;
@@ -152,8 +154,9 @@ export function useCardSubtitle(id: string, title: string, original: string, siz
     truncated: fit?.truncated ?? false, error, edit, restore: () => edit(original, 'original'),
     canResume, resuming, resume, options: available, choose, nextVariant,
     canGetMore: !requestLocked.current && !inFlight.current.has(aiKey) &&
-      (!aiCopy[JSON.stringify([key, variants[key]?.latest ?? 0])] || aiCopy[JSON.stringify([key, variants[key]?.latest ?? 0])].state === 'ready') &&
-      (!needsAi || ai?.state === 'ready') && (variants[key]?.latest ?? 0) < MAX_VARIANTS,
+      (!latestCopy || latestCopy.state === 'ready' || (latestCopy.state === 'failed' &&
+        !['quota_exhausted', 'authentication_failed', 'access_denied'].includes(latestCopy.code ?? ''))) &&
+      (!needsAi || !!ai) && (variants[key]?.latest ?? 0) < MAX_VARIANTS,
     maxVariantsReached: (variants[key]?.latest ?? 0) >= MAX_VARIANTS,
     reset: () => { setEntries(prev => { const next = { ...prev }; delete next[key]; return next; });
       setVariants(prev => ({ ...prev, [key]: { active: 0, latest: prev[key]?.latest ?? 0, forced: false } }));
