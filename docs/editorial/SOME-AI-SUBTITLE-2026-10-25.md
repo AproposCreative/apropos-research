@@ -62,3 +62,10 @@ separate Writer-loft eller Livs forbud mod betalt automatisk artikelproduktion.
   læses efter deploy. Det ændrer ikke den fælles Writer-ramme, Liv eller
   providerens globale hold. AI-forkortelse kan først endeligt godkendes efter
   en senere reel modelrespons med gyldig afsluttet sætning.
+- Opfølgningen er commit `c0280185`, deploy
+  `dpl_7Z9zfK1ikEu5TLdbRYKXg2JU12NJ`, READY og verificeret via det faktiske
+  `ai.aproposmagazine.com`-alias. De 25 målrettede tests og typekontrol
+  bestod. Chrome viste efter deploy den gemte kvoteafvisning på Lanterns
+  uden automatisk ny betaling: “Kaldet bliver ikke gentaget automatisk.”
+  Et første transient indlæsningssvigt af Webflow-listen forsvandt ved at
+  lukke og genåbne SoMe-panelet; listen og kortet blev derefter vist.
