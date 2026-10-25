@@ -11,6 +11,7 @@ type TitleResult = { state: 'ready'; candidates: string[] } | { state: 'failed';
  * only after a click, using the same version-bound, one-time SoMe budget. */
 export function useCardTitle(id: string, original: string, subtitle: string, size: SocialCardSize) {
   const key = JSON.stringify([id, original, subtitle, size]);
+  const sharedKey = JSON.stringify([id, original, subtitle]);
   const [manual, setManual] = useState<Record<string, string>>({});
   const [chosen, setChosen] = useState<Record<string, string>>({});
   const [latest, setLatest] = useState<Record<string, number>>({});
@@ -24,6 +25,7 @@ export function useCardTitle(id: string, original: string, subtitle: string, siz
   useEffect(() => {
     if (variant < 0 || !id || !original.trim() || results[resultKey] || inFlight.current.has(resultKey)) return;
     inFlight.current.add(resultKey);
+    const manualAtRequest = manual[sharedKey];
     (async () => {
       try {
         await auth?.authStateReady();
@@ -46,15 +48,16 @@ export function useCardTitle(id: string, original: string, subtitle: string, siz
           throw failure;
         }
         setResults(prev => ({ ...prev, [resultKey]: { state: 'ready', candidates: payload.candidates } }));
-        if (payload.candidates.length) setChosen(prev => ({ ...prev, [key]: payload.candidates[0] }));
-        setManual(prev => { const next = { ...prev }; delete next[key]; return next; });
+        if (payload.candidates.length) setChosen(prev => ({ ...prev, [sharedKey]: payload.candidates[0] }));
+        setManual(prev => { if (prev[sharedKey] !== manualAtRequest) return prev;
+          const next = { ...prev }; delete next[sharedKey]; return next; });
       } catch (error) {
         const failure = error as Error & { code?: string };
         setResults(prev => ({ ...prev, [resultKey]: { state: 'failed',
           error: error instanceof Error ? error.message : 'AI-forslaget kunne ikke hentes.', code: failure.code } }));
       } finally { inFlight.current.delete(resultKey); requestLocked.current = false; }
     })();
-  }, [key, id, original, subtitle, size, variant, resultKey, results]);
+  }, [key, sharedKey, id, original, subtitle, size, variant, resultKey, results, manual]);
 
   const options = Array.from({ length: variant + 1 }, (_, index) => {
     const saved = results[JSON.stringify([key, index])];
@@ -67,13 +70,13 @@ export function useCardTitle(id: string, original: string, subtitle: string, siz
     setLatest(prev => ({ ...prev, [key]: (prev[key] ?? -1) + 1 }));
   };
   return {
-    key, text: manual[key] ?? chosen[key] ?? original,
-    edit: (text: string) => setManual(prev => ({ ...prev, [key]: text })),
-    restore: () => { setManual(prev => { const next = { ...prev }; delete next[key]; return next; });
-      setChosen(prev => { const next = { ...prev }; delete next[key]; return next; }); },
+    key, text: manual[sharedKey] ?? chosen[sharedKey] ?? original,
+    edit: (text: string) => setManual(prev => ({ ...prev, [sharedKey]: text })),
+    restore: () => { setManual(prev => { const next = { ...prev }; delete next[sharedKey]; return next; });
+      setChosen(prev => { const next = { ...prev }; delete next[sharedKey]; return next; }); },
     options, choose: (text: string) => { if (!options.includes(text)) return;
-      setChosen(prev => ({ ...prev, [key]: text }));
-      setManual(prev => { const next = { ...prev }; delete next[key]; return next; }); },
+      setChosen(prev => ({ ...prev, [sharedKey]: text }));
+      setManual(prev => { const next = { ...prev }; delete next[sharedKey]; return next; }); },
     requestMore, canGetMore: !requestLocked.current && (variant < 0 || !!result) && !terminal && variant < MAX_VARIANT,
     loading: variant >= 0 && !result, error: result?.state === 'failed' ? result.error : null,
     maxVariantsReached: variant >= MAX_VARIANT,

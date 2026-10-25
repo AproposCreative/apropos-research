@@ -14,7 +14,7 @@ const CTA_FONT_SIZE_STORY = 52.8;
 const STORY_META_TO_CTA_GAP = 40;
 // Additional whitespace below the subtitle, not added line-height. Preview,
 // download and publishing all share this renderer (1080px export coordinates).
-const SUBTITLE_BOTTOM_SPACE = 32;
+const SUBTITLE_BOTTOM_SPACE = 18;
 
 const SQUARE_LOGO_TOP = 60;
 const SQUARE_LOGO_W = 150;
@@ -332,7 +332,7 @@ async function renderCardToContext(
       ctx.fillText(line, width / 2, y);
       y += bylineLineHeight;
     }
-    y += SUBTITLE_BOTTOM_SPACE;
+    y += isSquare ? SUBTITLE_BOTTOM_SPACE : 32;
   }
   if (isStory && rating > 0) {
     const { filled, outline } = await loadStarImages();

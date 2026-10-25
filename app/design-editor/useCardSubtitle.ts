@@ -24,6 +24,7 @@ type AiCopy = { state: 'ready'; candidates: string[] } |
  */
 export function useCardSubtitle(id: string, title: string, original: string, size: SocialCardSize, family: string, prepared?: string) {
   const key = JSON.stringify([id, title, original, size, prepared ?? null]);
+  const sharedKey = JSON.stringify([id, title, original]);
   const [entries, setEntries] = useState<Record<string, { text: string; status: 'manual' | 'original' }>>({});
   const [aiCopy, setAiCopy] = useState<Record<string, AiCopy>>({});
   const [variants, setVariants] = useState<Record<string, { active: number; latest: number; forced: boolean }>>({});
@@ -32,7 +33,7 @@ export function useCardSubtitle(id: string, title: string, original: string, siz
   const inFlight = useRef(new Set<string>());
   const requestLocked = useRef(false);
   const [refresh, setRefresh] = useState(0);
-  const entry = entries[key];
+  const entry = entries[sharedKey];
   const variant = variants[key]?.active ?? 0;
   const aiKey = JSON.stringify([key, variant]);
   const input = entry?.text ?? original;
@@ -88,7 +89,7 @@ export function useCardSubtitle(id: string, title: string, original: string, siz
     })();
   }, [aiKey, needsAi, aiCopy, id, title, original, size, variant]);
   const edit = (value: string, status: 'manual' | 'original' = 'manual') => {
-    setEntries(prev => ({ ...prev, [key]: { text: value, status } }));
+    setEntries(prev => ({ ...prev, [sharedKey]: { text: value, status } }));
   };
   const ai = aiCopy[aiKey];
   const latestCopy = aiCopy[JSON.stringify([key, variants[key]?.latest ?? 0])];
@@ -135,7 +136,7 @@ export function useCardSubtitle(id: string, title: string, original: string, siz
     const next = !aiCopy[JSON.stringify([key, 0])] ? 0 : latest + 1;
     if (next > MAX_VARIANTS) return;
     requestLocked.current = true;
-    setEntries(prev => { const copy = { ...prev }; delete copy[key]; return copy; });
+    setEntries(prev => { const copy = { ...prev }; delete copy[sharedKey]; return copy; });
     setVariants(prev => ({ ...prev, [key]: { active: next, latest: Math.max(latest, next), forced: true } }));
     setRefresh(value => value + 1);
   };
@@ -145,7 +146,7 @@ export function useCardSubtitle(id: string, title: string, original: string, siz
       .find(i => { const copy = aiCopy[JSON.stringify([key, i])]; return copy?.state === 'ready' && copy.candidates.includes(value); });
     if (index === undefined) return;
     setChosen(prev => ({ ...prev, [key]: value }));
-    setEntries(prev => { const copy = { ...prev }; delete copy[key]; return copy; });
+    setEntries(prev => ({ ...prev, [sharedKey]: { text: value, status: 'manual' } }));
     setVariants(prev => ({ ...prev, [key]: { active: index, latest: prev[key]?.latest ?? index, forced: true } }));
   };
   return {
@@ -158,7 +159,7 @@ export function useCardSubtitle(id: string, title: string, original: string, siz
         !['quota_exhausted', 'authentication_failed', 'access_denied'].includes(latestCopy.code ?? ''))) &&
       (!needsAi || !!ai) && (variants[key]?.latest ?? 0) < MAX_VARIANTS,
     maxVariantsReached: (variants[key]?.latest ?? 0) >= MAX_VARIANTS,
-    reset: () => { setEntries(prev => { const next = { ...prev }; delete next[key]; return next; });
+    reset: () => { setEntries(prev => { const next = { ...prev }; delete next[sharedKey]; return next; });
       setVariants(prev => ({ ...prev, [key]: { active: 0, latest: prev[key]?.latest ?? 0, forced: false } }));
       setRefresh(value => value + 1); },
     ready: !!(fit?.readable && (!needsAi || !!ai)),
