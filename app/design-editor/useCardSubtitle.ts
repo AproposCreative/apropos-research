@@ -25,7 +25,7 @@ type AiCopy = { state: 'ready'; candidates: string[] } |
 export function useCardSubtitle(id: string, title: string, original: string, size: SocialCardSize, family: string, prepared?: string) {
   const key = JSON.stringify([id, title, original, size, prepared ?? null]);
   const sharedKey = JSON.stringify([id, title, original]);
-  const [entries, setEntries] = useState<Record<string, { text: string; status: 'manual' | 'original' }>>({});
+  const [entries, setEntries] = useState<Record<string, { text: string; status: 'manual' | SubtitleFit['source'] }>>({});
   const [aiCopy, setAiCopy] = useState<Record<string, AiCopy>>({});
   const [variants, setVariants] = useState<Record<string, { active: number; latest: number; forced: boolean }>>({});
   const [chosen, setChosen] = useState<Record<string, string>>({});
@@ -127,6 +127,10 @@ export function useCardSubtitle(id: string, title: string, original: string, siz
   const fit = aiCandidate
     ? { text: aiCandidate, source: 'ai' as const, readable: true, truncated: false }
     : current ? checked.fit : null;
+  const carryToNextFormat = () => {
+    if (entry || !current || !fit?.readable || !fit.text.trim() || (fit.source === 'original' && fit.text === original)) return;
+    setEntries(prev => ({ ...prev, [sharedKey]: { text: fit.text, status: fit.source } }));
+  };
   const error = ai?.state === 'failed' ? ai.error : ai?.state === 'ready' && !aiCandidate && needsAi
     ? 'AI-teksten passer ikke på kortet. Et ordret uddrag vises i stedet.' : null;
   const nextVariant = () => {
@@ -146,14 +150,14 @@ export function useCardSubtitle(id: string, title: string, original: string, siz
       .find(i => { const copy = aiCopy[JSON.stringify([key, i])]; return copy?.state === 'ready' && copy.candidates.includes(value); });
     if (index === undefined) return;
     setChosen(prev => ({ ...prev, [key]: value }));
-    setEntries(prev => ({ ...prev, [sharedKey]: { text: value, status: 'manual' } }));
+    setEntries(prev => ({ ...prev, [sharedKey]: { text: value, status: 'ai' } }));
     setVariants(prev => ({ ...prev, [key]: { active: index, latest: prev[key]?.latest ?? index, forced: true } }));
   };
   return {
     key, text: fit?.text ?? input,
     status: entry?.status ?? fit?.source,
     truncated: fit?.truncated ?? false, error, edit, restore: () => edit(original, 'original'),
-    canResume, resuming, resume, options: available, choose, nextVariant,
+    canResume, resuming, resume, options: available, choose, nextVariant, carryToNextFormat,
     canGetMore: !requestLocked.current && !inFlight.current.has(aiKey) &&
       (!latestCopy || latestCopy.state === 'ready' || (latestCopy.state === 'failed' &&
         !['quota_exhausted', 'authentication_failed', 'access_denied'].includes(latestCopy.code ?? ''))) &&

@@ -880,7 +880,7 @@ export default function DesignEditorView({ onBack, embedMode }: DesignEditorView
       >
         <button
           type="button"
-          onClick={() => setSize('square')}
+          onClick={() => { if (size !== 'square') { subtitle.carryToNextFormat(); setSize('square'); } }}
           className={segBtn(size === 'square')}
           aria-pressed={size === 'square'}
           title="1080×1080 (kvadrat)"
@@ -889,7 +889,7 @@ export default function DesignEditorView({ onBack, embedMode }: DesignEditorView
         </button>
         <button
           type="button"
-          onClick={() => setSize('story')}
+          onClick={() => { if (size !== 'story') { subtitle.carryToNextFormat(); setSize('story'); } }}
           className={segBtn(size === 'story')}
           aria-pressed={size === 'story'}
           title="1080×1920 (story)"
