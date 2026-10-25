@@ -43,5 +43,22 @@ separate Writer-loft eller Livs forbud mod betalt automatisk artikelproduktion.
   fontmåling, formatændring, manuel redigering og PNG-eksport. Ingen rigtig
   model, CMS-ændring eller social udgivelse blev brugt i den fixture.
 
-Produktionsdeploy, rigtigt AI-svar og faktisk browser-readback dokumenteres
-først efter separat verificering; en grøn build alene beviser dem ikke.
+## Produktion og faktisk modeltest
+
+- Commit `fbad2b04` blev deployet som `dpl_ATzrFvfKJNcLKRe8zRP8TugDtE1j`
+  og promoveret til `ai.aproposmagazine.com` den 25. oktober. Vercel
+  rapporterede READY, og aliaset pegede på samme deployment.
+- I en eksisterende redaktørsession i Chrome blev Lanterns-kortet åbnet.
+  Det automatiske endpoint blev faktisk kaldt. OpenAI afviste kaldet med
+  providerfejlkategorien `quota_exhausted` (credits eller forbrugsgrænse).
+  Ingen AI-genereret tekst blev modtaget. UI viste tydeligt fejlen og et
+  mærket ordret uddrag; ingen artikel eller socialt opslag blev ændret.
+- Den 10 DKK store SoMe-ramme er en **reservationsgrænse**, ikke
+  dokumentation for betalt forbrug. Det afviste kald bevarer sin konservative
+  reservation og bliver ikke automatisk gentaget. Faktisk providerfakturering
+  er ikke aflæst.
+- En opfølgende kodeændring lukker kun SoMe-funktionens egne fremtidige
+  providerkald ved terminal afvisning, også når en allerede gemt afvisning
+  læses efter deploy. Det ændrer ikke den fælles Writer-ramme, Liv eller
+  providerens globale hold. AI-forkortelse kan først endeligt godkendes efter
+  en senere reel modelrespons med gyldig afsluttet sætning.

@@ -9,6 +9,7 @@ export const SOCIAL_SUBTITLE_MODEL = 'gpt-6-luna';
 const VERSION = 'social-subtitle-ai-v1';
 const BUDGET_ID = 'social-subtitle-10dkk-2026-10-25-v1';
 const MAX_OUTPUT_TOKENS = 512;
+const TERMINAL_PROVIDER_FAILURES = new Set(['quota_exhausted', 'authentication_failed', 'access_denied']);
 
 export type SocialSubtitleInput = { articleId: string; title: string; subtitle: string; size: 'square' | 'story' };
 export type SocialSubtitleClaim =
@@ -59,7 +60,15 @@ export async function claimSocialSubtitle(input: SocialSubtitleInput, uid: strin
       const created = typeof cache.createdAt === 'string' ? Date.parse(cache.createdAt) : NaN;
       return { state: Number.isFinite(created) && created >= Date.now() - 120_000 ? 'pending' : 'ambiguous' };
     }
-    if (cache) return { state: 'failed', reason: typeof cache.failure === 'string' ? cache.failure : 'unknown' };
+    if (cache) {
+      // A terminal provider rejection from an earlier deployment also closes
+      // the SoMe circuit when this cached failure is read back. This makes a
+      // prior failed request safe across deployments without a second call.
+      if (TERMINAL_PROVIDER_FAILURES.has(cache.failure) && budgetSnap.exists && budgetSnap.data()?.blocked !== true) {
+        tx.update(budgetRef, { blocked: true, blockedReason: cache.failure, blockedAt: new Date().toISOString() });
+      }
+      return { state: 'failed', reason: typeof cache.failure === 'string' ? cache.failure : 'unknown' };
+    }
     if (holdSnap.data()?.blocked === true) throw new Error('social_subtitle_provider_hold');
     const old = budgetSnap.data();
     const used = old?.usedUpperDkkMicros ?? 0;
@@ -67,7 +76,7 @@ export async function claimSocialSubtitle(input: SocialSubtitleInput, uid: strin
       !Number.isSafeInteger(used) || used < 0 || used > SOCIAL_SUBTITLE_LIMIT_DKK_MICROS || !Number.isSafeInteger(old.calls) || old.calls < 0)) {
       throw new Error('social_subtitle_budget_invalid');
     }
-    if (old?.blocked === true) throw new Error('social_subtitle_provider_unavailable');
+    if (old?.blocked === true) return { state: 'failed', reason: typeof old.blockedReason === 'string' ? old.blockedReason : 'unknown' };
     if (used + amount > SOCIAL_SUBTITLE_LIMIT_DKK_MICROS) throw new Error('social_subtitle_budget_exceeded');
     const now = new Date().toISOString();
     tx.set(budgetRef, { id: BUDGET_ID, mode: VERSION, limitDkkMicros: SOCIAL_SUBTITLE_LIMIT_DKK_MICROS,
@@ -86,9 +95,13 @@ export async function claimSocialSubtitle(input: SocialSubtitleInput, uid: strin
 export async function finishSocialSubtitle(key: string, candidates: string[] | null,
   usage?: { prompt_tokens?: number; completion_tokens?: number } | null, failure?: string) {
   const db = database(), ref = db.collection('socialSubtitleAI').doc(key);
+  const budgetRef = db.collection('aiExecutionPolicies').doc(BUDGET_ID);
   await db.runTransaction(async tx => {
     const snap = await tx.get(ref);
     if (snap.data()?.status !== 'pending') return;
+    if (!candidates?.length && TERMINAL_PROVIDER_FAILURES.has(failure ?? '')) {
+      tx.update(budgetRef, { blocked: true, blockedReason: failure, blockedAt: new Date().toISOString() });
+    }
     tx.update(ref, { status: candidates?.length ? 'ready' : 'failed',
       ...(candidates?.length ? { candidates } : {}),
       ...(!candidates?.length ? { failure: failure ?? 'unknown' } : {}),
