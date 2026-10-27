@@ -69,7 +69,33 @@ restriction. The book's title, author and contents remain unobserved.
   incomplete reading, injected evidence, wrong book/medium, old snapshots,
   metadata-edit conflicts and preserved personal consent.
 
-Production receipt will be appended after exact deployment/readback. This fixes
-MCP diagnostics and the book-to-review handoff, not the host's browser policy.
+This fixes MCP diagnostics and the book-to-review handoff, not the host's browser policy.
 The new loan has not been opened, read, reviewed or published. No paid AI call,
 book download, browser/login-policy change, mail or publication was performed.
+
+## Production receipt
+
+- Exact code commit: `6b88abf311d131cb219d5d37e0714f0d1f6709e5`, pushed to the
+  existing branch. Vercel MCP deployed that exact Git revision to the existing
+  project, without local upload or new credentials.
+- Direct `ai.aproposmagazine.com` lookup returned READY deployment
+  `dpl_7UPSMYygFG8YsJXFxSCVQFWP3Dsv`, production target, matching Git SHA and alias.
+- Live native `get_workflow(read)` returned the administrator-block guidance and
+  completed-book exception, version hash
+  `6a3d8ddac70cde69844ac1ac997e6a6891ded96739700f126471e8c95f568f9a`.
+- Live native exact-loan `list_reader_sources` still returned no source, now with
+  `browserAccessVerified=false`, `accessDiagnostic.status=not_checked`,
+  `browserProbePerformed=false`, `bookIdentityKnown=false` and loan status unknown.
+  These are honest limits, not a new browser probe or successful reading.
+- The current connector tool-schema cache still lacks the new optional
+  `accessReport` argument. That branch is covered by isolated tests; live native
+  default diagnostics are verified. A refreshed host tool schema is needed to
+  call the optional argument or new save-access enum through that host.
+- Deployment-scoped error/fatal runtime query for 18:41:30–18:46:30 UTC returned
+  no matching logs. This bounded check is not a claim of zero future errors.
+
+Unresolved external requirement: restore/authorize the supported browser context
+in the originating ChatGPT environment and resolve the reported administrative
+restriction there. No request for another library password or a PDF is needed
+to diagnose that missing capability. Do not claim this specific loan works until
+its actual title and visible pages have been observed through authorized access.
