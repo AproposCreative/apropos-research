@@ -21,9 +21,10 @@ export async function reconcileSubmission(uid: string, id: string) {
       .map(name => stages.doc(`${row.contentHash}-${name}`).get().then(s => s.data())));
     if (cms?.status !== 'attempted' || !cms.inputPayload || visual?.status !== 'done' || checks?.status !== 'done' ||
         assets.some(a => a?.status !== 'done')) throw Error('mcp_submission_reconciliation_evidence_missing');
-    if (cms.mediaUpdate && row.publishedTarget) {
+    if (cms.mediaUpdate && (row.publishedTarget || row.stagedTarget)) {
       const prepared = await verifyStagedMedia(cms.mediaUpdate.target, cms.mediaUpdate.expected, inspectionPolicy,
-        proof => stages.doc(`${row.contentHash}-cms`).update({ checks: proof }).then(() => undefined));
+        proof => stages.doc(`${row.contentHash}-cms`).update({ checks: proof }).then(() => undefined),
+        !!row.stagedTarget && !row.publishedTarget);
       const savedAssets = assets.map(a => a!.result);
       await db.runTransaction(async tx => {
         const current = (await tx.get(ref)).data();

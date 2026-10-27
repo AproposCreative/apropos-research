@@ -203,3 +203,16 @@ it('passes the exact original HTML to same-item staging for cover-only revisions
   expect(vi.mocked(stageSubmissionMedia).mock.calls[0][1].content).toBe(content);
   expect(state.save).not.toHaveBeenCalled(); expect(state.checks).not.toHaveBeenCalled();
 });
+it('prepares a bound never-published draft on the same CMS item without creating a copy', async () => {
+  const row = memory.rows.get(path); row.executionPolicy = 'chatgpt-first-v1'; state.hold = true;
+  row.choices.aiFinalChecks = 'human'; row.approval.editorialDecision = { bodyImages: 'required', aiFinalChecks: 'human' };
+  row.stagedTarget = { itemId: 'c'.repeat(24), fields: { content: row.article.content }, fieldDataHash: 'pinned-cms-hash', linkedAt: 'now' };
+  vi.mocked(stageSubmissionMedia).mockImplementation(async (_target, expected) => ({ itemId: 'c'.repeat(24), expected,
+    proof: { publicationReady: true, draftConfirmed: true, checks: [{ ok: true }], fieldDataHash: 'cms-proof' } as any,
+    cmsFields: {}, mediaOnly: true }));
+  for (let i = 0; i < 5; i++) await runSubmissionStep('owner', id);
+  expect(memory.rows.get(path)).toMatchObject({ status: 'prepared', prepared: { itemId: 'c'.repeat(24) } });
+  expect(vi.mocked(stageSubmissionMedia).mock.calls[0][0]).toMatchObject({ fieldDataHash: 'pinned-cms-hash' });
+  expect(vi.mocked(stageSubmissionMedia).mock.calls[0][5]).toBe(true);
+  expect(state.save).not.toHaveBeenCalled(); expect(state.visual).not.toHaveBeenCalled(); expect(state.checks).not.toHaveBeenCalled();
+});

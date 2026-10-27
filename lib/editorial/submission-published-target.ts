@@ -20,6 +20,10 @@ export const linkPublishedSubmissionInput = z.object({ submissionId, expectedRev
   mode: z.enum(['link', 'inspect', 'refresh']).default('link'), expectedCmsHash: submissionId.optional(),
   requestId: submissionInput.shape.requestId.optional(),
 }).strict();
+export const linkStagedSubmissionInput = z.object({ submissionId, expectedRevision: z.number().int().positive(),
+  itemId: z.string().regex(/^[a-f0-9]{24}$/), mode: z.enum(['inspect', 'bind']).default('inspect'),
+  expectedCmsHash: submissionId.optional(), requestId: submissionInput.shape.requestId.optional(),
+}).strict();
 
 // Only mapped editorial fields enter the submission. Unknown CMS fields stay in
 // the pinned target and are never overwritten by a media patch.
@@ -92,6 +96,74 @@ export async function assertSubmissionNotAlreadySaved(article: Pick<SubmissionAr
     if (page.items.length < 100) return;
   }
   throw Error('mcp_submission_cms_listing_unconfirmed');
+}
+/** Bind one exact, never-published draft before the owner's final preview. This
+ * changes only the submission identity; media staging later patches the same
+ * CMS item under a lease. A title match alone never authorizes adoption. */
+export async function linkStagedSubmission(uid: string, raw: unknown) {
+  const input = linkStagedSubmissionInput.parse(raw), row = await readSubmission(uid, input.submissionId);
+  const { db, collection } = submissionStore(), ref = collection.doc(row.id);
+  const receipt = input.requestId ? ref.collection('cmsReconciliations').doc(cmsFieldHash({ requestId: input.requestId })) : null;
+  const requestHash = cmsFieldHash(input), old = receipt && (await receipt.get()).data();
+  if (old) {
+    if (old.requestHash !== requestHash) throw Error('mcp_submission_idempotency_conflict');
+    return { ...old.result, replay: true, currentRevision: row.revision };
+  }
+  if (row.revision !== input.expectedRevision || !['draft', 'awaiting_answers', 'blocked'].includes(row.status) || row.publishedTarget)
+    throw Error('mcp_submission_revision_conflict');
+  if (row.stagedTarget && row.stagedTarget.itemId !== input.itemId) throw Error('mcp_submission_cms_identity_invalid');
+  const staged = await readSubmissionCms(input.itemId), fields = staged.fieldData as Record<string, unknown>;
+  if (!staged.isDraft || staged.lastPublished || staged.isArchived) throw Error('mcp_submission_existing_article_mismatch');
+  const matches = [
+    fields.name === row.article.title, fields.slug === row.article.slug,
+    fields.author === row.article.author, fields.section === row.article.category,
+    fields.stjerne === row.article.rating, fields.subtitle === row.article.subtitle,
+    fields.intro === row.article.intro, fields['seo-title'] === row.article.seoTitle,
+    fields['meta-description'] === row.article.seoDescription,
+    bodyWithoutImages(String(fields.content || '')) === bodyWithoutImages(row.article.content),
+    !(fields.thumb as { url?: string } | undefined)?.url || (fields.thumb as { url: string }).url === row.article.featuredImage,
+    !(fields['mobile-image'] as { url?: string } | undefined)?.url ||
+      (fields['mobile-image'] as { url: string }).url === row.article.featuredImage,
+  ];
+  if (matches.some(ok => !ok)) throw Error('mcp_submission_existing_article_mismatch');
+  // A unique matching item is necessary: never bind an arbitrary one of two
+  // old drafts, even when a caller knows one ID.
+  const cmsCollection = getWebflowConfig().articlesCollectionId ?? env.WEBFLOW_ARTICLES_COLLECTION_ID;
+  let found = 0;
+  for (let offset = 0; offset < 5000; offset += 100) {
+    const page = await readLivWebflowJson(`collections/${cmsCollection}/items?cmsLocaleId=${env.WEBFLOW_CMS_LOCALE_DK}&offset=${offset}&limit=100`);
+    if (!Array.isArray(page.items)) throw Error('mcp_submission_cms_listing_unconfirmed');
+    for (const item of page.items) if (item.cmsLocaleId === env.WEBFLOW_CMS_LOCALE_DK && !item.isArchived &&
+      (item.fieldData?.slug === row.article.slug || item.fieldData?.name === row.article.title)) {
+      if (item.id !== input.itemId) throw Error('mcp_submission_existing_article_mismatch');
+      found++;
+    }
+    if (page.items.length < 100) break;
+    if (offset === 4900) throw Error('mcp_submission_cms_listing_unconfirmed');
+  }
+  if (found !== 1) throw Error('mcp_submission_existing_article_mismatch');
+  const target: PublishedTarget = { itemId: input.itemId, fields, fieldDataHash: cmsFieldHash(fields), linkedAt: new Date().toISOString() };
+  if (row.stagedTarget?.fieldDataHash === target.fieldDataHash) return { submissionId: row.id, itemId: target.itemId,
+    revision: row.revision, cmsHash: target.fieldDataHash, exactDraftMatch: true, cmsWrites: 0, publicationApproval: false };
+  if (input.mode === 'inspect') return { submissionId: row.id, itemId: input.itemId, revision: row.revision,
+    cmsHash: target.fieldDataHash, exactDraftMatch: true, cmsWrites: 0, publicationApproval: false };
+  if (!receipt || input.expectedCmsHash !== target.fieldDataHash) throw Error('mcp_submission_reconcile_confirmation_required');
+  return db.runTransaction(async tx => {
+    const current = (await tx.get(ref)).data(), prior = (await tx.get(receipt)).data();
+    if (prior) {
+      if (prior.requestHash !== requestHash) throw Error('mcp_submission_idempotency_conflict');
+      return { ...prior.result, replay: true };
+    }
+    if (current?.uid !== uid || current.revision !== row.revision || current.contentHash !== row.contentHash || current.publishedTarget ||
+      (current.stagedTarget && current.stagedTarget.fieldDataHash !== target.fieldDataHash)) throw Error('mcp_submission_revision_conflict');
+    const result = { submissionId: row.id, itemId: target.itemId, revision: row.revision + 1,
+      cmsHash: target.fieldDataHash, cmsWrites: 0, publicationApproval: false, exactDraftMatch: true };
+    tx.create(ref.collection('versions').doc(String(row.revision)), row);
+    tx.create(receipt, { requestHash, result, createdAt: target.linkedAt });
+    tx.update(ref, { stagedTarget: target, revision: result.revision, contentHash: submissionVersion(row, target),
+      status: 'draft', updatedAt: target.linkedAt });
+    return result;
+  });
 }
 export async function linkPublishedSubmission(uid: string, raw: unknown) {
   const input = linkPublishedSubmissionInput.parse(raw), row = await readSubmission(uid, input.submissionId);
@@ -181,17 +253,20 @@ export async function linkPublishedSubmission(uid: string, raw: unknown) {
 /** Narrow staged patch of the SAME item. Every unrelated CMS field is retained.
  * Callers persist an attempted stage first and reconcile timeouts by readback. */
 export async function stageSubmissionMedia(target: PublishedTarget, expected: WebflowArticleFields,
-  policy: LivCmsInspectionPolicy, checkpoint: (data: Record<string, unknown>) => Promise<void>, assertLease: () => Promise<unknown>) {
+  policy: LivCmsInspectionPolicy, checkpoint: (data: Record<string, unknown>) => Promise<void>, assertLease: () => Promise<unknown>,
+  requireDraft = false) {
   const cmsLease = await acquireCmsWriteLease(target.itemId, 'da');
   try {
     return await stageMediaUnderLease(target, expected, policy, checkpoint, async () => {
       await assertLease(); await cmsLease.assertOwned();
-    });
+    }, requireDraft);
   } finally { await cmsLease.release(); }
 }
 async function stageMediaUnderLease(target: PublishedTarget, expected: WebflowArticleFields,
-  policy: LivCmsInspectionPolicy, checkpoint: (data: Record<string, unknown>) => Promise<void>, assertLease: () => Promise<unknown>) {
+  policy: LivCmsInspectionPolicy, checkpoint: (data: Record<string, unknown>) => Promise<void>, assertLease: () => Promise<unknown>,
+  requireDraft: boolean) {
   const current = await readSubmissionCms(target.itemId);
+  if (requireDraft && (!current.isDraft || current.lastPublished)) throw Error('mcp_submission_existing_article_mismatch');
   if (cmsFieldHash(current.fieldData as Record<string, unknown>) !== target.fieldDataHash) throw Error('mcp_submission_cms_conflict');
   if (bodyWithoutImages(expected.content) !== bodyWithoutImages(String(target.fields.content))) throw Error('mcp_submission_media_only_update');
   const bodyChanged = expected.content !== target.fields.content;
@@ -214,14 +289,16 @@ async function stageMediaUnderLease(target: PublishedTarget, expected: WebflowAr
   await checkpoint({ target, expected: canonical, patch });
   await assertLease();
   const latest = await readSubmissionCms(target.itemId);
+  if (requireDraft && (!latest.isDraft || latest.lastPublished)) throw Error('mcp_submission_existing_article_mismatch');
   if (cmsFieldHash(latest.fieldData as Record<string, unknown>) !== target.fieldDataHash) throw Error('mcp_submission_cms_conflict');
   await patchArticleFieldDataForLocale(target.itemId, patch, env.WEBFLOW_CMS_LOCALE_DK);
-  return verifyStagedMedia(target, canonical, policy, proof => checkpoint({ target, expected: canonical, patch, proof }));
+  return verifyStagedMedia(target, canonical, policy, proof => checkpoint({ target, expected: canonical, patch, proof }), requireDraft);
 }
 
 export async function verifyStagedMedia(target: PublishedTarget, expected: WebflowArticleFields, policy: LivCmsInspectionPolicy,
-  recordProof?: (proof: LivCmsReadback) => Promise<void>) {
+  recordProof?: (proof: LivCmsReadback) => Promise<void>, requireDraft = false) {
   const current = await readSubmissionCms(target.itemId), fields = current.fieldData as Record<string, unknown>;
+  if (requireDraft && (!current.isDraft || current.lastPublished)) throw Error('mcp_submission_existing_article_mismatch');
   const preserved = (value: Record<string, unknown>) => Object.fromEntries(Object.entries(value).filter(([key]) => !['thumb', 'mobile-image', 'foto-credit', 'content'].includes(key)));
   if (cmsFieldHash(preserved(fields)) !== cmsFieldHash(preserved(target.fields)) ||
       (expected.content === target.fields.content && fields.content !== target.fields.content) ||

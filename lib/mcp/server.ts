@@ -47,7 +47,7 @@ import { MCP_VERSION, MCP_ORIGIN, MCP_ICON } from './config';
 import { getSubmissionOptions } from '@/lib/editorial/submission-options';
 import { prepareSubmission, updateSubmission, getSubmissionStatus, listSubmissions } from '@/lib/editorial/submissions';
 import { submissionInput, submissionUpdate, submissionId } from '@/lib/editorial/submission-contract';
-import { linkPublishedSubmission, linkPublishedSubmissionInput } from '@/lib/editorial/submission-published-target';
+import { linkPublishedSubmission, linkPublishedSubmissionInput, linkStagedSubmission, linkStagedSubmissionInput } from '@/lib/editorial/submission-published-target';
 import { findSubmissionImages, submissionMediaInput, submissionMediaContext } from '@/lib/editorial/submission-media';
 import { reconcileSubmission } from '@/lib/editorial/submission-reconcile';
 import { resumeSubmissionCms, resumeCmsInput } from '@/lib/editorial/submission-cms-resume';
@@ -76,7 +76,7 @@ const memberTools = new Set(['get_editorial_desk', 'save_editorial_ideas', 'get_
   'get_submission_media_context', 'get_workspace', 'save_draft', 'get_editorial_context', 'get_workflow',
   'preview_copyedit', 'apply_copyedit', 'review_draft', 'preview_submission', 'confirm_submission_action',
   'get_image_brief', 'preflight_submission_image', 'preview_submission_image_failure', 'store_submission_image_reference', 'import_submission_image', 'get_submission_costs', 'register_reader_source',
-  'list_reader_sources', 'get_reader_progress', 'save_reader_progress', 'find_reader_notes', 'link_published_submission']);
+  'list_reader_sources', 'get_reader_progress', 'save_reader_progress', 'find_reader_notes', 'link_published_submission', 'link_staged_submission']);
 export function createEditorialMcp(identity: McpIdentity) {
   const server = new McpServer({ name: 'apropos-editorial', title: 'Apropos AI', version: MCP_VERSION,
     websiteUrl: MCP_ORIGIN, icons: [{ src: MCP_ICON, mimeType: 'image/png', sizes: ['256x256'] }] }, {
@@ -286,6 +286,8 @@ export function createEditorialMcp(identity: McpIdentity) {
     submissionInput, 'apropos:draft', false, input => prepareSubmission(identity.uid, input));
   tool('link_published_submission', 'Knyt en eksisterende publiceret artikel til din matchende submission før billedrettelser. Ved eksterne CMS-ændringer: mode=inspect viser konkret divergence, foreslået artikel og cmsHash uden writes. Derefter mode=refresh med expectedCmsHash, expectedRevision og stabilt requestId synkroniserer samme allerede bundne artikel; samtidige modstridende rettelser stopper. Ingen CMS-write, ny artikel, betaling eller publiceringsgodkendelse. Importér den valgte native fil, vis preview og få personlig versionsgodkendelse.',
     linkPublishedSubmissionInput, 'apropos:draft', false, input => linkPublishedSubmission(identity.uid, input));
+  tool('link_staged_submission', 'Knyt en eksisterende, aldrig publiceret CMS-kladde til den nøjagtigt matchende submission før personlig udgivelsesgodkendelse. mode=inspect kontrollerer entydig titel/slug, brødtekst, byline, kategori, rating og SEO uden writes og giver cmsHash. mode=bind kræver samme hash, frisk revision og stabilt requestId; binder kun identitet og version, ingen CMS-write eller godkendelse. Efter billedvalg bruges den samme kladde ved teknisk klargøring; ingen artikelkopi.',
+    linkStagedSubmissionInput, 'apropos:draft', false, input => linkStagedSubmission(identity.uid, input));
   tool('update_submission', 'Gem svar eller præcise artikelrettelser i samme klargøringsforløb med expectedRevision. Uændrede felter bevares. Ingen automatisk omskrivning, billedkøb eller publikation.',
     submissionUpdate, 'apropos:draft', false, input => updateSubmission(identity.uid, input));
   tool('get_submission_status', 'Genåbn et privat klargøringsforløb med artikel, svar, version og konkrete mangler. En kladde er ikke klar til publicering. Starter intet arbejde.',

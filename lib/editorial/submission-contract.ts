@@ -43,6 +43,8 @@ export type SubmissionQuestion = { field: string; question: string; options?: Ar
 export type SubmissionRecord = SubmissionInput & {
   mediaSelection?: { uid: string; revision: number; contentHash: string; selectionHash: string; acceptedAt: string };
   publishedTarget?: PublishedTarget;
+  /** A matching, never-published CMS draft adopted before personal publication approval. */
+  stagedTarget?: PublishedTarget;
   executionPolicy?: 'chat-final-checks-v1' | 'chatgpt-first-v1';
   approval?: { uid?: string; contentHash: string; acceptedAt?: string; editorialDecision?: { bodyImages: 'required' | 'deferred'; aiFinalChecks: 'required' | 'human' } };
   id: string; uid: string; revision: number; originalArticle: SubmissionArticle;

@@ -61,3 +61,25 @@ it('requires owner and exact fresh CMS hash', async () => {
   await expect(resumeSubmissionCms('other', input)).rejects.toThrow('not_found');
   await expect(resumeSubmissionCms('owner', { ...input, expectedCmsHash: 'c'.repeat(64) })).rejects.toThrow('cms_conflict');
 });
+it('resumes a bound draft only before any media write, without a CMS save or new consent', async () => {
+  const row = memory.rows.get(path);
+  row.stagedTarget = { itemId: 'item', fieldDataHash: input.expectedCmsHash, fields: state.cms.fieldData, linkedAt: new Date().toISOString() };
+  row.prepared = null;
+  memory.rows.delete(save);
+  expect(await resumeSubmissionCms('owner', input)).toMatchObject({ status: 'processing', itemId: 'item', publicationApproval: false });
+  expect(memory.rows.get(stage).status).toBe('retryable_before_write');
+  expect(memory.rows.get(path).status).toBe('processing');
+  expect(await resumeSubmissionCms('owner', input)).toMatchObject({ replay: true });
+  expect([...memory.rows.keys()].filter(p => p.includes('/cmsSaves/'))).toHaveLength(0);
+});
+it('refuses bound-draft resume after a write intent or external CMS change', async () => {
+  const row = memory.rows.get(path);
+  row.stagedTarget = { itemId: 'item', fieldDataHash: input.expectedCmsHash, fields: state.cms.fieldData, linkedAt: new Date().toISOString() };
+  row.prepared = null;
+  memory.rows.delete(save);
+  memory.rows.get(stage).mediaUpdate = { patch: { thumb: 'changed' } };
+  await expect(resumeSubmissionCms('owner', input)).rejects.toThrow('resume_not_safe');
+  delete memory.rows.get(stage).mediaUpdate;
+  state.cms.fieldData.content = '<p>Externally edited</p>';
+  await expect(resumeSubmissionCms('owner', input)).rejects.toThrow('cms_conflict');
+});

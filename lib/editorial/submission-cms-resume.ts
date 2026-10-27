@@ -9,6 +9,7 @@ import { approvedSubmissionPolicy } from './submission-policy';
 import { assertImageSelection } from './submission-image-selection';
 import { inspectPreparedDraftBoundary } from './submission-draft-guard';
 import { hasCurrentPublicationConsent } from './submission-consent-state';
+import { readSubmissionCms } from './submission-published-target';
 import { submissionId } from './submission-contract';
 
 export const resumeCmsInput = z.object({ submissionId, expectedRevision: z.number().int().positive(), expectedCmsHash: submissionId }).strict();
@@ -31,6 +32,33 @@ export async function resumeSubmissionCms(uid: string, raw: unknown) {
     const save = db.collection('writerWorkspaces').doc(uid).collection('cmsSaves').doc(`submission-${row.id}`);
     const [cms, saved, current] = await Promise.all([stage.get(), save.get(), ref.get()]);
     const intent = cms.data(), attempt = saved.data(), prepared = current.data()?.prepared;
+    if (row.stagedTarget) {
+      if (row.publishedTarget || !intent?.inputPayload || intent.status !== 'attempted' || intent.mediaUpdate ||
+        current.data()?.blockedStep !== 'cms' || attempt) throw Error('mcp_submission_cms_resume_not_safe');
+      const draft = await readSubmissionCms(row.stagedTarget.itemId);
+      if (!draft.isDraft || draft.lastPublished || cmsFieldHash(draft.fieldData as Record<string, unknown>) !== row.stagedTarget.fieldDataHash ||
+        input.expectedCmsHash !== row.stagedTarget.fieldDataHash) throw Error('mcp_submission_cms_conflict');
+      const names = ['visual', 'checks', 'cover', ...Array.from({ length: Math.max(policy.minimumBodyImages ?? 2, articleImages(row.article.content).length) }, (_, i) => `body-${i + 1}`)];
+      const proofs = await Promise.all(names.map(name => ref.collection('stages').doc(`${row.contentHash}-${name}`).get()));
+      if (proofs.some(p => p.data()?.status !== 'done')) throw Error('mcp_submission_reconciliation_evidence_missing');
+      return db.runTransaction(async tx => {
+        const [latest, latestStage, existing] = await Promise.all([tx.get(ref), tx.get(stage), tx.get(receipt)]);
+        if (existing.exists) return { ...existing.data()!.result, replay: true };
+        const live = latest.data();
+        if (live?.revision !== row.revision || live.contentHash !== row.contentHash || live.status !== 'blocked' ||
+          (live.workerUntil || 0) > Date.now() || live.approval?.contentHash !== row.contentHash ||
+          latestStage.data()?.status !== 'attempted' || latestStage.data()?.mediaUpdate ||
+          live.stagedTarget?.fieldDataHash !== row.stagedTarget?.fieldDataHash) throw Error('mcp_submission_revision_conflict');
+        const result = { submissionId: row.id, revision: row.revision, status: 'processing', queuedOnServer: true,
+          itemId: row.stagedTarget!.itemId, paidAiCalls: 0, publicationApproval: false };
+        const at = new Date().toISOString();
+        tx.create(receipt, { input, result, priorStage: intent, priorBlocker: live.blocker, createdAt: at });
+        tx.update(stage, { status: 'retryable_before_write', recoveryReceiptId: receipt.id });
+        tx.update(ref, { status: 'processing', blocker: null, blockedStep: null,
+          publicationConsentPending: hasCurrentPublicationConsent(row), updatedAt: at });
+        return { ...result, replay: false };
+      });
+    }
     if (!prepared || row.publishedTarget || intent?.status !== 'attempted' || !intent.inputPayload ||
       attempt?.phase !== 'preparing' || attempt.expected || attempt.leaseUntil > Date.now() ||
       attempt.articleId !== prepared.itemId || current.data()?.blockedStep !== 'cms') throw Error('mcp_submission_cms_resume_not_safe');

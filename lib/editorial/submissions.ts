@@ -201,10 +201,10 @@ export async function updateSubmission(uid: string, raw: unknown, internal?: { r
     }
     if (!internal?.protectedContentHash && (row.choices.media === 'illustration' || next.choices.media === 'illustration') &&
         [...afterUrls].some(url => url && !beforeUrls.includes(url))) throw Error('mcp_submission_image_import_required');
-    if (row.publishedTarget) assertMediaOnlyUpdate(row.article, next.article);
+    if (row.publishedTarget || row.stagedTarget) assertMediaOnlyUpdate(row.article, next.article);
     const revision = row.revision + 1, now = new Date().toISOString();
     tx.create(ref.collection('versions').doc(String(row.revision)), row);
-    tx.update(ref, { ...next, revision, contentHash: submissionVersion(next, row.publishedTarget), status: 'draft',
+    tx.update(ref, { ...next, revision, contentHash: submissionVersion(next, row.publishedTarget || row.stagedTarget), status: 'draft',
       publicationConsentPending: false, updatedAt: now });
     tx.create(receipt, { requestHash, revision, createdAt: now,
       ...(internal?.existingCoverAssetId ? { existingCoverAssetId: internal.existingCoverAssetId, canonicalGenerationComplianceVerified: false } : {}) });

@@ -252,8 +252,9 @@ export async function runSubmissionStep(uid: string, id: string) {
       }
       const cms = await run('cms', async () => {
         await stages.doc(`${row.contentHash}-cms`).update({ inputPayload: clean(payload) });
-        if (row.publishedTarget) return stageSubmissionMedia(row.publishedTarget, payload, inspectionPolicy,
-          data => stages.doc(`${row.contentHash}-cms`).update({ mediaUpdate: clean(data), ...(data.proof ? { checks: clean(data.proof) } : {}) }).then(() => undefined), current);
+        if (row.publishedTarget || row.stagedTarget) return stageSubmissionMedia((row.publishedTarget || row.stagedTarget)!, payload, inspectionPolicy,
+          data => stages.doc(`${row.contentHash}-cms`).update({ mediaUpdate: clean(data), ...(data.proof ? { checks: clean(data.proof) } : {}) }).then(() => undefined),
+          current, !!row.stagedTarget && !row.publishedTarget);
         const savedIdentity = (await db.collection('writerWorkspaces').doc(uid).collection('cmsSaves').doc(`submission-${id}`).get()).data();
         if (savedIdentity?.articleId) cmsLease = await acquireCmsWriteLease(savedIdentity.articleId, 'da');
         if (!savedIdentity) await assertSubmissionNotAlreadySaved(payload);

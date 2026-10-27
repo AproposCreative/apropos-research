@@ -11,7 +11,7 @@ vi.mock('@/lib/liv/public-media-reader', () => ({ readPublicMedia: async () => s
 vi.mock('@/lib/webflow/locale-items', () => ({ patchArticleFieldDataForLocale: (...args: unknown[]) => state.patch(...args) }));
 vi.mock('@/lib/editorial/submission-options', () => ({ getSubmissionOptions: async () => ({ authors: [], categories: [], topics: [], requiredFields: [] }) }));
 vi.mock('@/lib/webflow/published-image-optimization', () => ({ verifyCompressedFields: (...args: unknown[]) => state.compression(...args) }));
-import { linkPublishedSubmission, stageSubmissionMedia, verifyStagedMedia, assertMediaOnlyUpdate, assertSubmissionNotAlreadySaved, findBoundCoverByHash } from '@/lib/editorial/submission-published-target';
+import { linkPublishedSubmission, linkStagedSubmission, stageSubmissionMedia, verifyStagedMedia, assertMediaOnlyUpdate, assertSubmissionNotAlreadySaved, findBoundCoverByHash } from '@/lib/editorial/submission-published-target';
 import { cmsFieldHash } from '@/lib/liv/cms-field-hash';
 import { acquireCmsWriteLease } from '@/lib/seo-engine/cms-write-lease';
 import { projectImageSelection } from '@/lib/editorial/submission-image-selection';
@@ -46,6 +46,47 @@ it('links the exact existing DK live item without any CMS write or approval', as
 it('rejects mismatched live/staged state or different copy rather than creating a duplicate', async () => {
   state.live.content = '<p>En andens ændring.</p>';
   await expect(linkPublishedSubmission('owner', { submissionId: id, expectedRevision: 3, itemId })).rejects.toThrow('existing_article_mismatch');
+  expect(state.patch).not.toHaveBeenCalled();
+});
+it('binds one exact never-published draft by pinned CMS hash without a CMS write', async () => {
+  delete state.fields.thumb;
+  state.read.mockImplementation(async (url: string) => url.includes('/items?')
+    ? { items: [{ id: itemId, cmsLocaleId: 'd'.repeat(24), isArchived: false, fieldData: { name: article.title, slug: article.slug } }] }
+    : { id: itemId, cmsLocaleId: 'd'.repeat(24), isDraft: true, isArchived: false, lastPublished: null, fieldData: structuredClone(state.fields) });
+  const inspected = await linkStagedSubmission('owner', { submissionId: id, expectedRevision: 3, itemId });
+  expect(inspected).toMatchObject({ exactDraftMatch: true, cmsWrites: 0, publicationApproval: false, cmsHash: cmsFieldHash(state.fields) });
+  expect(memory.rows.get(path).stagedTarget).toBeUndefined();
+  const input = { submissionId: id, expectedRevision: 3, itemId, mode: 'bind', expectedCmsHash: inspected.cmsHash,
+    requestId: 'placebo-existing-draft-bind-01' };
+  expect(await linkStagedSubmission('owner', input)).toMatchObject({ itemId, revision: 4, cmsWrites: 0 });
+  const row = memory.rows.get(path);
+  expect(row.stagedTarget).toMatchObject({ itemId, fieldDataHash: inspected.cmsHash });
+  expect(row.contentHash).not.toBe('c'.repeat(64));
+  expect(await linkStagedSubmission('owner', input)).toMatchObject({ replay: true, revision: 4 });
+  expect(await linkStagedSubmission('owner', { submissionId: id, expectedRevision: 4, itemId })).toMatchObject({ revision: 4, exactDraftMatch: true });
+  expect(state.patch).not.toHaveBeenCalled();
+  await stageSubmissionMedia(row.stagedTarget, expected(), { minimumBodyImages: 0, preserveProvidedImages: true }, async () => {}, async () => {});
+  expect(state.patch).toHaveBeenCalledTimes(1);
+});
+it('does not adopt a changed, published, ambiguous or unrelated CMS draft', async () => {
+  delete state.fields.thumb;
+  const page = { items: [{ id: itemId, cmsLocaleId: 'd'.repeat(24), isArchived: false, fieldData: { name: article.title, slug: article.slug } }] };
+  state.read.mockImplementation(async (url: string) => url.includes('/items?') ? page
+    : { id: itemId, cmsLocaleId: 'd'.repeat(24), isDraft: true, isArchived: false, lastPublished: null, fieldData: structuredClone(state.fields) });
+  await expect(linkStagedSubmission('owner', { submissionId: id, expectedRevision: 3, itemId, mode: 'bind',
+    expectedCmsHash: '0'.repeat(64), requestId: 'staged-draft-stale-hash-01' })).rejects.toThrow('reconcile_confirmation_required');
+  state.fields.content = '<p>Anden tekst.</p>';
+  await expect(linkStagedSubmission('owner', { submissionId: id, expectedRevision: 3, itemId })).rejects.toThrow('existing_article_mismatch');
+  state.fields.content = article.content;
+  page.items.push({ id: 'c'.repeat(24), cmsLocaleId: 'd'.repeat(24), isArchived: false, fieldData: { name: article.title, slug: 'andet' } });
+  await expect(linkStagedSubmission('owner', { submissionId: id, expectedRevision: 3, itemId })).rejects.toThrow('existing_article_mismatch');
+  expect(memory.rows.get(path).stagedTarget).toBeUndefined();
+  expect(state.patch).not.toHaveBeenCalled();
+});
+it('refuses to patch an adopted draft if it became live after binding', async () => {
+  const original = target();
+  await expect(stageSubmissionMedia(original, expected(), {}, async () => {}, async () => {}, true))
+    .rejects.toThrow('existing_article_mismatch');
   expect(state.patch).not.toHaveBeenCalled();
 });
 it('updates only media on the same item, then adds body images without changing prose/SEO/rating/date', async () => {
