@@ -83,3 +83,26 @@ unattended publication acceptance.
 - MCP version: `2026-10-27-v57`.
 - Deployment and post-release native/browser readback are recorded below after
   the deployment finishes; build success alone is not a production claim.
+
+
+### Production receipt
+
+Production alias `ai.aproposmagazine.com` resolves READY to
+`dpl_GTnJyQkPH9CHiXckEjiB6T67MqoK`, source
+`f4f7e7117a6b3161d2cfb318dc74c016bb3dbdc4`.
+Fresh native MCP readback returns the new remit, minimum five original reviews,
+visible AI flag true, eight retained ideas and the four preserved drafts.
+Christopher remains revision 5/hash
+`941640735a1cc1f42b6dc615075e2fad7b3ef0fb1e3957423f5415c8c4033924`,
+not ready, with `liv_review_or_guide_required`.
+
+After reloading the existing signed-in browser, the production Liv feed visibly
+shows the new direction, one active Fire & Ice guide draft, one Louisiana guide
+idea, and the expandable “Tidligere forslag · kræver ny vinkel (12)”. Expanding it
+shows the original four versions and eight ideas. No approval, generation, CMS
+write or publication was performed during verification.
+
+Receipts: `output/liv-remit-live-receipt-20261027.json` and
+`output/liv-editorial-remit-live-20261027.png` (local).
+The code change is deployed and observed; the automatic next-article/reserve
+acceptance is still open, with no fabricated ready inventory.
