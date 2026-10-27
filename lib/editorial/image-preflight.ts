@@ -82,6 +82,7 @@ export async function preflightSubmissionImage(uid: string, raw: unknown, import
   if (current.revision !== row.revision || current.contentHash !== row.contentHash ||
       imageProtectedContentHash(current.article) !== imageProtectedContentHash(row.article)) add('mcp_submission_image_content_changed');
   const inputsComplete = blockers.length === 0;
+  const retryRequired = declines.length > 0 || failures.some(f => f.role === input.role && f.sectionId === input.sectionId);
   return { submissionId: row.id, revision: row.revision, contentHash: row.contentHash,
     protectedContentHash: imageProtectedContentHash(row.article), role: input.role, sectionId: input.sectionId, briefId: input.briefId ?? null,
     checkedAt: new Date().toISOString(), inputsComplete, canGenerate: inputsComplete, canImportGeneratedImage: false,
@@ -91,12 +92,20 @@ export async function preflightSubmissionImage(uid: string, raw: unknown, import
       requiredMode: resume?.inputMode ?? null, hostCapabilityVerified: false, nativeInputVerified: false,
       contextRequirement: 'The complete unchanged canonical prompt and actual ordered style/subject images must be present in the current native generator context. Hashes, URLs, summaries and old conversational references are not substitutes. STOP if unavailable.' },
     blockers, references: actualReferences, integration: NATIVE_IMAGE_INTEGRATION, failures, declinedImages: declines, authorizedResume: resume,
+    attempt: { kind: retryRequired ? 'retry' : 'first_attempt', grantRequired: retryRequired,
+      claimRequired: retryRequired && resume?.status === 'authorized',
+      nextAction: retryRequired ? (resume?.status === 'authorized' ? 'claim_submission_image_attempt' : 'stop_until_personal_retry_authorization')
+        : (inputsComplete ? 'generate_once_with_canonical_inputs' : 'resolve_preflight_blockers') },
     visualChecks: { status: 'not_performed', independentSemanticVerification: false, personalReviewRequired: true },
     dispatch: resume ? { claimRequired: resume.status === 'authorized', tool: 'claim_submission_image_attempt',
       grantId: resume.grantId, requestId: resume.requestId, inputMode: resume.inputMode,
-      state: resume.status, nativeGenerationObserved: false } : null,
+      state: resume.status, nativeGenerationObserved: false }
+      : retryRequired ? null : { claimRequired: false, tool: null, grantId: null, requestId: null,
+        inputMode: input.inputMode ?? null, state: 'first_attempt', nativeGenerationObserved: false },
     automaticRetryAllowed: false, regenerateImage: false, paidAiCalls: 0, publicationApproval: false,
     instruction: inputsComplete
-      ? (resume ? 'FØR dette nye forsøg: kald claim_submission_image_attempt med præcis dispatch.grantId/requestId, samme revision/brief/placering og inputMode. Kun første svar med dispatchAllowed=true åbner ét native kald; timeout eller gentaget claim giver ikke et nyt kald. ' : '') + 'Ét kontrolleret billedforsøg er muligt, hvis den aktuelle host faktisk modtager hele den kanoniske prompt og alle originale referencebilleder uændret. Skjult generatorbehandling er ikke verificeret. Kan hosten ikke modtage inputtene, STOP. Kontrollér resultatet; import_submission_image gemmer kun en privat kandidat indtil brugerens personlige valg. Andre private forslag kan bevares til sammenligning, når brugeren har bestilt flere; dette er ikke tilladelse til autonome ekstra forsøg. Ingen automatisk retry eller publicering.'
+      ? (resume ? 'FØR dette nye forsøg: kald claim_submission_image_attempt med præcis dispatch.grantId/requestId, samme revision/brief/placering og inputMode. Kun første svar med dispatchAllowed=true åbner ét native kald; timeout eller gentaget claim giver ikke et nyt kald. '
+        : 'Dette er første billedforsøg for placeringen: ingen grantId, requestId eller claim_submission_image_attempt kræves. dispatch.state=first_attempt er forventet; opfind ikke en manglende engangstilladelse. Vælg et stabilt requestId til senere import og genbrug det efter timeout. ')
+        + 'Ét kontrolleret billedforsøg er muligt, hvis den aktuelle host faktisk modtager hele den kanoniske prompt og alle originale referencebilleder uændret. Skjult generatorbehandling er ikke verificeret. Kan hosten ikke modtage inputtene, STOP. Kontrollér resultatet; import_submission_image gemmer kun en privat kandidat indtil brugerens personlige valg. Andre private forslag kan bevares til sammenligning, når brugeren har bestilt flere; dette er ikke tilladelse til autonome ekstra forsøg. Ingen automatisk retry eller publicering.'
       : 'STOP før billedkald. Løs de konkrete blockers, bevar originaler og request-ID. Hent preview ved afventende personligt billedvalg. Et nyt brief eller en klienthash ophæver ikke stoppet.' };
 }

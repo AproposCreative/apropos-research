@@ -427,6 +427,8 @@ it('registers an actual MCP App, sends secrets only through UI metadata and decl
   expect(tools.find((t: any) => t.name === 'get_image_brief').description).toContain('Do not summarize, rewrite, embellish');
   const preflight = tools.find((t: any) => t.name === 'preflight_submission_image');
   expect(preflight.annotations.readOnlyHint).toBe(true);
+  expect(preflight.description).toContain('Første forsøg: attempt.kind=first_attempt');
+  expect(preflight.description).toContain('Kun et afvist/fejlet tidligere billede kræver retry-grant');
   expect(preflight.inputSchema.required).toEqual(expect.arrayContaining(['submissionId', 'expectedRevision', 'role', 'sectionId', 'subjectReferencesRequired', 'subjectReferenceIds']));
   expect(preflight.inputSchema.properties).not.toHaveProperty('exactPromptExecutionVerified');
   expect(tools.find((t: any) => t.name === 'preview_submission_image_failure').annotations.readOnlyHint).toBe(true);

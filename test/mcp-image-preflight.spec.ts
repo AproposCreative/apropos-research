@@ -66,8 +66,12 @@ afterEach(() => vi.unstubAllEnvs());
 it('a complete read-only preflight permits one reviewed attempt without claiming hidden native proof', async () => {
   const before = cmsFieldHash([...memory.rows]); const result = await preflightSubmissionImage('owner', input);
   expect(result).toMatchObject({ inputsComplete: true, canGenerate: true, canImportGeneratedImage: false, paidAiCalls: 0,
-    publicationApproval: false, integration: { exactPromptExecutionVerified: false, inputObservation: 'unavailable' } });
+    publicationApproval: false, integration: { exactPromptExecutionVerified: false, inputObservation: 'unavailable' },
+    attempt: { kind: 'first_attempt', grantRequired: false, claimRequired: false,
+      nextAction: 'generate_once_with_canonical_inputs' },
+    dispatch: { state: 'first_attempt', claimRequired: false, grantId: null, requestId: null } });
   expect(result.blockers).toEqual([]);
+  expect(result.instruction).toContain('ingen grantId, requestId eller claim_submission_image_attempt kræves');
   expect(result.references.map(r => r.purpose)).toEqual(['style', 'subject']);
   expect(cmsFieldHash([...memory.rows])).toBe(before); expect(state.download).not.toHaveBeenCalled(); expect(state.upload).not.toHaveBeenCalled();
 });
@@ -153,6 +157,9 @@ it('same request and a NEW request cannot regenerate/reupload after failure; pre
   expect(state.download).toHaveBeenCalledTimes(1); expect(state.upload).not.toHaveBeenCalled();
   expect(await readImageFailures('owner', id)).toHaveLength(1);
   expect((await preflightSubmissionImage('owner', input)).blockers).toContain('mcp_submission_image_attempt_stopped');
+  expect(await preflightSubmissionImage('owner', input)).toMatchObject({
+    attempt: { kind: 'retry', grantRequired: true, claimRequired: false,
+      nextAction: 'stop_until_personal_retry_authorization' }, dispatch: null });
 });
 it('cannot change an existing failed intent under the same request ID', async () => {
   generated.generationReport.outputCheck.imageType = 'collage';
