@@ -15,6 +15,13 @@ const db = () => { const db = getAdminDb(); if (!db) throw Error('mcp_unavailabl
 const collection = (name: string) => db().collection(`mcp${name}`);
 export type McpIdentity = { uid: string; role: 'admin' | 'editor'; owner: boolean; scopes: string[]; grantId: string };
 export class OAuthError extends Error { constructor(readonly code: string, readonly status = 400) { super(code); } }
+export class OAuthRateLimitError extends OAuthError {
+  readonly retryAfterSeconds: number;
+  constructor(readonly limit: number, readonly resetAt: number, now: number) {
+    super('rate_limited', 429);
+    this.retryAfterSeconds = Math.max(1, Math.ceil((resetAt - now) / 1000));
+  }
+}
 const invalid = () => new OAuthError('invalid_grant');
 
 /** Every token use checks the real Firebase account and current allowlist. No positive cache. */
@@ -54,11 +61,12 @@ export async function mcpRequestAccess(request: Request) {
 
 /** Small global bucket for public OAuth endpoints; untrusted callers cannot create unlimited records. */
 export async function oauthRateLimit(kind: string, limit: number) {
-  const ref = collection('RateLimits').doc(`${kind}-${Math.floor(Date.now() / 3600000)}`);
+  const now = Date.now(), hour = Math.floor(now / 3600000);
+  const ref = collection('RateLimits').doc(`${kind}-${hour}`);
   await db().runTransaction(async tx => {
     const count = (await tx.get(ref)).data()?.count || 0;
-    if (count >= limit) throw new OAuthError('rate_limited', 429);
-    tx.set(ref, { count: count + 1, expiresAt: new Date(Date.now() + 7200000) });
+    if (count >= limit) throw new OAuthRateLimitError(limit, (hour + 1) * 3600000, now);
+    tx.set(ref, { count: count + 1, expiresAt: new Date(now + 7200000) });
   });
 }
 

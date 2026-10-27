@@ -1,4 +1,6 @@
 import { McpServer } from '@modelcontextprotocol/sdk/server/mcp.js';
+import { OAuthRateLimitError } from './oauth';
+import { limitMcpToolCall, mcpRateLimitRecovery } from './rate-limit';
 import { after } from 'next/server';
 import { continueSubmissionWorkflow } from '@/lib/editorial/submission-continuation';
 import { z } from 'zod';
@@ -97,10 +99,17 @@ export function createEditorialMcp(identity: McpIdentity) {
       const startedAt = Date.now(); let status = 'ok';
       let diagnostic: { errorCode?: string; rejectedHost?: string } = {};
       try {
+        // Only a validated, authorized tool invocation spends the editorial
+        // quota. Discovery, notifications and rejected negotiation never do.
+        await limitMcpToolCall(identity.uid);
         const data = await withoutPaidAi(() => run(input as z.infer<z.ZodObject<S>>));
         return options.result ? await options.result(data) : { content: [{ type: 'text', text: JSON.stringify(data) }] };
       } catch (error) {
         status = 'error';
+        if (error instanceof OAuthRateLimitError) {
+          diagnostic = { errorCode: 'mcp_rate_limited' };
+          return { isError: true, content: [{ type: 'text', text: JSON.stringify(mcpRateLimitRecovery(error, 'tool_calls')) }] };
+        }
         const message = error instanceof Error ? error.message : '';
         const code = /^(?:mcp_|liv_edit_|liv_shortening_|seo_)[a-z_0-9]{1,100}$/.test(message) ? message : 'mcp_operation_unconfirmed';
         const recovery = chatFileRecovery(error);

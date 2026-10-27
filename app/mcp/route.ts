@@ -1,5 +1,6 @@
 import { WebStandardStreamableHTTPServerTransport } from '@modelcontextprotocol/sdk/server/webStandardStreamableHttp.js';
-import { authenticateMcp, oauthRateLimit, OAuthError } from '@/lib/mcp/oauth';
+import { authenticateMcp, OAuthError, OAuthRateLimitError } from '@/lib/mcp/oauth';
+import { limitMcpTransport, mcpRateLimitRecovery } from '@/lib/mcp/rate-limit';
 import { createEditorialMcp } from '@/lib/mcp/server';
 import { MCP_ORIGIN, PRIVATE_HEADERS } from '@/lib/mcp/config';
 import { logTransportRejection, transportErrorCategory } from '@/lib/mcp/transport-diagnostics';
@@ -13,7 +14,7 @@ export async function POST(request: Request) {
     const identity = await authenticateMcp(request);
     if (!identity) return Response.json({ error: 'unauthorized' }, { status: 401, headers: { ...PRIVATE_HEADERS,
       'WWW-Authenticate': `Bearer resource_metadata="${MCP_ORIGIN}/.well-known/oauth-protected-resource"` } });
-    await oauthRateLimit(`tools-${identity.uid}`, 240);
+    await limitMcpTransport(identity.uid);
     const server = createEditorialMcp(identity);
     let rejectionCategory = 'transport_rejected';
     server.server.onerror = error => { rejectionCategory = transportErrorCategory(error); };
@@ -25,7 +26,11 @@ export async function POST(request: Request) {
       Object.entries(PRIVATE_HEADERS).forEach(([k, v]) => response.headers.set(k, v));
       return response;
     } finally { await server.close(); }
-  } catch (error) { return Response.json({ error: error instanceof OAuthError ? error.code : 'mcp_temporarily_unavailable' },
+  } catch (error) {
+    if (error instanceof OAuthRateLimitError) return Response.json(mcpRateLimitRecovery(error, 'transport'), {
+      status: 429, headers: { ...PRIVATE_HEADERS, 'Retry-After': String(error.retryAfterSeconds) },
+    });
+    return Response.json({ error: error instanceof OAuthError ? error.code : 'mcp_temporarily_unavailable' },
     { status: error instanceof OAuthError ? error.status : 503, headers: PRIVATE_HEADERS }); }
 }
 // No unauthenticated event streams, session state or side effects from a GET.

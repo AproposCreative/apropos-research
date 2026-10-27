@@ -45,7 +45,7 @@ vi.mock('@/lib/editorial/workspace-copyedit', async original => ({ ...await orig
 vi.mock('@/lib/editorial/review-workspace', async original => ({ ...await original<any>(), reviewWorkspace: vi.fn() }));
 import { POST, GET } from '@/app/mcp/route';
 import { assertPaidAiAllowed } from '@/lib/ai/no-paid-calls';
-import { OAuthError } from '@/lib/mcp/oauth';
+import { OAuthError, OAuthRateLimitError } from '@/lib/mcp/oauth';
 import { MCP_ICON, MCP_ORIGIN, MCP_VERSION } from '@/lib/mcp/config';
 import { ChatFileError } from '@/lib/editorial/chat-file-error';
 beforeEach(() => { vi.clearAllMocks(); mock.identity = { uid: 'frederik', owner: true, grantId: 'grant', role: 'admin', scopes: ['apropos:read', 'apropos:draft', 'apropos:publish'] };
@@ -507,4 +507,80 @@ it('preserves rate-limit HTTP errors and refuses cross-origin browser posts', as
   mock.rate.mockRejectedValue(new OAuthError('rate_limited', 429)); expect((await POST(message('tools/list'))).status).toBe(429);
   const req = message('tools/list'); req.headers.set('origin', 'https://evil.example'); expect((await POST(req)).status).toBe(403);
   expect(GET().status).toBe(405);
+});
+it('counts only authorized tool execution, not discovery, notifications or rejected negotiation', async () => {
+  await POST(message('initialize', { protocolVersion: '2025-03-26', capabilities: {}, clientInfo: { name: 'fixture', version: '1' } }));
+  await POST(message('tools/list'));
+  const notification = new Request(`${MCP_ORIGIN}/mcp`, { method: 'POST',
+    headers: { 'Content-Type': 'application/json', Accept: 'application/json, text/event-stream' },
+    body: JSON.stringify({ jsonrpc: '2.0', method: 'notifications/initialized' }) });
+  expect((await POST(notification)).status).toBe(202);
+  const warning = vi.spyOn(console, 'warn').mockImplementation(() => undefined);
+  try {
+    const badVersion = message('tools/call', { name: 'get_editorial_context', arguments: {} });
+    badVersion.headers.set('mcp-protocol-version', '2099-01-01');
+    expect((await POST(badVersion)).status).toBe(400);
+  } finally { warning.mockRestore(); }
+  expect(mock.rate.mock.calls).toEqual(Array.from({ length: 4 }, () => ['transport-v2-frederik', 1200]));
+  await call('get_editorial_context');
+  expect(mock.rate).toHaveBeenLastCalledWith('tool-calls-v2-frederik', 240);
+  expect(mock.context).toHaveBeenCalledTimes(1);
+  mock.identity.grantId = 'reconnected-grant';
+  await call('get_editorial_context');
+  expect(mock.rate).toHaveBeenLastCalledWith('tool-calls-v2-frederik', 240);
+  mock.identity.scopes = [];
+  await call('get_editorial_context');
+  expect(mock.rate.mock.calls.filter(([kind]) => kind.startsWith('tool-calls-'))).toHaveLength(2);
+  expect(mock.context).toHaveBeenCalledTimes(2);
+});
+it('reports a tool limit inside MCP with an exact wait and no handler execution or sensitive logs', async () => {
+  const now = Date.parse('2026-10-27T20:30:00Z');
+  mock.rate.mockImplementation(async kind => {
+    if (kind.startsWith('tool-calls-')) throw new OAuthRateLimitError(240, now + 1800000, now);
+  });
+  const warning = vi.spyOn(console, 'warn').mockImplementation(() => undefined);
+  try {
+    const response = await call('get_editorial_context');
+    expect(response.status).toBe(200);
+    const result = (await response.json()).result;
+    expect(result.isError).toBe(true);
+    expect(JSON.parse(result.content[0].text)).toMatchObject({ error: 'rate_limited', limiter: 'apropos_mcp',
+      scope: 'tool_calls', operationStarted: false, automaticRetryAllowed: false, paidAiAllowed: false,
+      resetAt: '2026-10-27T21:00:00.000Z', retryAfterSeconds: 1800 });
+    expect(mock.context).not.toHaveBeenCalled();
+    expect(mock.audit).toHaveBeenCalledWith(expect.objectContaining({ status: 'error', errorCode: 'mcp_rate_limited' }));
+    expect(JSON.stringify(warning.mock.calls)).not.toMatch(/frederik|grant|Bearer/);
+  } finally { warning.mockRestore(); }
+});
+it('preserves HTTP 429 for transport abuse with Retry-After and no tool execution', async () => {
+  const now = Date.parse('2026-10-27T20:30:00Z');
+  mock.rate.mockRejectedValue(new OAuthRateLimitError(1200, now + 1800000, now));
+  const warning = vi.spyOn(console, 'warn').mockImplementation(() => undefined);
+  try {
+    const response = await call('get_editorial_context');
+    expect(response.status).toBe(429);
+    expect(response.headers.get('Retry-After')).toBe('1800');
+    expect(response.headers.get('Cache-Control')).toBe('private, no-store');
+    expect(await response.json()).toMatchObject({ scope: 'transport', operationStarted: false, limit: 1200 });
+    expect(mock.context).not.toHaveBeenCalled(); expect(mock.audit).not.toHaveBeenCalled();
+  } finally { warning.mockRestore(); }
+});
+it('charges each tool in a batch and prevents work after the final available call', async () => {
+  let remaining = 1;
+  mock.rate.mockImplementation(async kind => {
+    if (kind.startsWith('tool-calls-') && --remaining < 0) throw new OAuthRateLimitError(240, Date.now() + 60000, Date.now());
+  });
+  const warning = vi.spyOn(console, 'warn').mockImplementation(() => undefined);
+  try {
+    const response = await POST(new Request(`${MCP_ORIGIN}/mcp`, { method: 'POST',
+      headers: { 'Content-Type': 'application/json', Accept: 'application/json, text/event-stream' },
+      body: JSON.stringify([1, 2].map(id => ({ jsonrpc: '2.0', id, method: 'tools/call',
+        params: { name: 'get_editorial_context', arguments: {} } }))) }));
+    const results = await response.json();
+    expect(results).toHaveLength(2);
+    expect(results.filter((r: any) => r.result.isError)).toHaveLength(1);
+    expect(mock.context).toHaveBeenCalledTimes(1);
+    expect(mock.rate.mock.calls.filter(([kind]) => kind.startsWith('transport-'))).toHaveLength(1);
+    expect(mock.rate.mock.calls.filter(([kind]) => kind.startsWith('tool-calls-'))).toHaveLength(2);
+  } finally { warning.mockRestore(); }
 });
