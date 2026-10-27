@@ -9,6 +9,7 @@ export default function ArticleReading({ article, onImageError }: {
       {article.category && <p className="text-sm text-white/65">{article.category}</p>}
       <h2 className="break-words text-[2rem] font-medium leading-[1.15] tracking-tight sm:text-5xl">{article.title}</h2>
       {article.subtitle && <p className="text-lg leading-relaxed text-white/80 sm:text-xl">{article.subtitle}</p>}
+      {article.aiGenerated && <p className="text-sm text-white/70">AI-skrevet researchanmeldelse</p>}
       <p className="text-sm text-white/60">{article.author && `Af ${article.author}`}{article.rating != null && ` · ${article.rating}/6 stjerner`}</p>
     </header>
     {article.featuredImage ? <figure>

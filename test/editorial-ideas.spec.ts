@@ -9,7 +9,7 @@ import { editorialWorkflow } from '@/lib/editorial/workflows';
 import { editorialDeskWidgetHtml } from '@/lib/mcp/editorial-desk-widget';
 let memory: ReturnType<typeof memoryFirestore>;
 beforeEach(() => { memory = memoryFirestore(); state.db = memory.db; });
-const idea = { topicKey: 'venskab-i-tv', title: 'Venskab i tv', angle: 'Undersøg venskabet som hovedhistorie.', whyNow: 'Et muligt kulturtema', caveats: 'Aktualitet skal undersøges.',
+const idea = { topicKey: 'venskab-i-tv', title: 'Venskab i tv', suggestedKind: 'culture-guide' as const, angle: 'Undersøg venskabet som hovedhistorie.', whyNow: 'Et muligt kulturtema', caveats: 'Aktualitet skal undersøges.',
   sources: [{ title: 'Kildespor', url: 'https://example.com/article', retrievedAt: '2026-10-12T10:00:00Z', publishedAt: null, notes: 'Ikke uafhængigt verificeret' }] };
 const save = () => saveEditorialIdeas('owner', { requestId: 'editorial-brief-2026-10-12', ideas: [idea] });
 
@@ -68,4 +68,15 @@ it('keeps canonical editorial/submission workflow and safe declarative UI', () =
   expect(flow.instructions).toContain('preview_submission'); expect(flow.publicationApproval).toBe(false);
   expect(editorialDeskWidgetHtml).toContain('Start denne idé'); expect(editorialDeskWidgetHtml).toContain('ui/message');
   expect(editorialDeskWidgetHtml).not.toMatch(/\.innerHTML\s*=|fetch\(|execute_publication|confirm_submission_action/);
+});
+
+
+it('keeps a news idea with its sources in retained history and refuses to start it', async () => {
+  const original = { ...idea, suggestedKind: undefined, title: 'Soundvenue søger videopraktikant', angle: 'Et gammelt kulturbrancheforslag.' };
+  const saved = await saveEditorialIdeas('owner', { requestId: 'retained-news-2026-10-27', ideas: [original] });
+  const before = structuredClone([...memory.rows]);
+  const desk = await getEditorialDesk('owner', {});
+  expect(desk.ideas).toEqual([]); expect(desk.retainedIdeas[0].sources).toEqual(original.sources);
+  await expect(startEditorialIdea('owner', { ideaId: saved.ids[0], expectedRevision: 1 })).rejects.toThrow('liv_idea_requires_review_or_guide_rebrief');
+  expect([...memory.rows]).toEqual(before);
 });

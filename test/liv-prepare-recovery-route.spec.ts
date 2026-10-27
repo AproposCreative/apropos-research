@@ -191,7 +191,7 @@ it('uses the reserve scope and timeless directive for an existing reserved job',
   await GET(request());
   expect(mocks.reserve).toHaveBeenCalledWith('lease');
   expect(mocks.run).toHaveBeenCalledWith(expect.any(NextRequest),expect.objectContaining({dayKey:'2026-09-11',kind:'reserve',
-    defaultPlan:expect.objectContaining({directiveHint:expect.stringContaining('Tidløs reserve')})}));
+    defaultPlan:expect.objectContaining({directiveHint:expect.stringContaining('Reserve:')})}));
 });
 it('recovers a reserve with its five-day expiry, not a scheduled one-day window', async () => {
   coverTodayAndTomorrow();mocks.reserve.mockResolvedValue({dayKey:today,kind:'reserve'});

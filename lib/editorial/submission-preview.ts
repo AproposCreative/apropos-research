@@ -32,7 +32,7 @@ export function articleReadingPreview(article: Record<string, unknown>) {
     (article.featuredImage as { url?: string } | undefined)?.url;
   return {
     title: plain(article.title), subtitle: plain(article.subtitle), intro: plain(article.intro),
-    author: plain(article.author), category: plain(article.category),
+    aiGenerated: article.aiGenerated === true, author: plain(article.author), category: plain(article.category),
     featuredImage: cover?.startsWith('https://') ? cover : '', featuredImageAlt: plain(article.featuredImageAlt),
     fotoCredit: plain(article.fotoCredit), seoTitle: plain(article.seoTitle), seoDescription: plain(article.seoDescription),
     slug: plain(article.slug), articleFormat: plain(article.articleFormat),

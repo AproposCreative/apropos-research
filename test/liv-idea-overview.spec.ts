@@ -18,7 +18,7 @@ it('shows only unlinked saved briefs, never linked drafts or published articles'
   expect(overview).toEqual({ items: [
     { id: 'idea-1', title: 'Mulig historie', angle: 'En vinkel', status: 'suggested', createdAt: '2026-10-19T08:00:00Z' },
     { id: 'idea-4', title: 'Valgt idé', angle: 'Mangler endnu tekst', status: 'selected', createdAt: '2026-10-19T08:00:00Z' },
-  ], complete: true, checkedAt: '2026-10-23T20:00:00Z' });
+  ], retained: [], complete: true, checkedAt: '2026-10-23T20:00:00Z' });
 });
 
 it('does not claim full coverage when the idea archive is truncated', async () => {

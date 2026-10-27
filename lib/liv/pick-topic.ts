@@ -7,6 +7,7 @@
  * auto-publishes (Firestore `livDailyArticles`).
  */
 
+import { assessLivTopic } from './editorial-remit';
 import { logger } from '@/lib/logger';
 import { internalApiHeaders } from '@/lib/api/internal-auth';
 import { getRecentLivDailySlugs, getRecentLivDailyTopics, getRecentLivDailySourceUrls } from '@/lib/liv/daily-history-store';
@@ -50,6 +51,8 @@ export interface PickTopicOptions {
   excludedTitles?: string[];
   /** Server-owned identity of the already-claimed run; never an arbitrary UI bypass. */
   currentRunId?: string;
+  articleFormat?: 'article' | 'research-review';
+  editorialKind?: string;
 }
 
 /* Liv's primære temaer — vægtes højest. */
@@ -240,12 +243,14 @@ export async function pickLivTopic(options: PickTopicOptions): Promise<PickedTop
   const isExcluded = (title: string) => titleMatchesBlocklist(title) || recentSlugs.has(slugify(title)) ||
     excludedIdentities.has(topicIdentity(title));
   const syntheticTopic = (): PickedTopic | null => topicHint && !mustUseTrending && !isExcluded(topicHint)
+    && assessLivTopic({ title: topicHint, articleFormat: options.articleFormat, kind: options.editorialKind }).eligible
     ? { title: topicHint, score: 0, synthetic: true } : null;
 
   const ranked = articles
     // A seed that the source reader necessarily rejects cannot ground research.
     // This checks URL syntax only; retrieval and multi-host evidence checks remain downstream.
     .filter(hasResearchUrl)
+    .filter(article => assessLivTopic({ title: article.title || '', category: article.category, tags: article.tags, url: article.url }).eligible)
     .filter(article => !recentSources.has(canonicalSourceUrl(article.url) || ''))
     .map(article => ({ ...article, date: currentSourceDate(article.date) }))
     .filter(article => article.date !== null)

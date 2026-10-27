@@ -1,3 +1,5 @@
+import { assessLivTopic } from '@/lib/liv/editorial-remit';
+import { isLivAuthor } from '@/lib/liv/voice';
 import { getAdminDb } from '@/lib/firebase-admin';
 import { cmsFieldHash } from '@/lib/liv/cms-field-hash';
 import { MCP_ORIGIN } from '@/lib/mcp/config';
@@ -101,14 +103,15 @@ export async function getSubmissionStatus(uid: string, id: string) {
 }
 
 export async function listSubmissions(uid: string) {
+  const options = await getSubmissionOptions().catch(() => null);
   const result = await submissionStore().collection.where('uid', '==', uid).limit(100).get();
   return { submissions: result.docs.map(doc => {
     const row = doc.data();
-    return { id: doc.id, title: row.article?.title, revision: row.revision, status: row.status,
+    return { id: doc.id, title: row.article?.title, editorialRemit: row.livProduction || isLivAuthor(options?.authors.find(a => a.id === row.article?.author)?.name || row.article?.author || '') ? assessLivTopic({ ...row.article, kind: row.choices?.kind }) : null, revision: row.revision, status: row.status,
       updatedAt: row.updatedAt, blocker: row.blocker ?? null, blockedStep: row.blockedStep ?? null,
       previewUrl: `${MCP_ORIGIN}/connect/chatgpt?submission=${doc.id}` };
   }).sort((a, b) => String(b.updatedAt).localeCompare(String(a.updatedAt))),
-    boundedTo: 100, complete: result.size < 100, paidAiCalls: 0 };
+    boundedTo: 100, complete: result.size < 100, remitClassificationComplete: !!options, paidAiCalls: 0 };
 }
 
 export async function prepareSubmission(uid: string, raw: unknown) {
@@ -125,6 +128,8 @@ export async function prepareSubmission(uid: string, raw: unknown) {
   validateSubmissionArticle(input.article);
   const id = input.editorialIdeaId ? ideaSubmissionId(uid, input.editorialIdeaId) : input.livProduction ? livProductionSubmissionId(uid, input.livProduction) : cmsFieldHash({ uid, requestId: input.requestId });
   const { db, collection } = submissionStore(), ref = collection.doc(id);
+  const authors = (await getSubmissionOptions()).authors;
+  const liv = !!input.livProduction || isLivAuthor(authors.find(a => a.id === input.article.author)?.name || input.article.author || '');
   await db.runTransaction(async tx => {
     const old = (await tx.get(ref)).data();
     if (input.editorialIdeaId) {
@@ -134,7 +139,7 @@ export async function prepareSubmission(uid: string, raw: unknown) {
     if (old) {
       // Keep pre-migration retries byte/version compatible; never migrate an approval implicitly.
       const retry = old.executionPolicy === 'chatgpt-first-v1' ? { ...input, choices: { ...input.choices, aiFinalChecks: input.choices.aiFinalChecks || 'human' as const } } : input;
-      if (old.uid !== uid || old.initialHash !== submissionVersion(retry)) {
+      if (old.uid !== uid || (old.initialHash !== submissionVersion(retry) && !(old.revision === 1 && old.contentHash === submissionVersion(retry)))) {
         throw Error(input.livProduction ? 'mcp_submission_production_exists' : 'mcp_submission_idempotency_conflict');
       }
       return;
@@ -146,9 +151,11 @@ export async function prepareSubmission(uid: string, raw: unknown) {
     // historical idempotent replays above intact.
     if (input.choices.media === 'illustration' && (input.article.featuredImage || articleImages(input.article.content).length))
       throw Error('mcp_submission_image_import_required');
+    const initialHash = submissionVersion(input);
+    if (liv && (input.choices.kind === 'review' || input.article.articleFormat === 'research-review')) input.article.aiGenerated = true;
     const contentHash = submissionVersion(input);
     const now = new Date().toISOString();
-    tx.create(ref, { ...input, id, uid, revision: 1, contentHash, initialHash: contentHash,
+    tx.create(ref, { ...input, id, uid, revision: 1, contentHash, initialHash,
       executionPolicy: 'chatgpt-first-v1',
       ...(reader ? { readerEvidence: { sourceId: reader.sourceId, revision: reader.revision, coverage: reader.coverage,
         independentlyVerified: false, basis: 'saved_position_bound_notes', publicationApproval: false } } : {}),
@@ -161,6 +168,7 @@ export async function updateSubmission(uid: string, raw: unknown, internal?: { r
   const input = submissionUpdate.parse(raw), { db, collection } = submissionStore();
   const ref = collection.doc(input.submissionId), receipt = ref.collection('updates').doc(cmsFieldHash({ requestId: input.requestId }));
   const requestHash = cmsFieldHash(input);
+  const authors = (await getSubmissionOptions()).authors;
   await db.runTransaction(async tx => {
     const row = (await tx.get(ref)).data() as SubmissionRecord | undefined;
     const prior = (await tx.get(receipt)).data();
@@ -184,6 +192,9 @@ export async function updateSubmission(uid: string, raw: unknown, internal?: { r
     }
     const next = submissionInput.parse({ requestId: row.requestId, readerSourceId: row.readerSourceId, livProduction: row.livProduction, editorialIdeaId: row.editorialIdeaId, article,
       research: input.research ?? row.research, choices: { ...row.choices, ...input.choices } });
+    if (!internal && !row.publishedTarget && !row.stagedTarget &&
+      (row.livProduction || isLivAuthor(authors.find(a => a.id === next.article.author)?.name || next.article.author || '')) &&
+      (next.choices.kind === 'review' || next.article.articleFormat === 'research-review')) next.article.aiGenerated = true;
     if (internal?.protectedContentHash) {
       assertImageContentInvariant(row.article, next.article, internal.protectedContentHash);
       if (input.research || input.choices || input.clearFields?.length)

@@ -1,5 +1,19 @@
 # Apropos project working instructions
 
+## Liv editorial direction (owner choice 2026-10-27)
+
+Liv's new work is reviews and concrete culture guides: concerts, TV series, film,
+books, museums/exhibitions and cultural experiences. No news, recruitment, industry
+news, celebrity news or announcement-driven features. Do not optimise for being first.
+Research-based reviews explicitly may synthesise 5–6 actually read original reviews
+without Liv attending/viewing the work. Write original analysis, retain attribution
+and sources, do not invent personal experience. Public AI marking is required for
+these research reviews, superseding the older label-off instruction below for new
+work. Preserve older approved versions and receipts; rework off-remit drafts rather
+than silently relabelling them or adding stars. Do not change spend policy, cadence
+or personal publication consent. Canonical contract: lib/liv/editorial-remit.ts.
+
+
 ## Liv cadence change (2026-10-01)
 
 The owner replaced daily publication with **every other calendar day at 10:00

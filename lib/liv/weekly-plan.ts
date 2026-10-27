@@ -1,3 +1,4 @@
+import { assessLivTopic } from './editorial-remit';
 import { getAdminDb } from '@/lib/firebase-admin';
 import { LIV_DAILY_PLAN_COLLECTION } from './daily-plan-store';
 import { LIV_DAILY_COLLECTION, livDailyDocId } from './daily-history-store';
@@ -29,6 +30,8 @@ export function weeklyStory(day: string, state: DeliveryState, plan?: Record<str
   if (!isPublicationDay(day)) return { day, title: 'Ingen automatisk udgivelse', itemId: null,
     status: 'off_day', detail: 'Liv udkommer hver anden dag. Eventuelt gemt arbejde er bevaret.' };
   if (entry && ['ready', 'selected'].includes(entry.state)) return { ...base, status: 'ready', detail: 'Tekst, billeder og CMS-kladden er klar.' };
+  if (day >= '2026-10-27' && !entry && title !== 'Emne vælges af Liv' && !assessLivTopic({ title, articleFormat: row?.articleCheckpoint?.articleFormat, kind: plan?.editorialKind }).eligible)
+    return { day, title: 'Vælg en anmeldelse eller kulturguide', itemId: null, status: 'blocked', detail: 'Tidligere emne er bevaret i historikken og skal have en ny redaktionel vinkel.' };
   if (row) {
     const decision = decidePreparation(row, now);
     if (['blocked', 'alternative', 'reconcile', 'done'].includes(decision.action)) {

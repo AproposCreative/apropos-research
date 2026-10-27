@@ -5,6 +5,7 @@ export const EDITORIAL_SIGNAL_PUBLISHED_EVENT = 'apropos:editorial-signal-publis
 export type EditorialArticleType =
   | 'short-news'
   | 'review'
+  | 'culture-guide'
   | 'feature'
   | 'analysis'
   | 'commentary'
@@ -28,6 +29,7 @@ export type CoveredEditorialTopic = {
 };
 
 export const EDITORIAL_ARTICLE_TYPE_OPTIONS: EditorialArticleTypeOption[] = [
+  { id: 'culture-guide', label: 'Kulturguide', description: 'Konkrete anbefalinger og praktiske oplysninger', targetWordCount: 650, targetLengthLabel: '500-800 ord' },
   {
     id: 'short-news',
     label: 'Kort nyhed',
@@ -38,7 +40,7 @@ export const EDITORIAL_ARTICLE_TYPE_OPTIONS: EditorialArticleTypeOption[] = [
   {
     id: 'review',
     label: 'Anmeldelse',
-    description: 'Vurdering med oplevelse og kontekst',
+    description: 'Selvstændig vurdering med dokumenteret kildegrundlag',
     targetWordCount: 675,
     targetLengthLabel: '500-850 ord',
   },
@@ -73,7 +75,7 @@ export const EDITORIAL_ARTICLE_TYPE_OPTIONS: EditorialArticleTypeOption[] = [
 ];
 
 export function getEditorialArticleTypeOption(value?: string | null): EditorialArticleTypeOption {
-  return EDITORIAL_ARTICLE_TYPE_OPTIONS.find((option) => option.id === value) || EDITORIAL_ARTICLE_TYPE_OPTIONS[0];
+  return EDITORIAL_ARTICLE_TYPE_OPTIONS.find((option) => option.id === value) || EDITORIAL_ARTICLE_TYPE_OPTIONS.find(option => option.id === 'short-news')!;
 }
 
 export function normalizeEditorialText(input: unknown): string {

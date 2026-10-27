@@ -73,8 +73,8 @@ export function buildLivCmsPayload(input: {
     readTime: Math.max(1, Math.ceil(wordCount / 200)),
     wordCount,
     presseakkreditering: false,
-    // Public CMS label is disabled by editorial choice; model/source provenance remains below.
-    aiGenerated: false,
+    // Owner requires visible AI disclosure for new research reviews.
+    aiGenerated: article.articleFormat === 'research-review',
     articleFormat: article.articleFormat || 'article',
     ...(article.subjectType ? { subjectType: article.subjectType } : {}),
     ...(article.rating !== undefined ? { rating: article.rating, ratingReason: article.ratingReason } : {}),

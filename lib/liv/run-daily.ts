@@ -226,7 +226,7 @@ async function runLivDailyOperation(req: NextRequest, dayKey: string, preparatio
             sourceName: checkpoint.researchSources[0].source,
             publishedAt: checkpoint.researchSources[0].publishedAt || undefined,
           } : undefined }
-      : await pickLivTopic({ baseUrl, topicHint, mustUseTrending, currentRunId: livDailyDocId(dayKey, scope) });
+      : await pickLivTopic({ baseUrl, topicHint, mustUseTrending, articleFormat: generationPlan?.articleFormat, editorialKind: generationPlan?.editorialKind, currentRunId: livDailyDocId(dayKey, scope) });
     // Picker owns exclusions, including explicit hints. Do not reintroduce an
     // excluded topic via a second synthetic fallback here.
     const topic = pickedTopic;

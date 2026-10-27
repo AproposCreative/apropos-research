@@ -102,3 +102,11 @@ it('seeks context and intention for ordinary articles, not competitor reviews', 
     .toEqual(['Esben Weile Kjær THIRST TRAP official source statement programme credits', 'Esben Weile Kjær THIRST TRAP independent journalism interview background context']);
   expect(livResearchQueries('The Invite', 'article')[1]).not.toMatch(/anmeldelse|review/);
 });
+
+
+it('retains opinions from five separate reviews for a synthesis instead of forcing the old three-opinion ceiling', () => {
+  const critics = Array.from({ length: 5 }, (_, i) => ({ ...sources[1], id: `R${i}`, url: `https://critic${i}.example/review` }));
+  const reviewNotes = critics.map(source => ({ ...notes[3], sourceId: source.id }));
+  expect(validateWritingBrief({ notes: [...notes.slice(0, 2), ...reviewNotes] }, [sources[0], ...critics], true).notes).toHaveLength(7);
+  expect(() => validateWritingBrief({ notes }, sources, true)).toThrow('research_brief_insufficient');
+});

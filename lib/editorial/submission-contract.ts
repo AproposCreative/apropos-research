@@ -1,3 +1,5 @@
+import { assessLivTopic, livReviewSourceEvidence } from '@/lib/liv/editorial-remit';
+import { isLivAuthor } from '@/lib/liv/voice';
 import { z } from 'zod';
 import { load } from 'cheerio';
 import { editableArticle, researchSchema } from '@/lib/mcp/workspace';
@@ -8,7 +10,7 @@ import { livProductionIdentity } from './liv-production-identity';
 
 export const submissionId = z.string().regex(/^[a-f0-9]{64}$/);
 export const submissionChoices = z.object({
-  kind: z.enum(['review', 'news', 'feature', 'commentary']).optional(),
+  kind: z.enum(['review', 'culture-guide', 'news', 'feature', 'commentary']).optional(),
   media: z.enum(['press', 'illustration', 'provided']).optional(),
   style: z.enum(['expressive', 'minimal']).default('expressive'),
   bodyImages: z.enum(['required', 'deferred']).optional().describe('Use deferred only when the user explicitly chooses cover-only; save this choice for later previews.'),
@@ -60,16 +62,18 @@ export function validateSubmissionArticle(article: SubmissionArticle) {
 }
 
 /** Suggestions and missing input only. No guessed authorship, rating, approval or new prose. */
-export function inspectSubmission(input: Pick<SubmissionInput, 'article' | 'choices' | 'research'> & { executionPolicy?: string }, options: SubmissionOptions) {
+export function inspectSubmission(input: Pick<SubmissionInput, 'article' | 'choices' | 'research'> & { executionPolicy?: string; livProduction?: unknown; status?: string; publishedTarget?: unknown }, options: SubmissionOptions) {
   const { article, choices } = input;
   validateSubmissionArticle(article);
+  const liv = !!input.livProduction || isLivAuthor(options.authors.find(a => a.id === article.author)?.name || article.author || '');
+
   const questions: SubmissionQuestion[] = [];
   const question = (field: string, text: string, values?: Array<{ id: string; name: string }>) =>
     questions.push({ field, question: text, ...(values ? { options: values.map(v => ({ value: v.id, label: v.name })) } : {}) });
   const review = choices.kind === 'review' || (!choices.kind && article.articleFormat === 'research-review');
   const film = ['film', 'tv-series'].includes(article.subjectType || '');
-  if (!choices.kind && article.articleFormat !== 'research-review') question('kind', 'Er det en anmeldelse, nyhed, feature eller kommentar?',
-    [{ id: 'review', name: 'Anmeldelse' }, { id: 'news', name: 'Nyhed' }, { id: 'feature', name: 'Feature' }, { id: 'commentary', name: 'Kommentar' }]);
+  if (!choices.kind && article.articleFormat !== 'research-review') question('kind', liv ? 'Er det en anmeldelse eller kulturguide?' : 'Er det en anmeldelse, kulturguide, nyhed, feature eller kommentar?',
+    (liv ? [{ id: 'review', name: 'Anmeldelse' }, { id: 'culture-guide', name: 'Kulturguide' }] : [{ id: 'review', name: 'Anmeldelse' }, { id: 'culture-guide', name: 'Kulturguide' }, { id: 'news', name: 'Nyhed' }, { id: 'feature', name: 'Feature' }, { id: 'commentary', name: 'Kommentar' }]));
   if (!options.authors.some(a => a.id === article.author || a.name === article.author)) question('author', 'Hvem skal stå som forfatter?', options.authors);
   if (!options.categories.some(c => c.id === article.category || c.name === article.category)) question('category', 'Hvilken kategori skal artiklen have?', options.categories);
   if (!article.subjectType) question('subjectType', 'Hvad handler artiklen om?',
@@ -81,6 +85,14 @@ export function inspectSubmission(input: Pick<SubmissionInput, 'article' | 'choi
   if (!choices.media && !film) question('media', 'Skal vi finde pressefotos, lave Apropos-illustrationer eller bruge dine billeder?',
     [{ id: 'press', name: 'Pressefotos' }, { id: 'illustration', name: 'Apropos-illustrationer' }, { id: 'provided', name: 'Mine billeder' }]);
   const blockers: string[] = [];
+  const remit = liv && input.status !== 'published' && !input.publishedTarget
+    ? assessLivTopic({ title: article.title, kind: choices.kind, articleFormat: article.articleFormat }) : null;
+  if (remit && !remit.eligible) blockers.push('liv_review_or_guide_required');
+  const reviewEvidence = liv && review ? livReviewSourceEvidence(input.research) : null;
+  if (remit && review) {
+    if (article.aiGenerated !== true) blockers.push('liv_public_ai_label_required');
+    if (!reviewEvidence?.sufficient) blockers.push('liv_five_original_reviews_required');
+  }
   if (!options.authors.length || !options.categories.length) blockers.push('cms_options_unavailable');
   if (film && choices.media === 'illustration') blockers.push('film_requires_real_stills');
   if (choices.kind && choices.kind !== 'review' && (article.rating !== undefined || article.articleFormat === 'research-review')) blockers.push('non_review_has_review_fields');
@@ -94,7 +106,7 @@ export function inspectSubmission(input: Pick<SubmissionInput, 'article' | 'choi
   const textReadyForPreparation = !questions.length && !blockers.length && !missingMetadata.length;
   const mediaBeforePreparation = choices.aiFinalChecks === 'human' || ['chatgpt-first-v1', 'chat-final-checks-v1'].includes(input.executionPolicy || '');
   return { questions: questions.slice(0, 3), remainingQuestionCount: Math.max(0, questions.length - 3),
-    missingMetadata, missingMedia, recommendedMedia, blockers, suggestedMedia: film ? 'press' : choices.media || 'press',
+    missingMetadata, missingMedia, recommendedMedia, blockers, editorialRemit: remit, reviewEvidence, suggestedMedia: film ? 'press' : choices.media || 'press',
     textReadyForPreparation,
     readyForPreparation: textReadyForPreparation && (!mediaBeforePreparation || !missingMedia.length),
     publicationReady: false as const, textPreserved: true, paidAiCalls: 0,

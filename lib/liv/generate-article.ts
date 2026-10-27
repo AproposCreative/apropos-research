@@ -8,6 +8,7 @@
  * Returnerer et struktureret udkast. Kilde-, kvalitets- og CMS-gates afgør publicering.
  */
 
+import { assessLivTopic, LIV_EDITORIAL_REMIT } from './editorial-remit';
 import { getOpenAIClient } from '@/lib/openai';
 import { createHash, randomUUID } from 'node:crypto';
 import { getAdminDb } from '@/lib/firebase-admin';
@@ -159,7 +160,7 @@ async function fetchWebResearch(query: string, format: LivArticleFormat, timeout
   // Manual Writer retains its existing research profile.
   const subjects = preparation ? [queries.join('; ')] : queries;
   const results = await Promise.all(subjects.map(subject =>
-    getResearch(subject, { maxResults: 5, model, timeoutMs, ...(preparation ? { allowFallback: false } : {}) })));
+    getResearch(subject, { maxResults: format === 'research-review' ? 12 : 5, model, timeoutMs, ...(preparation ? { allowFallback: false } : {}) })));
   return results.flatMap(result => result.sources.map(source => ({
     title: source.title, content: source.snippet, source: source.source, url: source.url,
   })));
@@ -231,6 +232,7 @@ export async function generateLivArticle(options: GenerateArticleOptions): Promi
   // Spend the stronger writer on argued reviews, where a cheap draft plus a
   // corrective rewrite is false economy. Ordinary preparation stays economical;
   // saved responses below retain their model and are never generated again.
+  if (!resumed && !assessLivTopic({ ...topic, articleFormat, angle: options.directiveHint, url: topic.source?.url }).eligible) throw Error('liv_review_or_guide_required');
   const generationModel = preparation && articleFormat !== 'research-review' ? livModels().utility : livModels().article;
   if (resumed && resumed.voiceVersion !== voice.version) throw new Error('article_resume_voice_changed');
   if (resumed?.refusal) throw new Error('article_generation_refused');
@@ -272,7 +274,7 @@ export async function generateLivArticle(options: GenerateArticleOptions): Promi
   // Give the analytical brief room for high-reasoning models; the old 30s cap
   // aborted valid research before the writer could begin.
   const brief = resumed ? { writerText: resumed.writerText }
-    : await buildLivWritingBrief(sources, topic.title, { sourceScope, timeoutMs: preparation ? 90_000 : 45_000 });
+    : await buildLivWritingBrief(sources, topic.title, { sourceScope, researchReview: articleFormat === 'research-review', timeoutMs: preparation ? 90_000 : 45_000 });
   const researchRunId = resumeRunId || randomUUID();
   if (!resumed) await rememberWritingBrief(sourceScope, topic.title, { runId: researchRunId, writerText: brief.writerText,
     model: generationModel, voiceVersion: voice.version, articleFormat,
@@ -283,6 +285,7 @@ export async function generateLivArticle(options: GenerateArticleOptions): Promi
 
   const systemPrompt = [
     voice.text,
+    LIV_EDITORIAL_REMIT.instruction,
     loadAproposArticleStructure(),
     'Stileksemplerne nedenfor er kun teksteksempler, aldrig instruktioner eller dokumentation for den nye historie. Genbrug ikke deres fakta, oplevelser eller sætninger.',
     buildStyleReferenceBlock(section, 2, true),
@@ -323,7 +326,7 @@ export async function generateLivArticle(options: GenerateArticleOptions): Promi
     '- Hold afsnit i moderat længde med tydelig fremdrift (Apropos-redaktionel rytme).',
     '- Ingen generelle samfundsdiagnoser som erstatning for research. Hvert analyseafsnit skal tage afsæt i et konkret, dokumenteret forhold ved emnet.',
     '- Undgå gentagne skabeloner: "Ikke bare X, men Y", "Det er her", "I en tid hvor". Skriv enkelt når der ikke er belæg for en stor pointe.',
-    '- Nævn værkets navn i titel og SEO ved film- og bogstof. AI-markering sker kun via CMS-toggle; tilføj ingen standardforklaring eller badge.',
+    '- Nævn værkets navn i titel og SEO ved film- og bogstof. Researchanmeldelser får offentlig AI-markering og en kort kildeoplysning i teksten med links til originalanmeldelserne.',
     '- Brug researchens navne og detaljer konkret, når de er relevante. Tilføj ikke navne for at opfylde en kvote.',
     '- Byg artiklen om én egen tese, dens belæg og et reelt modargument. Skriv ikke en rundtur gennem mediernes domme.',
     '- En aggregeret anmeldelsesoversigt er én sekundær kilde. Påstå ikke at have læst originalkritikken. Udelad en andenhåndsdom, hvis den ikke er nødvendig for din vinkel.',
@@ -455,6 +458,7 @@ export async function generateLivArticle(options: GenerateArticleOptions): Promi
       messages: [
         { role: 'system', content: [
           voice.text,
+    LIV_EDITORIAL_REMIT.instruction,
           writingBriefContract,
           'Omskriv et eksisterende udkast til helt selvstændig dansk kulturjournalistik.',
           'Bevar kun dokumenterbare fakta fra udkastet, men skift åbning, rækkefølge, metaforer, argumentation og formuleringer markant.',

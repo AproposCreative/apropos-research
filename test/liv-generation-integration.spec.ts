@@ -109,19 +109,16 @@ it('selects a fresh automatic film review BEFORE discovery and preserves its req
   const article = await generateLivArticle({ topic, preparation: true, articleFormat: plan.articleFormat,
     directiveHint: plan.directiveHint });
   expect(mocks.search).toHaveBeenCalledExactlyOnceWith(livResearchQueries(topic.title, 'research-review').join('; '),
-    expect.objectContaining({ allowFallback: false, maxResults: 5 }));
+    expect.objectContaining({ allowFallback: false, maxResults: 12 }));
   expect(mocks.create.mock.calls[0][0].messages[0].content).toContain('dokumenterede styrker og svagheder');
   expect(article).toMatchObject({ articleFormat: 'research-review', rating: 4, ratingReason: reason });
   expect(mocks.rememberBrief.mock.calls.every(call => call[2].articleFormat === 'research-review')).toBe(true);
 });
 
-it('keeps an explicitly selected film feature without stars on fresh generation', async () => {
-  mocks.create.mockReset().mockResolvedValueOnce(response(rawArticle(false)));
-  const article = await generateLivArticle({ topic: { title: 'The Invite', score: 0, category: 'Film',
-    source: { title: 'The Invite: anmeldelse' } }, articleFormat: 'article' });
-  expect(mocks.search.mock.calls.map(call => call[0])).toEqual(livResearchQueries('The Invite', 'article'));
-  expect(article.articleFormat).toBe('article');
-  expect(article.rating).toBeUndefined();
+it('refuses a fresh Liv feature before any paid research or writing', async () => {
+  await expect(generateLivArticle({ topic: { title: 'The Invite', score: 0, category: 'Film',
+    source: { title: 'The Invite: anmeldelse' } }, articleFormat: 'article' })).rejects.toThrow('liv_review_or_guide_required');
+  expect(mocks.search).not.toHaveBeenCalled(); expect(mocks.create).not.toHaveBeenCalled();
 });
 
 it.each([
@@ -130,7 +127,7 @@ it.each([
   [false, 'article', 'gpt-5.6-sol'],
 ] as const)('routes preparation=%s format=%s directly to %s without an extra writer', async (preparation, articleFormat, model) => {
   mocks.create.mockReset().mockResolvedValueOnce(response(rawArticle(articleFormat === 'research-review')));
-  await generateLivArticle({ topic: { title: 'The Invite', score: 0 }, preparation, articleFormat });
+  await generateLivArticle({ topic: { title: 'The Invite', score: 0 }, preparation, articleFormat, directiveHint: articleFormat === 'article' ? 'Kulturguide til film' : undefined });
   expect(mocks.create).toHaveBeenCalledTimes(1);
   expect(mocks.create.mock.calls[0][0].model).toBe(model);
 });
@@ -173,14 +170,14 @@ it('collects three exact credited Tudum assets once, without a paid writer or ge
   expect(mocks.mediaRead).toHaveBeenCalledOnce(); expect(mocks.images).not.toHaveBeenCalled(); expect(mocks.create).not.toHaveBeenCalled();
 });
 
-it('runs shared search, re-fetches recalled sources, applies v5 and preserves rating/model through CMS', async () => {
+it('runs shared search, re-fetches recalled sources, applies v6 and preserves rating/model through CMS', async () => {
   const article = await generateLivArticle({ topic: { title: 'The Invite', score: 0 }, directiveHint: `Kilder: ${primaryUrl}`, articleFormat: 'research-review', sourceScope: 'editor-a' });
   expect(mocks.search).toHaveBeenCalledTimes(2);
   expect(mocks.search.mock.calls[0][1].model).toBe('gpt-5.6-sol');
   expect(mocks.retrieve).toHaveBeenCalledWith(primaryUrl, expect.any(String));
   expect(mocks.retrieve).toHaveBeenCalledWith(criticUrl, expect.any(String));
   expect(mocks.remember).toHaveBeenCalledWith('editor-a', 'The Invite', expect.arrayContaining([expect.objectContaining({ url: primaryUrl })]));
-  expect(mocks.rememberBrief).toHaveBeenCalledWith('editor-a', 'The Invite', expect.objectContaining({ voiceVersion: 'liv-v5', writerText: expect.stringContaining('Seth Rogen') }));
+  expect(mocks.rememberBrief).toHaveBeenCalledWith('editor-a', 'The Invite', expect.objectContaining({ voiceVersion: 'liv-v6', writerText: expect.stringContaining('Seth Rogen') }));
   const request = mocks.create.mock.calls[0][0];
   expect(request.messages[0].content).toContain(loadLivVoice().text);
   expect(request.messages[0].content).toContain('separat kildebaseret faktakontrol før CMS og udgivelse');
@@ -193,9 +190,9 @@ it('runs shared search, re-fetches recalled sources, applies v5 and preserves ra
   expect(request.store).toBe(false);
   expect(mocks.seo.mock.calls[0][1].model).toBe('gpt-5.6-luna');
   expect(article.voiceHash).toBe(loadLivVoice().hash);
-  const payload = buildLivCmsPayload({ article, topic: { title: 'The Invite', score: 0 } });
+  const payload = buildLivCmsPayload({ article, topic: { title: 'The Invite', score: 0 }, articleFormat: 'research-review' });
   expect(payload.rating).toBe(4);
-  expect(payload.aiGenerated).toBe(false);
+  expect(payload.aiGenerated).toBe(true);
   expect(payload.aiModel).toBe('gpt-5.6-sol-test-snapshot');
   expect(payload.content).toBe(body);
   expect(payload.intro).not.toContain('Researchbaseret analyse');
@@ -203,7 +200,7 @@ it('runs shared search, re-fetches recalled sources, applies v5 and preserves ra
 
 it('stops before generation when the source archive fails', async () => {
   mocks.remember.mockRejectedValueOnce(new Error('archive down'));
-  await expect(generateLivArticle({ topic: { title: 'The Invite', score: 0 } })).rejects.toThrow('archive down');
+  await expect(generateLivArticle({ topic: { title: 'The Invite', score: 0 }, articleFormat: 'research-review' })).rejects.toThrow('archive down');
   expect(mocks.create).not.toHaveBeenCalled();
 });
 
@@ -230,7 +227,7 @@ it('preparation still searches when saved sources lack actual dates', async () =
   expect(mocks.search).toHaveBeenCalledTimes(1);
   expect(mocks.search.mock.calls[0][0]).toContain('official source');
   expect(mocks.search.mock.calls[0][0]).toContain('independent review');
-  expect(mocks.search.mock.calls[0][1]).toMatchObject({ maxResults: 5, timeoutMs: 30_000, model: 'gpt-5.6-luna', allowFallback: false });
+  expect(mocks.search.mock.calls[0][1]).toMatchObject({ maxResults: 12, timeoutMs: 30_000, model: 'gpt-5.6-luna', allowFallback: false });
 });
 
 it('uses saved editorial preferences only for new daily writing', async () => {
@@ -241,10 +238,10 @@ it('uses saved editorial preferences only for new daily writing', async () => {
   expect(mocks.create).toHaveBeenCalledTimes(1);
 });
 
-it('keeps explicit film classification through generation and CMS normalization without inventing review stars', async () => {
+it('keeps an explicit film guide without inventing review stars', async () => {
   mocks.create.mockReset().mockResolvedValueOnce(response(JSON.stringify({ ...JSON.parse(rawArticle(false)), subjectType: 'film' })));
   const topic = { title: 'The Invite', score: 0 };
-  const article = await generateLivArticle({ topic, preparation: true });
+  const article = await generateLivArticle({ topic, preparation: true, directiveHint: 'Kulturguide til film' });
   expect(article).toMatchObject({ subjectType: 'film', articleFormat: 'article' });
   expect(mocks.create.mock.calls[0][0].messages[0].content).toContain('450–650 ord');
   const payload = normalizeArticlePayload(buildLivCmsPayload({ article, topic }));
@@ -254,7 +251,7 @@ it('keeps explicit film classification through generation and CMS normalization 
 
 it('does not buy research or writing when feedback storage is unavailable', async () => {
   mocks.feedback.mockRejectedValueOnce(new Error('liv_editorial_feedback_store_unavailable'));
-  await expect(generateLivArticle({ topic: { title: 'The Invite', score: 0 }, preparation: true }))
+  await expect(generateLivArticle({ topic: { title: 'The Invite', score: 0 }, preparation: true, articleFormat: 'research-review' }))
     .rejects.toThrow('liv_editorial_feedback_store_unavailable');
   expect(mocks.search).not.toHaveBeenCalled();
   expect(mocks.create).not.toHaveBeenCalled();
@@ -400,7 +397,7 @@ it('persists the run before writing and keeps the response and specific evidence
 
 it('does not spend a writer call if the research diagnostic cannot be persisted', async () => {
   mocks.rememberBrief.mockRejectedValueOnce(new Error('diagnostic archive down'));
-  await expect(generateLivArticle({ topic: { title: 'The Invite', score: 0 } })).rejects.toThrow('diagnostic archive down');
+  await expect(generateLivArticle({ topic: { title: 'The Invite', score: 0 }, articleFormat: 'research-review' })).rejects.toThrow('diagnostic archive down');
   expect(mocks.create).not.toHaveBeenCalled();
 });
 

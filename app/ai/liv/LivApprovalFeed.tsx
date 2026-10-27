@@ -185,7 +185,7 @@ export default function LivApprovalFeed() {
       <header className="space-y-3">
         <div className="flex items-center justify-between gap-3"><h2 className="text-xl font-medium">Artikler i arbejde</h2>
           <button className="min-h-11 px-2 text-sm text-white/70 underline underline-offset-4 disabled:opacity-40" disabled={loading || !!saving} onClick={() => void refresh()}>Opdater</button></div>
-        <p className="text-sm leading-relaxed text-white/65">Gemte ChatGPT-artikler og andet aktivt artikelarbejde. Ældre poster fra øvrige kilder gennemgås kun for de seneste 14 dage. Idéer og kalenderdage er ikke artikler.</p>
+        <p className="text-sm leading-relaxed text-white/65">Anmeldelser og kulturguider om koncerter, serier, film, bøger, museer og kulturoplevelser. Researchanmeldelser bygger på flere læste anmeldelser og markeres som AI.</p>
         <p className="text-xs leading-relaxed text-white/45">Kladder er ikke automatisk godkendt eller planlagt til udgivelse.</p>
         {feed?.work && <p className="text-xs text-white/55">{feed.stories.length} i udgivelseskøen · {savedWork.length} gemte kladder</p>}
       </header>
@@ -202,7 +202,7 @@ export default function LivApprovalFeed() {
           {savedWork.map(item => <LivSavedWorkCard key={`${item.source}:${item.id}`} item={item} />)}
         </section>}
       {feed && !feed.stories.length && feed.work?.items.length === 0 &&
-        <p className="rounded-2xl border border-white/15 p-5 text-sm text-white/60">Ingen gemte Liv-artikler i de gennemgåede kilder. Planer uden artikeltekst vises ikke her.</p>}
+        <p className="rounded-2xl border border-white/15 p-5 text-sm text-white/60">Ingen aktive anmeldelser eller kulturguider i de gennemgåede kilder. Planer uden artikeltekst vises ikke her.</p>}
       {capabilities.owner && <section aria-labelledby="liv-ideas-heading" className="space-y-3 border-t border-white/15 pt-6">
         <div className="flex flex-wrap items-baseline justify-between gap-2"><h2 id="liv-ideas-heading" className="text-lg font-medium">Idéer til senere</h2>
           {feed?.ideas && <span className="text-xs text-white/50">{feed.ideas.items.length} gemte idéer</span>}</div>
@@ -213,6 +213,13 @@ export default function LivApprovalFeed() {
           {feed.ideas.items.map(item => <LivIdeaRow key={item.id} item={item} />)}
         </ul> : <p className="text-sm text-white/50">Ingen særskilte idéer gemt i de gennemgåede briefs.</p>)}
       </section>}
+      {capabilities.owner && (!!feed?.work?.retained?.length || !!feed?.ideas?.retained?.length) &&
+        <details className="rounded-2xl border border-white/15 p-5">
+          <summary className="cursor-pointer text-sm text-white/75">Tidligere forslag · kræver ny vinkel ({(feed?.work?.retained?.length || 0) + (feed?.ideas?.retained?.length || 0)})</summary>
+          <p className="py-3 text-sm leading-relaxed text-white/55">Bevaret med tekst, billeder og kilder. Disse features, kommentarer og nyhedsforslag indgår ikke i den aktive kø. De skal omarbejdes til en anmeldelse eller konkret kulturguide før udgivelse.</p>
+          {feed?.work?.retained?.map(item => <LivSavedWorkCard key={item.id} item={item} />)}
+          <ul>{feed?.ideas?.retained?.map(item => <li key={item.id} className="py-2 text-sm text-white/65">{item.title}</li>)}</ul>
+        </details>}
       {capabilities.owner && <section aria-labelledby="liv-plan-heading" className="space-y-3 border-t border-white/15 pt-6">
         <h2 id="liv-plan-heading" className="text-lg font-medium">Udgivelsesplan</h2>
         <p className="text-sm leading-relaxed text-white/60">Kun planlagte udgivelsesdage vises her. Et emne er ikke en færdig artikel.</p>

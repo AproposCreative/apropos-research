@@ -17,7 +17,7 @@ beforeEach(() => {
     author: 'author', category: 'category', subjectType: 'culture', featuredImage: 'https://images.test/cover.png',
     featuredImageAlt: 'Cover', fotoCredit: 'Kilde', content: '<p>Tekst <a href="https://source.test">kilde</a></p><figure><img src="https://images.test/body1.png" alt="Et"><figcaption>Kilde</figcaption></figure><figure><img src="https://images.test/body2.png" alt="To"><figcaption>Kilde</figcaption></figure>' };
   memory.rows.set(path, { id, uid: 'owner', revision: 3, contentHash: 'b'.repeat(64), status: 'draft',
-    executionPolicy: 'chatgpt-first-v1', article, originalArticle: article, research: [], choices: { kind: 'feature', media: 'provided', aiFinalChecks: 'human' } });
+    executionPolicy: 'chatgpt-first-v1', article, originalArticle: article, research: [], choices: { kind: 'culture-guide', media: 'provided', aiFinalChecks: 'human' } });
 });
 it('offers one consent without approving anything; a double click queues once with a durable replay', async () => {
   const offer = (await submissionConsentOffer('owner', id))!;

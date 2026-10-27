@@ -3,7 +3,7 @@ import { memoryFirestore } from './helpers/mcp-firestore';
 import { inspectSubmission, submissionInput } from '@/lib/editorial/submission-contract';
 const state = vi.hoisted(() => ({ db: null as any }));
 vi.mock('@/lib/firebase-admin', () => ({ getAdminDb: () => state.db }));
-const options = { authors: [{ id: 'a'.repeat(24), name: 'Frederik Kragh' }], categories: [{ id: 'b'.repeat(24), name: 'Kultur' }],
+const options = { authors: [{ id: 'a'.repeat(24), name: 'Frederik Kragh' }, { id: 'd'.repeat(24), name: 'Liv Brandt' }], categories: [{ id: 'b'.repeat(24), name: 'Kultur' }],
   topics: [{ id: 'c'.repeat(24), name: 'Film' }], requiredFields: ['name'], checkedAt: '2026-10-05T00:00:00Z' };
 vi.mock('@/lib/editorial/submission-options', () => ({ getSubmissionOptions: async () => options }));
 import { prepareSubmission, updateSubmission, getSubmissionStatus } from '@/lib/editorial/submissions';
@@ -134,4 +134,19 @@ it('saves ChatGPT SoMe variants in the existing submission with replay, revision
   expect(third.article.content).toBe(first.article.content);
   expect(third.paidAiCalls).toBe(0); expect(third.publicationReady).toBe(false);
   expect(memory.rows.get(`editorialSubmissions/${first.id}/versions/2`).article.socialSubtitles).toEqual(copy);
+});
+
+
+it('normalises a new Liv research review to visible AI before hashing, without losing idempotency or altering old history', async () => {
+  const value = input(); value.article.author = options.authors[1].id;
+  value.article.articleFormat = 'research-review'; value.choices.kind = 'review';
+  const first = await prepareSubmission('owner', value);
+  const row = memory.rows.get(`editorialSubmissions/${first.id}`)!;
+  expect(row.article.aiGenerated).toBe(true);
+  expect(row.contentHash).toBe(submissionVersion({ ...value, choices: { ...value.choices, aiFinalChecks: 'human' }, article: row.article }));
+  expect((await prepareSubmission('owner', value)).id).toBe(first.id);
+  expect(memory.rows.get(`editorialSubmissions/${first.id}`)!.revision).toBe(1);
+  const next = await updateSubmission('owner', { submissionId: first.id, expectedRevision: 1, requestId: 'liv-label-update-0001', article: { subtitle: 'En ny undertekst' } });
+  expect(next.article.aiGenerated).toBe(true);
+  expect(next.revision).toBe(2);
 });

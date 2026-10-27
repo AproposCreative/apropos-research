@@ -31,20 +31,20 @@ describe('Liv voice and review contract', () => {
   it('defaults new named screen assessments to reasoned reviews without inventing access or relabelling features', () => {
     const voice = loadLivVoice();
     for (const requirement of ['FORMATVALG FOR FILM OG TV', 'dokumenterede styrker og svagheder',
-      'en tydelig samlet dom', 'ikke en kulturfeature', 'beholder sit format',
+      'en tydelig samlet dom', 'ikke en kulturfeature', 'Bevar ældre tekster uden automatisk omdøbning',
       'registrér manglen i stedet for at opfinde stjerner', 'Omdøb aldrig en allerede skrevet feature',
       'Ingen \'jeg sad i salen\'']) expect(voice.text).toContain(requirement);
   });
-  it('loads v5 with an auditable content hash and no generic fallback', () => {
+  it('loads v6 with an auditable content hash and no generic fallback', () => {
     const voice = loadLivVoice();
-    expect(voice.version).toBe('liv-v5');
+    expect(voice.version).toBe('liv-v6');
     expect(voice.text).toContain('FREDERIK-KALIBRERING');
     expect(voice.text).toContain('Genbrug ikke deres karakteristiske metaforer');
     expect(voice.text).toContain('én selvstændig tese');
     expect(voice.text).toContain('én sekundær kilde');
     expect(voice.hash).toMatch(/^[a-f0-9]{64}$/);
     expect(voice.text).toContain('tør humor');
-    expect(voice.text).toContain('eksisterende CMS-toggle');
+    expect(voice.text).toContain('Researchanmeldelser markeres synligt som AI');
   });
   it('uses canonical Liv voice in Writer even if the optional old author-TOV is disabled', () => {
     const prompt = composeSystemPrompt(buildPromptSegments('Ældre profil', 'Liv Brandt', {}, undefined,
@@ -116,7 +116,7 @@ describe('Liv voice and review contract', () => {
     expect(voice.text).toContain('udelad den lånte dom frem for blot at fjerne afsenderen');
     expect(voice.text).toContain('strukturerede kilderegister');
     expect(voice.text).toContain('Som udgangspunkt ingen citater fra andre anmeldere');
-    expect(voice.text).toContain('ingen referater af deres domme');
+    expect(voice.text).toContain('sammenfat kritikernes domme og uenigheder i egne ord');
     expect(voice.text).toContain('Fjern en overflødig lånt dom sammen med citatet, ikke blot kildeangivelsen');
     expect(voice.text).toContain('Bevar også kilden til originale interviews');
     expect(voice.text).toContain('Foregiv aldrig egen visning eller observation');
@@ -133,13 +133,13 @@ describe('Liv voice and review contract', () => {
     expect(() => parseResearchRating('Rating: 4', 'research-review')).toThrow();
     expect(() => parseResearchRating(`Rating: 4\nRating: 5\nRatingReason: ${reason}`, 'research-review')).toThrow();
   });
-  it('disables the public AI flag, passes stars and preserves actual model provenance', () => {
+  it('enables the public AI flag for research reviews, passes stars and preserves actual model provenance', () => {
     const article = { title: 'The Invite', subtitle: 'En dom', intro: 'En indledning.', content: 'En selvstændig tekst.',
       slug: 'the-invite', excerpt: 'Et uddrag', section: 'Film', tags: [], rawResponse: '',
       articleFormat: 'research-review' as const, rating: 4, ratingReason: reason, aiModel: 'actual-model-snapshot' };
     const payload = buildLivCmsPayload({ article, topic: { title: 'The Invite', score: 1 }, aiModel: 'incorrect-fallback' });
     expect(payload).toMatchObject({ articleFormat: 'research-review', rating: 4, ratingReason: reason });
-    expect(payload.aiGenerated).toBe(false);
+    expect(payload.aiGenerated).toBe(true);
     expect(payload.rating).toBe(4);
     expect(payload.aiModel).toBe('actual-model-snapshot');
     expect(payload.content).toBe(article.content);

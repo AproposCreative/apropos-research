@@ -1,3 +1,4 @@
+import { assessLivTopic, LIV_EDITORIAL_REMIT } from '@/lib/liv/editorial-remit';
 import { z } from 'zod';
 import { workspaceRef, researchSchema } from '@/lib/mcp/workspace';
 import { getAdminDb } from '@/lib/firebase-admin';
@@ -11,6 +12,7 @@ export const ideaId = z.string().regex(/^[a-f0-9]{64}$/);
 export const ideaInput = z.object({
   topicKey: z.string().trim().min(3).max(150).describe('Stable subject + angle key; reuse across briefs. Not the proposed headline.'),
   title: z.string().trim().min(3).max(200),
+  suggestedKind: z.enum(['review', 'culture-guide']).optional(),
   angle: z.string().trim().min(10).max(1500),
   whyNow: z.string().trim().min(3).max(1000),
   caveats: z.string().trim().min(3).max(2000),
@@ -55,15 +57,16 @@ export async function saveEditorialIdeas(uid: string, raw: unknown) {
 
 function project(row: Idea, article: Record<string, any> | undefined) {
   const id = ideaSubmissionId(row.uid, row.id);
+  const remit = assessLivTopic({ title: row.title, angle: row.angle, kind: row.suggestedKind });
   // Explicit projection. Never return uid, tokens or fabricated readiness.
   return { id: row.id, title: row.title, angle: row.angle, whyNow: row.whyNow, caveats: row.caveats,
-    sources: row.sources, revision: row.revision, status: article ? 'draft_saved' : row.status,
+    sources: row.sources, editorialRemit: remit, productionInstruction: LIV_EDITORIAL_REMIT.instruction, revision: row.revision, status: article ? 'draft_saved' : row.status,
     createdAt: row.createdAt, selectedAt: row.selectedAt ?? null, sourceRequestId: row.sourceRequestId,
     factsVerified: false, publicationApproval: false, paidAiCalls: 0, untrustedContent: true,
     submission: article ? { id, revision: article.revision, status: article.status, title: article.article?.title } : null,
     handoff: { editorialIdeaId: row.id, requestId: ideaSubmissionRequest(row.id), submissionId: id,
-      nextTool: article ? 'get_submission_status' : row.status === 'selected' ? 'get_workflow' : 'start_editorial_idea',
-      instructions: 'Valg starter research i ChatGPT, ikke publicering. Hent get_workflow(editorial). Kontrollér først aktualitet og dubletter i list_articles/list_submissions. Brug idéens kilder som spor, ikke som faktagodkendelse. Gem færdig tekst via prepare_submission med editorialIdeaId og requestId ovenfor. Hvis submission findes, genbrug den; aldrig ny requestId. Slut ved preview_submission og personlig godkendelse. Ingen betalt backend-AI.' } };
+      nextTool: article ? 'get_submission_status' : !remit.eligible ? 'get_workflow' : row.status === 'selected' ? 'get_workflow' : 'start_editorial_idea',
+      instructions: LIV_EDITORIAL_REMIT.instruction + '\n' + 'Valg starter research i ChatGPT, ikke publicering. Hent get_workflow(editorial). Kontrollér først aktualitet og dubletter i list_articles/list_submissions. Brug idéens kilder som spor, ikke som faktagodkendelse. Gem færdig tekst via prepare_submission med editorialIdeaId og requestId ovenfor. Hvis submission findes, genbrug den; aldrig ny requestId. Slut ved preview_submission og personlig godkendelse. Ingen betalt backend-AI.' } };
 }
 
 export async function getEditorialIdea(uid: string, raw: unknown) {
@@ -82,6 +85,7 @@ export async function startEditorialIdea(uid: string, raw: unknown) {
     if (!row || row.uid !== uid) throw Error('mcp_idea_not_found');
     // A lost response is recoverable with exactly the previous revision.
     if (row.status === 'selected' && [row.revision, row.revision - 1].includes(input.expectedRevision)) return;
+    if (!assessLivTopic({ title: row.title, angle: row.angle, kind: row.suggestedKind }).eligible) throw Error('liv_idea_requires_review_or_guide_rebrief');
     if (row.revision !== input.expectedRevision) throw Error('mcp_idea_revision_conflict');
     const now = new Date().toISOString();
     tx.update(ref, { status: 'selected', revision: row.revision + 1, selectedAt: now, updatedAt: now });
@@ -94,8 +98,11 @@ export async function getEditorialDesk(uid: string, raw: unknown) {
   const [rows, drafts] = await Promise.all([workspaceRef(uid).collection('editorialIdeas').orderBy('createdAt', 'desc').limit(input.limit + 1).get(), listSubmissions(uid)]);
   const ideas = await Promise.all(rows.docs.slice(0, input.limit).map(row => getEditorialIdea(uid, { ideaId: row.id })));
   const unpublished = drafts.submissions.filter(row => row.status !== 'published');
-  return { ideas, drafts: unpublished.slice(0, 10),
-    coverage: { ideasHaveMore: rows.size > input.limit, ideaLimit: input.limit, draftsComplete: drafts.complete && unpublished.length <= 10,
+  const activeDrafts = unpublished.filter(row => row.editorialRemit?.eligible !== false);
+  const retainedDrafts = unpublished.filter(row => row.editorialRemit?.eligible === false);
+  return { ideas: ideas.filter(idea => idea.editorialRemit.eligible || idea.submission),
+    retainedIdeas: ideas.filter(idea => !idea.editorialRemit.eligible && !idea.submission), editorialRemit: LIV_EDITORIAL_REMIT, drafts: activeDrafts.slice(0, 10), retainedDrafts: retainedDrafts.slice(0, 30),
+    coverage: { ideasHaveMore: rows.size > input.limit, ideaLimit: input.limit, draftsComplete: drafts.complete && drafts.remitClassificationComplete && unpublished.length <= 10,
       draftLimit: 10, note: 'Idéer er ikke færdige artikler. Gemte kladder og personlige godkendelser genbruges.' },
     readAt: new Date().toISOString(), paidAiCalls: 0, publicationApproval: false, untrustedContent: true };
 }

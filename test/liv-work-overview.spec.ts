@@ -9,7 +9,7 @@ it('includes only genuine Liv submissions, including a reserve, not plans, publi
       status: 'draft', revision: 5, updatedAt: '2026-10-23T12:00:00Z' }),
     row('b'.repeat(64), { livProduction: { kind: 'scheduled', day: '2026-10-18' }, article: { ...text, title: 'Walter' },
       status: 'draft', revision: 6, updatedAt: '2026-10-23T11:00:00Z' }),
-    row('c'.repeat(64), { article: { ...text, title: 'Andet projekt' }, status: 'draft' }),
+    row('c'.repeat(64), { article: { ...text, title: 'Andet projekt', author: 'Frederik Kragh' }, status: 'draft' }),
     row('d'.repeat(64), { livProduction: { kind: 'scheduled', day: '2026-10-16' }, article: text, status: 'published' }),
   ], [row('prepare-2026-10-24', { title: 'Cardi B', articleCheckpoint: null, status: 'failed' })]);
   expect(items.map(item => item.title)).toEqual(['Christopher', 'Walter']);
@@ -58,4 +58,16 @@ it('keeps stale legacy and CMS archive drafts out of active work while retaining
   const cms = { items: [{ id: '1'.repeat(24), fieldData: { name: 'Gammel CMS-kladde', author: 'liv-id', content: '<p>Tekst</p>' },
     isDraft: true, lastUpdated: '2026-09-20T12:00:00Z' }], rowsRead: 1, complete: true, maxRows: 300, sortedBy: 'lastUpdated_desc' as const };
   expect(addLivCmsDrafts(active, cms as any, ['liv-id'], new Set(), since)).toHaveLength(1);
+});
+
+
+it('includes an explicitly Liv-authored museum guide even without a scheduled-production identity', () => {
+  const rows = [row('9'.repeat(64), { status: 'awaiting_preparation', article: { ...text,
+    title: 'På radaren: Fire & Ice på Copenhagen Contemporary', author: 'liv-id' }, choices: { kind: 'feature' } }),
+    row('8'.repeat(64), { article: { ...text, title: 'En anden redaktørs arbejde', author: 'other-id' } })];
+  const snapshot = structuredClone(rows);
+  const result = projectLivWork(rows, [], [], '', ['liv-id']);
+  expect(result).toHaveLength(1);
+  expect(result[0]).toMatchObject({ id: '9'.repeat(64), editorialRemit: { eligible: true, format: 'culture-guide' }, scheduledDay: null });
+  expect(rows).toEqual(snapshot);
 });

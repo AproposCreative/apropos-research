@@ -1,6 +1,8 @@
+import { LIV_EDITORIAL_REMIT, assessLivTopic } from '@/lib/liv/editorial-remit';
 import { z } from 'zod';
 import { withoutPaidAi } from '@/lib/ai/no-paid-calls';
 import { readProviderHold } from '@/lib/ai/provider-hold';
+import { defaultEditorialPlan } from '@/lib/liv/rolling-plan';
 import { getLivDailyPlan } from '@/lib/liv/daily-plan-store';
 import { readDeliveryState } from '@/lib/liv/delivery-store';
 import { addDays, copenhagenClock, deliveryHealth, isPublicationDay, nextPublicationDay, publicationTime,
@@ -53,11 +55,13 @@ export async function getLivProductionContext(uid: string, raw: unknown, now = n
       requestId: `liv-${input.kind}-${day}`, scheduledFor: input.kind === 'scheduled' ? publicationTime(day) : null,
       workflow: editorialWorkflow({ workflow: 'liv' }), editorial, options,
       existingSubmission,
-      plan, planIsResearchApproval: false,
+      plan: plan?.createdBy === 'liv-rolling-plan' ? { ...plan, directiveHint: defaultEditorialPlan(day, input.kind === 'reserve').directiveHint, articleFormat: undefined, expandedDirective: undefined } : plan,
+      storedPlan: plan, planIsResearchApproval: false, editorialRemit: LIV_EDITORIAL_REMIT,
+      retainedTopicAssessment: assessLivTopic({ title: prior.title || (typeof prior.topic === 'string' ? prior.topic : '') }),
       retainedWork: { runId, found: prior.found, title: prior.title ?? null, topic: prior.topic ?? null,
         status: prior.status ?? null, reason: prior.reason ?? null, checkpointHash: prior.checkpointHash ?? null,
         webflowItemId: prior.webflowItemId ?? null, nextTool: prior.found ? 'get_liv_work' : null,
-        instruction: 'Genbrug checkpoint/kilder før skrivning. Et gammelt emnehint eller fejlet skriveforsøg er ikke en færdig artikel eller godkendt research.' },
+        instruction: 'Kontrollér først emne og format mod editorialRemit. Uegnede hints må ikke genoptages som nyheder; gemte tekster skal omarbejdes til anmeldelse/guide eller beholdes i historik. Genbrug relevante kilder. Et gammelt emnehint eller fejlet skriveforsøg er ikke en færdig artikel eller godkendt research.' },
       automaticDelivery: deliveryHealth(state, now),
       week: plans.map((p, i) => { const date = addDays(today, i), slot = state.slots[date];
         return { day: date, publicationDay: isPublicationDay(date),

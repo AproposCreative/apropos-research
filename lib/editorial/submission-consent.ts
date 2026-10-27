@@ -38,7 +38,7 @@ async function consentMedia(row: SubmissionRecord, tx?: Transaction) {
 export function consentArticleHash(article: Record<string, unknown>, kind?: string) {
   const normalized = normalizeArticlePayload({ ...article, title: String(article.title || ''), content: String(article.content || ''),
     articleFormat: kind === 'review' || article.articleFormat === 'research-review' ? 'research-review' : 'article',
-    aiGenerated: false, aiModel: 'chatgpt-supplied-unverified', source: 'manual' });
+    aiGenerated: article.aiGenerated === true, aiModel: 'chatgpt-supplied-unverified', source: 'manual' });
   const $ = load(normalized.content);
   $('img').removeAttr('width height loading decoding');
   const { id: _id, webflowId: _webflow, publishDate: _date, status: _status,

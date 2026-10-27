@@ -577,8 +577,8 @@ export async function publishArticleToWebflow(articleData: WebflowArticleFields,
       const a = articleData.author;
       const name = typeof a === 'string' ? a.trim() : '';
       if (name && /liv\s*brandt/i.test(name) && articleData.aiGenerated == null) {
-        // Respect an explicit editorial toggle; Liv's current default is off.
-        articleData = { ...articleData, aiGenerated: false };
+        // Preserve explicit historical values; new Liv research reviews are labelled.
+        articleData = { ...articleData, aiGenerated: articleData.articleFormat === 'research-review' };
       }
     }
 

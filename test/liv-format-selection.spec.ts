@@ -40,10 +40,10 @@ it.each([
   expect(selectLivArticleFormat({ topic })).toBe('article');
 });
 
-it('lets the picked topic select format on new daily plans, retaining legacy reserve format', () => {
+it('lets the selected review or guide determine format for both next article and reserve', () => {
   const plan = defaultEditorialPlan('2026-09-15');
   expect(plan).not.toHaveProperty('articleFormat');
   expect(selectLivArticleFormat({ ...plan, topic: film })).toBe('research-review');
   expect(plan.directiveHint).not.toContain('kulturfeature');
-  expect(defaultEditorialPlan('2026-09-15', true).articleFormat).toBe('article');
+  expect(defaultEditorialPlan('2026-09-15', true).articleFormat).toBeUndefined();
 });

@@ -15,5 +15,5 @@ export async function readLivIdeaOverview(uid: string) {
     .filter(idea => !idea.submission)
     .map(idea => ({ id: idea.id, title: idea.title, angle: idea.angle,
       status: idea.status as LivIdeaItem['status'], createdAt: idea.createdAt }));
-  return { items, complete: !desk.coverage.ideasHaveMore, checkedAt: desk.readAt };
+  return { items, retained: (desk.retainedIdeas || []).map(idea => ({ id: idea.id, title: idea.title, angle: idea.angle, status: 'suggested' as const, createdAt: idea.createdAt })), complete: !desk.coverage.ideasHaveMore, checkedAt: desk.readAt };
 }

@@ -1,3 +1,4 @@
+import { assessLivTopic } from './editorial-remit';
 import { copenhagenClock, isPublicationDay, nextPublicationDay, publicationTime, type ExplicitLivPublication } from '@/lib/liv/delivery-policy';
 import * as store from '@/lib/liv/delivery-store';
 import { publishVerifiedLivArticle, verifyLiveLivArticle } from '@/lib/liv/publish-verified';
@@ -53,6 +54,8 @@ export async function deliverReadyArticle(now = new Date(), dependencies = {
     const entry = (await dependencies.readDeliveryState()).entries.find(e => e.itemId === slot.itemId);
     if (!entry || (!attempted && entry.expiresDay < clock.day)) throw new Error('liv_delivery_expired');
     if (entry.payloadHash !== cmsFieldHash(expected as unknown as Record<string, unknown>)) throw new Error('liv_delivery_payload_changed');
+    if (!attempted && !assessLivTopic({ title: expected.title, articleFormat: expected.articleFormat, kind: entry.editorialKind }).eligible) throw Error('liv_review_or_guide_required');
+    if (!attempted && expected.articleFormat === 'research-review' && expected.aiGenerated !== true) throw Error('liv_public_ai_label_required');
     stage = 'plan_check';
     if (!attempted && entry.planHash && entry.planHash !== await dependencies.planHash(day)) throw new Error('liv_delivery_plan_changed');
     stage = attempted ? 'live_readback' : 'publication_preflight';
@@ -104,7 +107,7 @@ export async function deliverReadyArticle(now = new Date(), dependencies = {
       // Only definitive pre-write rejection allows a different story for this day.
       // Network errors retry the same ready item; ambiguous writes only retry reads.
       if (!attempted && ['liv_publication_checks_failed', 'liv_publication_draft_changed',
-        'liv_delivery_expired', 'liv_delivery_payload_changed', 'liv_delivery_plan_changed'].includes(reason)) {
+        'liv_review_or_guide_required', 'liv_public_ai_label_required', 'liv_delivery_expired', 'liv_delivery_payload_changed', 'liv_delivery_plan_changed'].includes(reason)) {
         manifest.entries.find(e => e.itemId === slot.itemId)!.state = 'rejected';
         delete manifest.slots[day];
       } else {

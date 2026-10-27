@@ -61,7 +61,7 @@ export function normalizeArticlePayload(
   const aiGenerated =
     input.aiGenerated ??
     (source === 'liv' || /liv\s*brandt/i.test(author)
-      ? false
+      ? input.articleFormat === 'research-review'
       : !!input.aiModel || !!input.aiSourceUrl);
 
   return {

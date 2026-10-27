@@ -193,7 +193,7 @@ async function buildPreviewWithinBudget(req: NextRequest, input: PreviewRequestI
         subjectType: article.subjectType,
         rating: article.rating,
         ratingReason: article.ratingReason,
-        aiGenerated: false,
+        aiGenerated: article.articleFormat === 'research-review',
         aiModel: article.aiModel,
         voiceVersion: article.voiceVersion,
         voiceHash: article.voiceHash,

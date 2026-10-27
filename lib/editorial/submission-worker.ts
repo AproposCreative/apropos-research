@@ -236,7 +236,7 @@ export async function runSubmissionStep(uid: string, id: string) {
         category: row.article.category!, author: row.article.author!, tags: row.article.tags || [],
         articleFormat: row.choices.kind === 'review' ? 'research-review' : row.article.articleFormat || 'article',
         featuredImage: assets[0].url, featuredImageHash: assets[0].hash, featuredImageAlt: assets[0].alt, fotoCredit: assets[0].credit,
-        aiModel: 'chatgpt-supplied-unverified', aiGenerated: false, source: 'manual', status: 'draft' });
+        aiModel: 'chatgpt-supplied-unverified', aiGenerated: row.article.aiGenerated === true, source: 'manual', status: 'draft' });
       if (humanReview && !await saved('checks')) await run('checks', async () => ({ status: 'not_run', reason: 'explicit_human_review', aiVerified: false }));
       if (!await saved('checks')) {
         if ((await readProviderHold()).blocked) throw Error('mcp_submission_provider_blocked');

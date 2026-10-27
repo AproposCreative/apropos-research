@@ -16,7 +16,7 @@ function fixture() {
   const state = emptyDeliveryState();
   state.entries = ['a', 'b'].map((id, i) => ({ itemId: id.repeat(24), slug: `artikel-${id}`, title: 'Artikel',
     kind: i ? 'reserve' : 'scheduled', state: 'ready', scheduledDay: day, expiresDay: '2026-09-18',
-    payloadHash: cmsFieldHash({ title: 'Artikel', slug: 'artikel-a' }), preparedAt: now.toISOString() }));
+    payloadHash: cmsFieldHash({ title: 'Artikel', slug: 'artikel-a', articleFormat: 'research-review', aiGenerated: true }), preparedAt: now.toISOString() }));
   const receipt = { publicationVerified: true as const, publicUrl: 'https://www.aproposmagazine.com/articles/artikel-a',
     itemId: 'a'.repeat(24), localeId: 'd'.repeat(24), checkedAt: now.toISOString(),
     webflowLastPublishedAt: '2026-09-11T08:00:02.123Z' };
@@ -26,7 +26,7 @@ function fixture() {
   const verify = vi.fn().mockResolvedValue(receipt);
   const deps = { ...store, readDeliveryState: async () => structuredClone(state),
     claimDelivery: async (d: string, time = Date.now(), explicit?: Parameters<typeof store.claimDelivery>[2]) => store.selectDelivery(state, d, time, String(time), explicit),
-    readDeliveryPayload: async () => ({ title: 'Artikel', slug: 'artikel-a' } as WebflowArticleFields),
+    readDeliveryPayload: async () => ({ title: 'Artikel', slug: 'artikel-a', articleFormat: 'research-review', aiGenerated: true } as WebflowArticleFields),
     updateDelivery: async (d: string, token: string, change: Parameters<typeof store.updateDelivery>[2]) => {
       if (state.slots[d]?.token !== token) throw new Error('liv_delivery_lease_lost');
       change(state.slots[d], state);
@@ -228,4 +228,20 @@ it('records post-intent failures as ambiguous without retrying publication', asy
   const later = new Date(now.getTime() + 16 * 60_000); vi.setSystemTime(later);
   await deliverReadyArticle(later, f.deps);
   expect(f.publish).toHaveBeenCalledTimes(1); expect(f.verify).toHaveBeenCalledTimes(1);
+});
+
+
+it('never publishes a retained recruitment story, even if an old queue entry calls it ready', async () => {
+  const f = fixture();
+  f.deps.readDeliveryPayload = async () => ({ title: 'Soundvenue søger videopraktikant', slug: 'job' } as WebflowArticleFields);
+  const result = await deliverReadyArticle(now, f.deps);
+  expect(result.status).toBe('retry_required');
+  expect(f.publish).not.toHaveBeenCalled();
+  expect(f.verify).not.toHaveBeenCalled();
+});
+it('refuses a research review with a hidden public AI label before any CMS write', async () => {
+  const f = fixture();
+  f.deps.readDeliveryPayload = async () => ({ title: 'Anmeldelse: En film', slug: 'film', articleFormat: 'research-review', aiGenerated: false } as WebflowArticleFields);
+  await deliverReadyArticle(now, f.deps);
+  expect(f.publish).not.toHaveBeenCalled();
 });

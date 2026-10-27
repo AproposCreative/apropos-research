@@ -14,6 +14,7 @@ export const editableArticle = z.object({
   category: z.string().max(200).optional(), topicsSelected: z.array(z.string().max(100)).max(20).optional(),
   tags: z.array(z.string().max(100)).max(30).optional(),
   rating: z.number().int().min(1).max(6).optional(), ratingReason: z.string().max(1000).optional(),
+  aiGenerated: z.boolean().optional().describe('Public AI label. Required true for Liv research reviews.'),
   articleFormat: z.enum(['article', 'research-review']).optional(),
   subjectType: z.enum(['film','tv-series','music','art','literature','culture']).optional(),
   bookTitle: z.string().trim().min(1).max(300).optional(), bookAuthor: z.string().trim().min(1).max(300).optional(),
@@ -27,6 +28,7 @@ const evidenceUrl = z.string().max(2000).refine(value => {
   catch { return false; }
 });
 export const researchSchema = z.array(z.object({ url: evidenceUrl, title: z.string().max(300),
+  kind: z.enum(['review', 'official', 'context', 'firsthand']).optional().describe('review means an actually read original review; snippets and roundups are context.'),
   retrievedAt: z.iso.datetime(), publishedAt: z.iso.datetime().nullable(), notes: z.string().max(4000) }).strict()).max(30);
 export const draftInput = z.object({ expectedRevision: z.number().int().nonnegative(),
   draftId: z.string().regex(/^[a-zA-Z0-9_-]{8,100}$/), article: editableArticle,

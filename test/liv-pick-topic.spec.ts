@@ -8,8 +8,8 @@ import { pickLivTopic } from '@/lib/liv/pick-topic';
 
 const options = { baseUrl: 'https://app.example' };
 const article = {
-  title: 'Ny musik fra danske kunstnere', category: 'Musik', tags: ['kultur'],
-  date: '2026-09-12T09:00:00Z', url: 'https://publisher.example/music',
+  title: 'Ny musik fra danske kunstnere', category: 'Anmeldelser', tags: ['kultur'],
+  date: '2026-09-12T09:00:00Z', url: 'https://publisher.example/reviews/music',
   source: 'Publisher', content: 'Dokumenteret omtale af et nyt album.',
 };
 const feed = (articles: unknown[]) => mocks.fetch.mockImplementation(async () => Response.json({ articles }));

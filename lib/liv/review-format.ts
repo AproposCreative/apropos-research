@@ -1,3 +1,5 @@
+import { assessLivTopic, LIV_EDITORIAL_REMIT } from './editorial-remit';
+
 export type LivArticleFormat = 'article' | 'research-review';
 
 export function isLivArticleFormat(value: unknown): value is LivArticleFormat {
@@ -14,9 +16,13 @@ export function selectLivArticleFormat(input: {
 }): LivArticleFormat {
   if (input.articleFormat) return input.articleFormat;
   const { topic } = input;
+  const directive = `${input.directiveHint || ''} ${input.expandedDirective || ''}`.replace(LIV_EDITORIAL_REMIT.instruction, '');
+  if (/kulturguide/iu.test(directive)) return 'article';
+  const remit = assessLivTopic({ ...topic, url: topic.source?.url });
+  if (remit.format === 'research-review' && !/feature|essay|analyse|interview/iu.test(directive)) return 'research-review';
   const title = topic.title.trim();
   // Editorial intent wins over the format of a source used for research.
-  const intent = `${input.directiveHint || ''} ${input.expandedDirective || ''} ${title}`;
+  const intent = `${directive} ${title}`;
   if (/(?:^|[^\p{L}])(?:feature|interview|nyhed(?:er|sartikel)?|news|analyse|analysis|essay|portræt|uden stjerner|ikke en anmeldelse)(?:$|[^\p{L}])/iu.test(intent)) return 'article';
   if (/trailer|casting|rollebesætning|annonceret|rygte|billetpris|vip|branche|kulturpolitik|får premiere|premieredato|på vej/iu.test(title)) return 'article';
   const screen = /(?:^|[^\p{L}])(?:film(?:en)?|dokumentar(?:en|film)?|tv[- ]?serie(?:n|r)?|serie(?:n|r)?)(?:$|[^\p{L}])/iu;

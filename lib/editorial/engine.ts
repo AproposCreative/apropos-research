@@ -1,3 +1,4 @@
+import { assessLivTopic } from '@/lib/liv/editorial-remit';
 import {
   EDITORIAL_ARTICLE_TYPE_OPTIONS,
   getEditorialArticleTypeOption,
@@ -19,36 +20,12 @@ import type {
 } from '@/lib/editorial/types';
 
 export const EDITORIAL_BEATS: EditorialBeat[] = [
-  {
-    id: 'musik',
-    label: 'Musik',
-    searchSeeds: ['musik', 'koncert', 'festival', 'album'],
-    audience: 'Musiklæsere der vil forstå tendenserne bag udgivelser, festivaler og livekultur.',
-  },
-  {
-    id: 'film-tv',
-    label: 'Film & TV',
-    searchSeeds: ['streaming', 'film serie', 'dokumentar', 'tv-serie'],
-    audience: 'Streamere og seriepublikum der leder efter kontekst, anbefalinger og skarpere vinkler.',
-  },
-  {
-    id: 'gaming',
-    label: 'Gaming',
-    searchSeeds: ['gaming', 'spil', 'game preservation', 'spilbranchen'],
-    audience: 'Gaminglæsere der ser spil som kultur, teknologi og fællesskab.',
-  },
-  {
-    id: 'kultur',
-    label: 'Kulturfællesskaber og vaner',
-    searchSeeds: ['kulturfællesskaber Danmark', 'ændrede kulturvaner', 'frivillige kultur'],
-    audience: 'Kulturinteresserede læsere der vil have et perspektiv før emnet bliver gammelt.',
-  },
-  { id: 'kulturpolitik', label: 'Kulturpolitik', searchSeeds: ['kulturpolitik Danmark', 'kulturbudget kommuner'], audience: 'Læsere der vil forstå hvem der bestemmer over kulturen.' },
-  { id: 'scenekunst', label: 'Teater og scenekunst', searchSeeds: ['scenekunst Danmark', 'teater Aarhus Aalborg Odense'], audience: 'Teaterpublikum og læsere med interesse for levende scenekunst.' },
-  { id: 'litteratur', label: 'Litteratur', searchSeeds: ['litteratur Danmark', 'biblioteker læsekultur'], audience: 'Læsere med interesse for bøger, forfattere og læsning.' },
-  { id: 'kunst', label: 'Billedkunst og museer', searchSeeds: ['billedkunst museer Danmark', 'museum udstilling Jylland Fyn'], audience: 'Læsere der vil forstå kunsten og institutionerne omkring den.' },
-  { id: 'arkitektur-design', label: 'Arkitektur og design', searchSeeds: ['arkitektur design Danmark', 'byudvikling kultur provinsen'], audience: 'Læsere optaget af de rum og genstande vi lever med.' },
-  { id: 'kulturarv', label: 'Kulturarv', searchSeeds: ['kulturarv Danmark', 'bevaring lokalhistorie'], audience: 'Læsere der vil forstå hvad vi bevarer og hvorfor.' },
+  { id: 'musik', label: 'Koncerter', searchSeeds: ['koncertanmeldelse Danmark', 'koncertguide Danmark'], audience: 'Læsere der vælger koncerter og festivaloplevelser.' },
+  { id: 'film-tv', label: 'Film & TV', searchSeeds: ['tv-serie sæson anmeldelse', 'film anmeldelse streamingguide'], audience: 'Læsere der vil vælge en film eller serie.' },
+  { id: 'litteratur', label: 'Bøger', searchSeeds: ['boganmeldelse roman', 'bogguide litteratur'], audience: 'Læsere på jagt efter den næste bog.' },
+  { id: 'kunst', label: 'Museer og udstillinger', searchSeeds: ['udstilling anmeldelse museum', 'museumsguide Danmark'], audience: 'Læsere der vælger museum og udstilling.' },
+  { id: 'scenekunst', label: 'Teater og scenekunst', searchSeeds: ['teater anmeldelse', 'scenekunst guide Danmark'], audience: 'Læsere der vælger scenekunst og kulturoplevelser.' },
+  { id: 'kultur', label: 'Kulturoplevelser', searchSeeds: ['kulturguide oplevelser Danmark', 'weekendguide kultur'], audience: 'Læsere der søger konkrete kulturoplevelser.' },
 ];
 
 function clamp(value: number, min = 20, max = 95) {
@@ -112,13 +89,12 @@ function duplicateRiskFor(text: string, coveredTopics: CoveredEditorialTopic[] =
 
 function inferArticleType(signal: EditorialSignal, sources: EditorialSource[]): EditorialArticleType {
   const text = normalizeEditorialText([signal.title, signal.angle, signal.nextAction, sources.map((s) => s.title).join(' ')].join(' '));
-  // A news signal does not provide first-hand observations needed for a review.
-  if (/anmeld|review|premiere|album|film|serie|spil/.test(text)) return 'analysis';
-  if (/analyse|pris|økonomi|branche|rettighed|platform|streaming/.test(text)) return 'analysis';
-  if (/kommentar|essay|debat|holdning/.test(text)) return 'commentary';
-  if (/longread|portræt|interview|baggrund/.test(text)) return 'longread';
-  if (/nyhed|lancer|annoncer|åbner|lukker/.test(text)) return 'short-news';
-  return 'feature';
+  const remit = assessLivTopic({ title: signal.title, angle: signal.angle, category: signal.beat,
+    url: sources[0]?.url || undefined });
+  if (remit.format === 'research-review') return 'review';
+  if (remit.format === 'culture-guide') return 'culture-guide';
+  return 'analysis'; // Legacy/manual research only; discovery filters this out.
+
 }
 
 function signalFromSource(beat: EditorialBeat, source: EditorialSource, index: number, coveredTopics: CoveredEditorialTopic[]): EditorialSignal {
@@ -139,13 +115,13 @@ function signalFromSource(beat: EditorialBeat, source: EditorialSource, index: n
     brandFit,
     risk,
     audience: beat.audience,
-    angle: `Undersøg hvad signalet siger om ${beat.label.toLowerCase()} lige nu, og omsæt det til en Apropos-vinkel med dansk relevans.`,
+    angle: `Undersøg værket eller oplevelsen som anmeldelse eller konkret kulturguide med dansk relevans.`,
     evidence: [
       snippet || `Aktuelt websignal inden for ${beat.label}.`,
       source.url ? `Primær kilde: ${source.url}` : `Kilde: ${source.source}`,
       'Kræver kildekritik, modvinkel og konkret dansk relevans før udgivelse.',
     ],
-    nextAction: 'Research signalet, vurder kildekvalitet, find modvinkel og byg artikelbrief.',
+    nextAction: 'Research værket, læs 5–6 originalanmeldelser ved anmeldelse, og byg et selvstændigt artikelbrief.',
     sources: [source],
     duplicateRisk,
   };
@@ -158,7 +134,7 @@ function signalFromSource(beat: EditorialBeat, source: EditorialSource, index: n
 function buildDiscoveryQueries(beat: EditorialBeat) {
   return beat.searchSeeds.flatMap((seed) => [
     { query: seed, strategy: 'beat-exact' },
-    { query: `${seed} nyheder`, strategy: 'beat-news' },
+    { query: `${seed} kritik guide`, strategy: 'beat-review-guide' },
   ]);
 }
 
@@ -168,7 +144,7 @@ function buildResearchQueries(signal: EditorialSignal) {
     { query: `${signal.title} ${signal.beat}`, strategy: 'exact-signal' },
     { query: `${keywords} ${signal.beat} danmark`, strategy: 'keyword-danish' },
     { query: `${signal.beat} kultur debat danmark ${keywords}`, strategy: 'beat-context' },
-    { query: `${signal.beat} nyheder analyse`, strategy: 'source-diversity' },
+    { query: `${signal.title} review criticism anmeldelse`, strategy: 'source-diversity' },
   ];
 }
 
@@ -192,6 +168,7 @@ export async function discoverSignals(options: DiscoverSignalsOptions = {}): Pro
   }, {});
   const prioritized = batches
     .flat()
+    .filter(signal => assessLivTopic({ title: signal.title, category: signal.beat, url: signal.sources?.[0]?.url || undefined }).eligible)
     .map(signal => {
       const match = audienceMatch(signal.title, options.audienceSignals || []);
       return {
@@ -259,6 +236,7 @@ export async function researchSignal(
   signal: EditorialSignal,
   options: { coveredTopics?: CoveredEditorialTopic[] } = {}
 ): Promise<ResearchDossier> {
+  if (!assessLivTopic({ title: signal.title, category: signal.beat, kind: signal.suggestedArticleType, url: signal.sources?.[0]?.url || undefined }).eligible) throw Error('liv_review_or_guide_required');
   const sources = await performMultiStrategySearch(buildResearchQueries(signal), { maxResults: 8 });
   const mergedSources = [...(signal.sources || []), ...sources];
   const dedupedSources = Array.from(

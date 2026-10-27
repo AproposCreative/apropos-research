@@ -129,11 +129,11 @@ describe('daily delivery policy', () => {
     state.slots[day] = { itemId: 'uncertain', token: 'x', state: 'attempted', leaseUntil: 0, attempts: 1, nextAttemptAt: 0 };
     expect(preparationCandidates(state, day)).toEqual([]);
   });
-  it('uses question-led features without fabricated current events or ratings as fallback', () => {
+  it('requires a review or guide with documented sources as the reserve plan', () => {
     const plan = defaultEditorialPlan(day, true);
-    expect(plan).toMatchObject({ mustUseTrending: false, articleFormat: 'article' });
-    expect(plan.directiveHint).toContain('Tidløs reserve');
-    expect(plan.directiveHint).toContain('kildebelagte');
+    expect(plan).toMatchObject({ mustUseTrending: false });
+    expect(plan.directiveHint).toContain('Reserve:');
+    expect(plan.directiveHint).toContain('5–6');
   });
 });
 

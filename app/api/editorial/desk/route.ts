@@ -129,6 +129,7 @@ export async function POST(req: NextRequest) {
               title: story.signal.title, url: story.signal.sources?.[0]?.url || undefined,
               excerpt: story.signal.sources?.[0]?.content, sourceName: story.signal.sources?.[0]?.source,
             } },
+            articleFormat: story.research?.brief.articleType === 'review' ? 'research-review' : 'article',
             expandedDirective: story.research?.brief.text,
             sourceScope: uid,
             directiveHint: (story.research?.dossier.sources || []).map(source => source.url).filter(Boolean).join('\n'),
