@@ -1,11 +1,11 @@
 /** Owner's editorial direction, 2026-10-27. This changes selection, not spend or consent. */
-export const LIV_EDITORIAL_REMIT_VERSION = 'liv-reviews-guides-2026-10-27-v1';
+export const LIV_EDITORIAL_REMIT_VERSION = 'liv-reviews-guides-2026-10-27-v2';
 export const LIV_EDITORIAL_REMIT = {
   version: LIV_EDITORIAL_REMIT_VERSION,
   formats: ['research-review', 'culture-guide'],
   subjects: ['concerts', 'tv-series', 'film', 'books', 'museums', 'exhibitions', 'cultural-experiences'],
   excluded: ['news', 'breaking-news', 'recruitment', 'industry-news', 'celebrity-news', 'announcements'],
-  reviewSources: { minimum: 5, target: 6, originalReviews: true, actuallyRead: true },
+  reviewSources: { minimum: 5, target: 6, originalReviews: true, actuallyRead: true, alternative: 'completed_private_book_reading' },
   publicAiLabel: true,
   instruction: 'Liv laver anmeldelser og konkrete kulturguider: koncerter, tv-serier, film, bøger, museer, udstillinger og kulturoplevelser. ' +
     'Ingen nyheder, praktikant-/jobopslag, branchehistorier, kendisstof, annonceringer eller jagt på at være først. ' +
@@ -13,6 +13,7 @@ export const LIV_EDITORIAL_REMIT = {
     'sammenhold konkrete styrker, svagheder og uenighed, og skriv en selvstændig sammenfattende vurdering i Livs stemme med begrundede 1–6 stjerner. ' +
     'Bevar links og attribution. En opsamling, pressemeddelelse eller søgesnippet tæller ikke som en læst originalanmeldelse. Opfind ikke fremmøde, læsning, citater eller scener. ' +
     'Gem hver læst anmeldelse i research med kind=review, dato og konkrete noter; registrér officielle praktiske kilder med kind=official. ' +
+    'En bog læst gennem get_workflow(read) kan i stedet anmeldes ud fra komplet gemt læsedækning og egne positionsbundne noter: angiv readerSourceId, bevar bogens identitet og AI-markering; fem andre anmeldelser kræves ikke oveni. ' +
     'Markér researchanmeldelser offentligt som AI: article.aiGenerated=true samt en kort synlig sætning om kildegrundlaget i teksten. ' +
     'Brug choices.kind=review/articleFormat=research-review eller choices.kind=culture-guide/articleFormat=article. Kulturguider hjælper læseren med konkrete valg, steder, datoer og praktiske oplysninger; ingen stjerner. ' +
     'Hvis anmeldelsesgrundlaget mangler, behold emnet som research eller vælg et andet relevant værk. Omdøb det ikke til nyhed eller feature. ' +

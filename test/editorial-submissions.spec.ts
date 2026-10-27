@@ -10,9 +10,64 @@ import { prepareSubmission, updateSubmission, getSubmissionStatus } from '@/lib/
 import { submissionVersion } from '@/lib/editorial/submission-contract';
 import { cmsFieldHash } from '@/lib/liv/cms-field-hash';
 import { approvedSubmissionPolicy } from '@/lib/editorial/submission-policy';
+import { registerReaderSource, saveReaderProgress } from '@/lib/mcp/reader';
+import { withoutPaidAi } from '@/lib/ai/no-paid-calls';
 let memory: ReturnType<typeof memoryFirestore>;
 beforeEach(() => { memory = memoryFirestore(); state.db = memory.db; });
 const input = () => submissionInput.parse({ requestId: 'article-from-chat-0001', article: { title: 'En anmeldelse', content: '<p>Min egen tekst.</p>' } });
+
+async function bookFixture(complete = true) {
+  const source = await registerReaderSource('owner', {
+    sourceUrl: 'https://bibliotek.kk.dk/reader?orderid=00000000-0000-4000-8000-000000000001',
+    title: 'Testroman', author: 'Testforfatter',
+  });
+  await saveReaderProgress('owner', { sourceId: source.sourceId, requestId: 'test-book-reading-01', expectedRevision: 0,
+    access: 'available', observedAt: '2026-10-06T18:00:00.000Z', layout: { key: 'test-layout-1200x800', totalPositions: 6 },
+    checkpoint: { position: complete ? 6 : 3, chapter: '1', anchor: 'Kort testanker.' },
+    readRanges: [{ start: 1, end: complete ? 6 : 3, chapter: '1' }], beginningObserved: true, endObserved: complete,
+    notes: 'Egne positionsbundne noter om karakterernes udvikling og romanens åbne slutning.' });
+  return { ...input(), readerSourceId: source.sourceId, article: { ...input().article, title: 'Anmeldelse: Testroman',
+    author: options.authors[1].id, category: options.categories[0].id, subjectType: 'literature', articleFormat: 'research-review',
+    rating: 4, ratingReason: 'Romanens form understøtter karakterernes udvikling.', subtitle: 'Undertitel', intro: 'Introduktion',
+    slug: 'testroman', seoTitle: 'Testroman anmeldelse', seoDescription: 'En anmeldelse baseret på læsning af romanen.' },
+    choices: { kind: 'review', media: 'provided', aiFinalChecks: 'human' }, research: [] };
+}
+
+it('accepts actual complete saved book reading as Liv’s review basis, while preserving AI label and personal consent', async () => {
+  const value = await bookFixture();
+  const row = await withoutPaidAi(() => prepareSubmission('owner', value));
+  expect(row).toMatchObject({ reviewBasis: 'completed_book_reading', textReadyForPreparation: true,
+    article: { bookTitle: 'Testroman', bookAuthor: 'Testforfatter', aiGenerated: true }, publicationReady: false,
+    readerEvidence: { sourceId: value.readerSourceId, title: 'Testroman', author: 'Testforfatter',
+      basis: 'saved_position_bound_notes', independentlyVerified: false, publicationApproval: false } });
+  expect(row.blockers).not.toContain('liv_five_original_reviews_required');
+  expect(() => approvedSubmissionPolicy({ ...row, status: 'draft' })).toThrow('editorial_decision_required');
+  expect(await prepareSubmission('owner', value)).toMatchObject({ id: row.id, revision: 1 });
+  const edited = await updateSubmission('owner', { submissionId: row.id, expectedRevision: 1,
+    requestId: 'test-book-copy-edit', article: { intro: 'En præcis introduktion.' } });
+  expect(edited).toMatchObject({ reviewBasis: 'completed_book_reading', revision: 2, publicationReady: false });
+  await expect(updateSubmission('owner', { submissionId: row.id, expectedRevision: 2,
+    requestId: 'test-book-wrong-title', article: { bookTitle: 'En helt anden bog' } })).rejects.toThrow('reader_identity_conflict');
+});
+it('does not let an incomplete book, another owner’s book or injected evidence waive review requirements', async () => {
+  const value = await bookFixture(false);
+  await expect(prepareSubmission('owner', value)).rejects.toThrow('reader_incomplete');
+  await expect(prepareSubmission('other', value)).rejects.toThrow('reader_not_found');
+  await expect(prepareSubmission('owner', { ...value, readerEvidence: { complete: true } })).rejects.toThrow();
+  expect(inspectSubmission(submissionInput.parse(value), options).blockers).toContain('liv_five_original_reviews_required');
+});
+it('honours historical server reading snapshots but never reuses book coverage for a different work or medium', async () => {
+  const row = await prepareSubmission('owner', await bookFixture());
+  const { title: _title, author: _author, ...legacy } = row.readerEvidence!;
+  expect(inspectSubmission({ ...row, readerEvidence: legacy }, options).reviewBasis).toBe('completed_book_reading');
+  for (const article of [{ ...row.article, subjectType: 'film' }, { ...row.article, bookAuthor: 'Anden forfatter' }]) {
+    expect(inspectSubmission({ ...row, article }, options).blockers).toContain('liv_five_original_reviews_required');
+  }
+  for (const coverage of row.readerEvidence!.coverage.map(c => ({ ...c, endObserved: false }))) {
+    expect(inspectSubmission({ ...row, readerEvidence: { ...row.readerEvidence!, coverage: [coverage] } }, options).blockers)
+      .toContain('liv_five_original_reviews_required');
+  }
+});
 
 it('asks at most three relevant questions without guessing author or rating', () => {
   const value = input(); value.choices.kind = 'review';

@@ -42,7 +42,15 @@ export type SubmissionOptions = {
   checkedAt: string;
 };
 export type SubmissionQuestion = { field: string; question: string; options?: Array<{ value: string; label: string }> };
+/** Server-created snapshot; deliberately absent from all writable MCP schemas. */
+export type ReaderSubmissionEvidence = {
+  sourceId: string; revision: number; title?: string; author?: string;
+  independentlyVerified: false; basis: 'saved_position_bound_notes'; publicationApproval: false;
+  coverage: Array<{ status: string; totalPositions: number; readPositions: number; gapCount: number;
+    beginningObserved: boolean; endObserved: boolean }>;
+};
 export type SubmissionRecord = SubmissionInput & {
+  readerEvidence?: ReaderSubmissionEvidence;
   mediaSelection?: { uid: string; revision: number; contentHash: string; selectionHash: string; acceptedAt: string };
   publishedTarget?: PublishedTarget;
   /** A matching, never-published CMS draft adopted before personal publication approval. */
@@ -62,7 +70,10 @@ export function validateSubmissionArticle(article: SubmissionArticle) {
 }
 
 /** Suggestions and missing input only. No guessed authorship, rating, approval or new prose. */
-export function inspectSubmission(input: Pick<SubmissionInput, 'article' | 'choices' | 'research'> & { executionPolicy?: string; livProduction?: unknown; status?: string; publishedTarget?: unknown }, options: SubmissionOptions) {
+export function inspectSubmission(input: Pick<SubmissionInput, 'article' | 'choices' | 'research'> & {
+  executionPolicy?: string; livProduction?: unknown; status?: string; publishedTarget?: unknown;
+  readerSourceId?: string; readerEvidence?: ReaderSubmissionEvidence; originalArticle?: SubmissionArticle;
+}, options: SubmissionOptions) {
   const { article, choices } = input;
   validateSubmissionArticle(article);
   const liv = !!input.livProduction || isLivAuthor(options.authors.find(a => a.id === article.author)?.name || article.author || '');
@@ -89,9 +100,20 @@ export function inspectSubmission(input: Pick<SubmissionInput, 'article' | 'choi
     ? assessLivTopic({ title: article.title, kind: choices.kind, articleFormat: article.articleFormat }) : null;
   if (remit && !remit.eligible) blockers.push('liv_review_or_guide_required');
   const reviewEvidence = liv && review ? livReviewSourceEvidence(input.research) : null;
+  const reading = input.readerEvidence;
+  // Old server snapshots carry book identity in originalArticle. New snapshots
+  // bind it explicitly, so changing book metadata cannot reuse another book's coverage.
+  const completedBookReading = article.subjectType === 'literature' && !!input.readerSourceId &&
+    reading?.sourceId === input.readerSourceId && Number.isInteger(reading.revision) && reading.revision > 0 &&
+    reading.basis === 'saved_position_bound_notes' && reading.independentlyVerified === false &&
+    !!article.bookTitle && !!article.bookAuthor &&
+    article.bookTitle === (reading.title ?? input.originalArticle?.bookTitle) &&
+    article.bookAuthor === (reading.author ?? input.originalArticle?.bookAuthor) &&
+    reading.coverage.some(c => c.status === 'reported_complete' && c.totalPositions > 0 &&
+      c.readPositions === c.totalPositions && c.gapCount === 0 && c.beginningObserved && c.endObserved);
   if (remit && review) {
     if (article.aiGenerated !== true) blockers.push('liv_public_ai_label_required');
-    if (!reviewEvidence?.sufficient) blockers.push('liv_five_original_reviews_required');
+    if (!completedBookReading && !reviewEvidence?.sufficient) blockers.push('liv_five_original_reviews_required');
   }
   if (!options.authors.length || !options.categories.length) blockers.push('cms_options_unavailable');
   if (film && choices.media === 'illustration') blockers.push('film_requires_real_stills');
@@ -106,7 +128,9 @@ export function inspectSubmission(input: Pick<SubmissionInput, 'article' | 'choi
   const textReadyForPreparation = !questions.length && !blockers.length && !missingMetadata.length;
   const mediaBeforePreparation = choices.aiFinalChecks === 'human' || ['chatgpt-first-v1', 'chat-final-checks-v1'].includes(input.executionPolicy || '');
   return { questions: questions.slice(0, 3), remainingQuestionCount: Math.max(0, questions.length - 3),
-    missingMetadata, missingMedia, recommendedMedia, blockers, editorialRemit: remit, reviewEvidence, suggestedMedia: film ? 'press' : choices.media || 'press',
+    missingMetadata, missingMedia, recommendedMedia, blockers, editorialRemit: remit, reviewEvidence,
+    reviewBasis: review ? (completedBookReading ? 'completed_book_reading' : 'review_sources') : null,
+    suggestedMedia: film ? 'press' : choices.media || 'press',
     textReadyForPreparation,
     readyForPreparation: textReadyForPreparation && (!mediaBeforePreparation || !missingMedia.length),
     publicationReady: false as const, textPreserved: true, paidAiCalls: 0,

@@ -102,7 +102,7 @@ it('visiting the last page and marking only one boundary never establishes full 
   expect(result.coverage[0]).toMatchObject({ readPositions: 0, status: 'partial', nextPosition: 1 });
   expect(readerCoverage({ ...layout, ranges: [{ start: 1, end: 6 }], beginningObserved: true, endObserved: false }).status).toBe('partial');
 });
-it.each(['login_required', 'captcha_required', 'loan_expired', 'browser_unavailable', 'protected_content', 'reader_error'])('records %s without deleting the checkpoint or counting blocked reading', async access => {
+it.each(['login_required', 'captcha_required', 'loan_expired', 'browser_unavailable', 'browser_blocked_by_administrator', 'protected_content', 'reader_error'])('records %s without deleting the checkpoint or counting blocked reading', async access => {
   const id = await start(); await saveReaderProgress(uid, batch(id));
   const input = { sourceId: id, expectedRevision: 1, requestId: 'blocked-batch-001', access, observedAt, notes: 'Kræver sikker brugerhandling' };
   await saveReaderProgress(uid, input);
@@ -144,6 +144,40 @@ it('discovers the exact existing private book by KK URL without another registra
   expect((await listReaderSources(uid, { sourceUrl: registration.sourceUrl })).items[0]).toMatchObject({ sourceId: id, revision: 1 });
   expect((await listReaderSources('other', { sourceUrl: registration.sourceUrl })).items).toEqual([]);
   expect((await getReaderProgress(uid, { sourceId: id })).revision).toBe(1);
+});
+it('diagnoses a reported host block before the title is known without registering or fetching a book', async () => {
+  const fetcher = vi.fn(() => { throw Error('unexpected_network'); }); vi.stubGlobal('fetch', fetcher);
+  const input = { sourceUrl: registration.sourceUrl, accessReport: { status: 'browser_blocked_by_administrator', basis: 'reported_by_user' } };
+  for (let n = 0; n < 2; n++) {
+    const result = await withoutPaidAi(() => listReaderSources(uid, input));
+    expect(result).toMatchObject({ items: [], browserAccessVerified: false, accessDiagnostic: {
+      status: 'browser_blocked_by_administrator', basis: 'reported_by_user', errorCode: 'net::ERR_BLOCKED_BY_ADMINISTRATOR',
+      bookIdentityKnown: false, savedReadingComplete: false, browserProbePerformed: false, libraryLoanStatus: 'unknown',
+      nextAction: 'host_administrator_must_resolve_browser_policy' } });
+    expect(JSON.stringify(result)).not.toContain('orderid=');
+  }
+  expect(memory.rows.size).toBe(0); expect(fetcher).not.toHaveBeenCalled();
+  await expect(listReaderSources(uid, { accessReport: input.accessReport })).rejects.toThrow('diagnostic_source_required');
+});
+it('does not treat an index read as proven browser access, and keeps missing-browser diagnostics separate', async () => {
+  const result = await listReaderSources(uid, { sourceUrl: registration.sourceUrl });
+  expect(result).toMatchObject({ browserAccessVerified: false, accessDiagnostic: { status: 'not_checked', basis: 'no_browser_observation' } });
+  const unavailable = await listReaderSources(uid, { sourceUrl: registration.sourceUrl,
+    accessReport: { status: 'browser_unavailable', basis: 'observed_in_this_chat' } });
+  expect(unavailable).toMatchObject({ accessDiagnostic: { errorCode: null, status: 'browser_unavailable',
+    basis: 'observed_in_this_chat', nextAction: 'use_supported_cloud_browser_if_available' } });
+});
+it('reuses complete saved reading despite a new host block without changing any checkpoint', async () => {
+  const id = await start();
+  await saveReaderProgress(uid, batch(id, { checkpoint: { ...checkpoint, position: 6 },
+    readRanges: [{ start: 1, end: 6, chapter: '1' }], endObserved: true }));
+  const before = JSON.stringify([...memory.rows]);
+  const result = await listReaderSources(uid, { sourceUrl: registration.sourceUrl,
+    accessReport: { status: 'browser_blocked_by_administrator', basis: 'observed_in_this_chat' } });
+  expect(result).toMatchObject({ accessDiagnostic: { bookIdentityKnown: true, savedReadingComplete: true,
+    nextAction: 'read_saved_note_batches', libraryLoanStatus: 'unknown' } });
+  expect(JSON.stringify([...memory.rows])).toBe(before);
+  expect((await listReaderSources('other', { sourceUrl: registration.sourceUrl })).items).toEqual([]);
 });
 it('ships a versioned focused cloud workflow with honest capability and publication boundaries', () => {
   const result = editorialWorkflow({ workflow: 'read' });

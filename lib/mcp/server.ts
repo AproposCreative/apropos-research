@@ -335,7 +335,7 @@ export function createEditorialMcp(identity: McpIdentity) {
     workflowInput, 'apropos:read', true, async input => editorialWorkflow(input));
   tool('register_reader_source', 'Registrér en lovligt tilgængelig KK Reader-bog og observeret titel/forfatter privat. Genbruger samme lånelink. Hent først get_workflow(read). Åbner IKKE en browser, downloader ikke bogen, intet AI-kald. ChatGPT Work Cloud Browser læser med normale kontroller; ingen tændt Mac nødvendig.',
     registerReaderInput, 'apropos:draft', false, input => registerReaderSource(identity.uid, input));
-  tool('list_reader_sources', 'Find dine private bøger/læseindeks til genoptagelse i en ny chat. Pagineret oversigt med klientrapporteret dækning, ikke fuldtekst eller uafhængigt læsebevis.',
+  tool('list_reader_sources', 'Find dine private bøger/læseindeks til genoptagelse. sourceUrl finder det præcise lån. Ved browserblokering kan accessReport give en læsende diagnose også før titlen kendes; skeln observed_in_this_chat fra reported_by_user. MCP prøver ikke browseradgang. Gemte noter er ikke fuldtekst eller uafhængigt læsebevis.',
     listReadersInput, 'apropos:read', true, input => listReaderSources(identity.uid, input));
   tool('get_reader_progress', 'Hent privat læsecheckpoint, lånelink, layoutbundne huller og en begrænset side noter. nextCursor bruges som afterRevision. Læser IKKE nye bogsider; de læses i remote Cloud Browser. Bekræft tekstanker før genoptagelse. Ingen AI/CMS-kald.',
     readerProgressInput, 'apropos:read', true, input => getReaderProgress(identity.uid, input));

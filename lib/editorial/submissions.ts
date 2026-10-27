@@ -157,7 +157,7 @@ export async function prepareSubmission(uid: string, raw: unknown) {
     const now = new Date().toISOString();
     tx.create(ref, { ...input, id, uid, revision: 1, contentHash, initialHash,
       executionPolicy: 'chatgpt-first-v1',
-      ...(reader ? { readerEvidence: { sourceId: reader.sourceId, revision: reader.revision, coverage: reader.coverage,
+      ...(reader ? { readerEvidence: { sourceId: reader.sourceId, revision: reader.revision, title: reader.title, author: reader.author, coverage: reader.coverage,
         independentlyVerified: false, basis: 'saved_position_bound_notes', publicationApproval: false } } : {}),
       originalArticle: input.article, status: 'draft', createdAt: now, updatedAt: now });
   });
@@ -186,6 +186,9 @@ export async function updateSubmission(uid: string, raw: unknown, internal?: { r
     const base = ['prepared', 'published'].includes(row.status) && prepared ? { ...row.article, content: prepared.content,
       featuredImage: prepared.featuredImage, featuredImageAlt: prepared.featuredImageAlt, fotoCredit: prepared.fotoCredit } : row.article;
     const article = mergeSocialSubtitles(base, input.article || {});
+    if (row.readerSourceId && ((article.bookTitle !== (row.readerEvidence?.title ?? row.originalArticle.bookTitle)) ||
+        (article.bookAuthor !== (row.readerEvidence?.author ?? row.originalArticle.bookAuthor))))
+      throw Error('mcp_submission_reader_identity_conflict');
     for (const field of input.clearFields || []) {
       if (input.article?.[field] !== undefined) throw Error('mcp_submission_conflicting_update');
       delete article[field];

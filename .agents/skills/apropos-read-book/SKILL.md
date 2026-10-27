@@ -12,8 +12,44 @@ hent de gemte note-batches før du beder om browser/login igen. Kun manglende
 læsning eller belæg kræver genbesøg. ChatGPT styrer selv tool discovery;
 MCP kan ikke tvinge hosten til at åbne en browser eller indlæse værktøjer.
 
+## Browseradgang er en særskilt forudsætning
+
+Et vellykket MCP-kald beviser kun adgang til gemte oplysninger, ikke til bogen.
+Kontrollér hvilke browserværktøjer chatten faktisk stiller til rådighed. En lokal
+Chrome/IAB, almindelig websøgning eller Playwright startet i en shell er ikke
+ChatGPT Work Cloud Browser. Opret ikke en ny chat eller browser som automatisk
+løsning på en administratorblokering.
+
+Ved `net::ERR_BLOCKED_BY_ADMINISTRATOR`: stop gentagne navigationsforsøg.
+Fejlen vedrører browsermiljøets adgangspolitik; den dokumenterer hverken udløbet
+lån, biblioteksfejl eller et defekt MCP-checkpoint. Angiv om fejlen er observeret
+i denne chat eller blot rapporteret af brugeren. Hosten/administratoren må
+afklare den konkrete adgangsregel. MCP kan ikke ophæve den, og vi omgår den ikke
+via lokal browser, proxy eller direkte bogendpoints. Bed ikke rutinemæssigt om
+nyt login eller EPUB/PDF som svar på denne fejl.
+
+Brug `list_reader_sources` med præcis `sourceUrl` og valgfrit `accessReport`:
+`status=browser_blocked_by_administrator` eller `browser_unavailable`, samt
+`basis=observed_in_this_chat` eller `reported_by_user`. Det giver en læsende
+diagnose også før titlen kendes. Der oprettes ingen bog eller læste sider, og
+ingen browserprøve udføres. Hvis titlen endnu er ukendt, skal den ikke opfindes
+for at registrere fejlen. For en allerede registreret bog kan en faktisk
+observeret blokering gemmes med `save_reader_progress`, samme access-status og
+uden intervaller, layout eller checkpoint. Tidligere noter bevares. Er læsningen
+allerede komplet, genbrug alle note-batches før ny browseradgang efterspørges.
+
+Sig ikke at hele bogflowet virker, før adgang, læsning, lagring og handoff er
+afprøvet for det konkrete forløb. En tidligere gennemlæst bog beviser ikke, at
+et nyt lån kan åbnes i en anden chat.
+
 Ved prepare_submission angives readerSourceId, så titel/forfatter og
 positionsdækning følger med uden genindtastning eller arkivering af bogtekst.
+En faktisk gennemlæst bog med komplet gemt dækning og positionsbundne noter er
+et selvstændigt anmeldelsesgrundlag; den kræver ikke fem andre anmeldelser.
+For Liv bevares offentlig AI-markering og personlig udgivelsesgodkendelse.
+Hvis brugeren i stedet vælger en researchanmeldelse af en kendt bog, gælder
+kravet om 5–6 faktisk læste originalanmeldelser. Det må ikke ske som tavs
+erstatning for den bestilte boglæsning eller beskrives som gennemlæsning.
 Genbrug altid en eksisterende submission. Ved en allerede live artikel bruges
 link_published_submission frem for endnu en create. Følg brugerens valg om
 cover-only og menneskelig slutkontrol i get_workflow(submit).
