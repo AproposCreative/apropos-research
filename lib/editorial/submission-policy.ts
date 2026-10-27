@@ -28,5 +28,7 @@ export function approvedSubmissionPolicy(row: SubmissionRecord): LivCmsInspectio
   }
   return { minimumBodyImages: decision.bodyImages === 'deferred' ? 0 : 2,
     ...(row.publishedTarget ? { allowPublishedUpdate: true } : {}),
+    ...((row.publishedTarget || row.stagedTarget) ? { preservedAccreditation:
+      (row.publishedTarget || row.stagedTarget)!.fields.presseakkreditering === true } : {}),
     preserveProvidedImages: isChatSubmission(row) };
 }

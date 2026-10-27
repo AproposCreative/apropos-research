@@ -12,6 +12,7 @@ vi.mock('@/lib/webflow/locale-items', () => ({ patchArticleFieldDataForLocale: (
 vi.mock('@/lib/editorial/submission-options', () => ({ getSubmissionOptions: async () => ({ authors: [], categories: [], topics: [], requiredFields: [] }) }));
 vi.mock('@/lib/webflow/published-image-optimization', () => ({ verifyCompressedFields: (...args: unknown[]) => state.compression(...args) }));
 import { linkPublishedSubmission, linkStagedSubmission, stageSubmissionMedia, verifyStagedMedia, assertMediaOnlyUpdate, assertSubmissionNotAlreadySaved, findBoundCoverByHash } from '@/lib/editorial/submission-published-target';
+import { approvedSubmissionPolicy } from '@/lib/editorial/submission-policy';
 import { cmsFieldHash } from '@/lib/liv/cms-field-hash';
 import { acquireCmsWriteLease } from '@/lib/seo-engine/cms-write-lease';
 import { projectImageSelection } from '@/lib/editorial/submission-image-selection';
@@ -128,12 +129,14 @@ it('retains pinned accreditation on staging and recovery of an older attempted s
   state.fields.presseakkreditering = true;
   const baseline = target(), image = expected();
   const staged = await stageSubmissionMedia(baseline, image, {}, async () => {}, async () => {});
-  expect(staged.expected.presseakkreditering).toBe(true);
+  expect(staged.expected.presseakkreditering).toBeUndefined();
   expect(state.patch.mock.calls[0][1]).not.toHaveProperty('presseakkreditering');
   state.patch.mockClear(); state.proof.mockClear();
-  const recovered = await verifyStagedMedia(baseline, { ...image, presseakkreditering: false }, {});
-  expect(recovered.expected.presseakkreditering).toBe(true);
-  expect(state.proof.mock.calls[0][0].expected.presseakkreditering).toBe(true);
+  const recovered = await verifyStagedMedia(baseline, image, {});
+  expect(recovered.expected).toEqual(image); // Do not invalidate the approved editorial hash.
+  expect(state.proof.mock.calls[0][0].inspectionPolicy.preservedAccreditation).toBe(true);
+  expect(approvedSubmissionPolicy({ choices: {}, stagedTarget: baseline } as any).preservedAccreditation).toBe(true);
+  expect(approvedSubmissionPolicy({ choices: {} } as any).preservedAccreditation).toBeUndefined();
   expect(state.patch).not.toHaveBeenCalled();
   state.fields.presseakkreditering = false;
   await expect(verifyStagedMedia(baseline, image, {})).rejects.toThrow('cms_conflict');

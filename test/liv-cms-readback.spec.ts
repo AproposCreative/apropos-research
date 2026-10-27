@@ -41,6 +41,8 @@ it('checks the expected accreditation value while default Liv still requires fal
   expect(legacy.checks).toContainEqual({ id: 'field:presseakkreditering', ok: false });
   const retained = await inspectLivCmsDraft({ itemId, expected: { ...expected, presseakkreditering: true } }, f.dependencies);
   expect(retained.checks).toContainEqual({ id: 'field:presseakkreditering', ok: true });
+  const pinned = await inspectLivCmsDraft({ itemId, expected, inspectionPolicy: { preservedAccreditation: true } }, f.dependencies);
+  expect(pinned.checks).toContainEqual({ id: 'field:presseakkreditering', ok: true });
   f.item.fieldData.presseakkreditering = false;
   const changed = await inspectLivCmsDraft({ itemId, expected: { ...expected, presseakkreditering: true } }, f.dependencies);
   expect(changed.checks).toContainEqual({ id: 'field:presseakkreditering', ok: false });

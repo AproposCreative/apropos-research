@@ -89,7 +89,7 @@ export async function readLivWebflowJson(path: string): Promise<JsonObject> {
  * Inspect a saved DK draft, including actual schema and resolved reference items.
  * This is deliberately not a publishing function or an image-rights certificate.
  */
-export type LivCmsInspectionPolicy = { minimumBodyImages?: 0 | 2; preserveProvidedImages?: boolean; allowPublishedUpdate?: boolean };
+export type LivCmsInspectionPolicy = { minimumBodyImages?: 0 | 2; preserveProvidedImages?: boolean; allowPublishedUpdate?: boolean; preservedAccreditation?: boolean };
 export async function inspectLivCmsDraft(input: {
   itemId: string;
   expected: WebflowArticleFields;
@@ -161,7 +161,7 @@ export async function inspectLivCmsDraft(input: {
     fields['minutes-to-read'] === input.expected.readTime && fields['minutes-to-read'] > 0 });
   // New Liv articles default to false. Existing editorial reviews retain
   // their pinned accreditation value through media staging and publication.
-  checks.push({ id: 'field:presseakkreditering', ok: fields.presseakkreditering === (input.expected.presseakkreditering ?? false) });
+  checks.push({ id: 'field:presseakkreditering', ok: fields.presseakkreditering === (input.inspectionPolicy?.preservedAccreditation ?? input.expected.presseakkreditering ?? false) });
   checks.push({ id: 'image:thumb-present', ok: /^https:\/\//.test(text(object(fields.thumb).url)) });
   checks.push({ id: 'image:credit-present', ok: !!text(fields['foto-credit']) });
   if (input.expected.fotoCredit) checks.push({ id: 'image:credit-matches', ok: text(fields['foto-credit']) === input.expected.fotoCredit.trim() });

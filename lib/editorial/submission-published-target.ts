@@ -279,8 +279,7 @@ async function stageMediaUnderLease(target: PublishedTarget, expected: WebflowAr
     }
     content = $('body').html() || '';
   }
-  const canonical = { ...expected, content, readTime: target.fields['minutes-to-read'] as number,
-    presseakkreditering: target.fields.presseakkreditering as boolean | null | undefined };
+  const canonical = { ...expected, content, readTime: target.fields['minutes-to-read'] as number };
   const thumb = { url: canonical.featuredImage, alt: canonical.featuredImageAlt };
   const currentThumb = target.fields.thumb as { url?: string; alt?: string };
   const keepCover = currentThumb?.url === thumb.url && (currentThumb.alt || '') === (thumb.alt || '');
@@ -315,9 +314,9 @@ export async function verifyStagedMedia(target: PublishedTarget, expected: Webfl
       (derivative ? derivative.hash : expected.featuredImageHash)) throw Error('mcp_submission_media_identity_changed');
   // Recover old attempted media stages too: the preserved target is the source
   // of this field, never a caller-provided replacement or a hardcoded false.
-  const canonical = { ...expected, presseakkreditering: target.fields.presseakkreditering as boolean | null | undefined };
-  const proof = await inspectLivCmsDraft({ itemId: target.itemId, expected: canonical, inspectionPolicy: { ...policy, allowPublishedUpdate: true } });
+  const proof = await inspectLivCmsDraft({ itemId: target.itemId, expected, inspectionPolicy: { ...policy, allowPublishedUpdate: true,
+    preservedAccreditation: target.fields.presseakkreditering === true } });
   await recordProof?.(proof);
   if (!proof.publicationReady) throw Error('mcp_submission_cms_checks_failed');
-  return { itemId: target.itemId, expected: canonical, proof, cmsFields: fields, mediaOnly: true };
+  return { itemId: target.itemId, expected, proof, cmsFields: fields, mediaOnly: true };
 }
