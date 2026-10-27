@@ -56,3 +56,28 @@ configuration security check pass. Deployment and production readback are
 recorded below after release.
 
 No new image, article, publication, mail or paid AI call was created by this fix.
+
+## Released and verified
+
+- **Implemented and pushed:** `201971af3c6f4d4a4b38050520eaea5267065430`.
+- **Tested:** 76 targeted tests pass (31 OAuth, 41 protocol, four rate-limit),
+  TypeScript passes, build configuration security check passes. The final
+  protocol run includes the additional batch regression test. No production
+  flood/quota-exhaustion test was performed.
+- **Production:** `dpl_84JXfGyUJaoshnSWffPUfWosu5Yi` is READY and serves the actual
+  `ai.aproposmagazine.com` alias with that exact Git SHA, confirmed again after
+  native MCP readback. Server version is `2026-10-27-v59`.
+- **Native connection:** `get_reader_progress` at 21:18:50.776Z and
+  `get_workflow(submit)` at 21:18:52.906Z both completed successfully on v59.
+  The durable readback at 21:19:09.307Z shows **eight transport requests and
+  exactly two logical tool calls**. The old current-hour bucket remains eight,
+  unchanged. This verifies the new accounting, rather than treating a natural
+  hourly reset or READY deployment alone as the fix.
+- **Book state:** Laura Ringo's *Nogen der kender nogen* remains revision 20,
+  with client-reported reading coverage 136/136, both boundaries observed and
+  no gaps. `independentlyVerified:false` and `fullBookTextStored:false` remain
+  unchanged. The submit workflow still documents `first_attempt`; there was no
+  new image grant, generation, image import or publication.
+
+Production evidence: `output/mcp-rate-limit-production-readback-20261027.json`.
+The production audit is complete within its bounded 15-minute window.
