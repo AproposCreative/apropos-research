@@ -159,7 +159,9 @@ export async function inspectLivCmsDraft(input: {
   }
   checks.push({ id: 'field:minutes-to-read', ok: typeof fields['minutes-to-read'] === 'number' &&
     fields['minutes-to-read'] === input.expected.readTime && fields['minutes-to-read'] > 0 });
-  checks.push({ id: 'field:presseakkreditering', ok: fields.presseakkreditering === false });
+  // New Liv articles default to false. Existing editorial reviews retain
+  // their pinned accreditation value through media staging and publication.
+  checks.push({ id: 'field:presseakkreditering', ok: fields.presseakkreditering === (input.expected.presseakkreditering ?? false) });
   checks.push({ id: 'image:thumb-present', ok: /^https:\/\//.test(text(object(fields.thumb).url)) });
   checks.push({ id: 'image:credit-present', ok: !!text(fields['foto-credit']) });
   if (input.expected.fotoCredit) checks.push({ id: 'image:credit-matches', ok: text(fields['foto-credit']) === input.expected.fotoCredit.trim() });

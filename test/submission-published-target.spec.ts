@@ -124,6 +124,20 @@ it('reads back after timeout without another patch and detects a changed asset',
   expect(state.patch).toHaveBeenCalledTimes(1);
   await expect(verifyStagedMedia(baseline, { ...image, featuredImageHash: 'wrong' }, {})).rejects.toThrow('media_identity_changed');
 });
+it('retains pinned accreditation on staging and recovery of an older attempted stage', async () => {
+  state.fields.presseakkreditering = true;
+  const baseline = target(), image = expected();
+  const staged = await stageSubmissionMedia(baseline, image, {}, async () => {}, async () => {});
+  expect(staged.expected.presseakkreditering).toBe(true);
+  expect(state.patch.mock.calls[0][1]).not.toHaveProperty('presseakkreditering');
+  state.patch.mockClear(); state.proof.mockClear();
+  const recovered = await verifyStagedMedia(baseline, { ...image, presseakkreditering: false }, {});
+  expect(recovered.expected.presseakkreditering).toBe(true);
+  expect(state.proof.mock.calls[0][0].expected.presseakkreditering).toBe(true);
+  expect(state.patch).not.toHaveBeenCalled();
+  state.fields.presseakkreditering = false;
+  await expect(verifyStagedMedia(baseline, image, {})).rejects.toThrow('cms_conflict');
+});
 it('retains the exact failed CMS checks before reporting a generic preparation failure', async () => {
   const proof = { publicationReady: false, draftConfirmed: true, fieldDataHash: 'proof', checks: [{ id: 'image:body-assets', ok: false }] };
   state.proof.mockResolvedValue(proof);

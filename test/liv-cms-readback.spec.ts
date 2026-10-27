@@ -34,6 +34,17 @@ function fixture() {
   return { item, schema, read, dependencies: { read, collectionId, localeId } };
 }
 afterEach(() => vi.unstubAllGlobals());
+it('checks the expected accreditation value while default Liv still requires false', async () => {
+  const f = fixture();
+  f.item.fieldData.presseakkreditering = true;
+  const legacy = await inspectLivCmsDraft({ itemId, expected }, f.dependencies);
+  expect(legacy.checks).toContainEqual({ id: 'field:presseakkreditering', ok: false });
+  const retained = await inspectLivCmsDraft({ itemId, expected: { ...expected, presseakkreditering: true } }, f.dependencies);
+  expect(retained.checks).toContainEqual({ id: 'field:presseakkreditering', ok: true });
+  f.item.fieldData.presseakkreditering = false;
+  const changed = await inspectLivCmsDraft({ itemId, expected: { ...expected, presseakkreditering: true } }, f.dependencies);
+  expect(changed.checks).toContainEqual({ id: 'field:presseakkreditering', ok: false });
+});
 it('compares block-separated prose independently of CMS serialization whitespace', async () => {
   const f = fixture();
   f.item.fieldData.content = '<p>Et <strong>portræt</strong>.</p><p>Ansigt &amp; hænder.</p>';
