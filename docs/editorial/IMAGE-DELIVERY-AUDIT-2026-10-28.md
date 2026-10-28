@@ -38,7 +38,7 @@ exceed both byte and dimension limits; body 1 meets bytes but exceeds 1200px.
 ## Cause and receipts
 
 `lib/webflow/article-image-auto-optimize.ts` lines 76 and 95 skip the entire article
-when any selected provided asset is locked. The Terminal List cover has a verified
+when any selected provided asset is locked. One Terminal List body image has a verified
 `editorialProvidedAssets` record with `preserveOriginal:true`. This preserves exact
 source bytes but also prevents creation of compressed delivery derivatives for
 all other images in that article.
