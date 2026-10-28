@@ -26,6 +26,10 @@ export default function ArticleReading({ article, onImageError }: {
         : block.heading === 'h3' ? <h4 key={index} className="pt-3 text-xl font-medium">{block.text}</h4>
         : <p key={index} className="whitespace-pre-line">{block.text}</p>)}
     </div>
+    {article.videoTrailer && <aside className="mx-auto max-w-[42rem] border-t border-white/15 pt-5 text-sm">
+      <a href={article.videoTrailer} target="_blank" rel="noopener noreferrer" className="underline">Se trailer</a>
+      <p className="mt-2 text-white/60">Vises i artiklens trailerfelt.</p>
+    </aside>}
     <details className="mx-auto max-w-[42rem] border-t border-white/15 pt-5 text-sm text-white/70">
       <summary className="cursor-pointer py-2">SEO og metadata</summary>
       <dl className="mt-4 space-y-4 break-words">

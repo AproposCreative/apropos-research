@@ -1,4 +1,5 @@
 import { z } from 'zod';
+import { normalizeYouTubeUrl } from '@/lib/webflow/field-mapping';
 import { getAdminDb } from '@/lib/firebase-admin';
 import { workspacePayloadSchema, WORKSPACE_MAX_BYTES } from '@/lib/writer-workspace';
 import { cmsFieldHash } from '@/lib/liv/cms-field-hash';
@@ -11,6 +12,13 @@ export const editableArticle = z.object({
   subtitle: z.string().max(500).optional(), intro: z.string().max(5000).optional(),
   socialSubtitles: socialSubtitlesSchema.optional().describe('Write short SoMe copy in ChatGPT with the article: square <=90 characters, story <=130. Preserve the title/subtitle meaning, no new facts. Card-only; no paid generation or social posting.'),
   excerpt: z.string().max(2000).optional(), author: z.string().max(200).optional(),
+  videoTrailer: z.string().url().max(2000).refine(value => {
+    const url = new URL(value);
+    return url.protocol === 'https:' && !url.username && !url.password &&
+      ['youtube.com', 'www.youtube.com', 'm.youtube.com', 'youtu.be', 'www.youtu.be'].includes(url.hostname) &&
+      !!normalizeYouTubeUrl(value);
+  }, 'Use an HTTPS YouTube trailer URL').transform(value => normalizeYouTubeUrl(value)!).optional()
+    .describe('Official trailer stored in the CMS trailer field, separately from article body. Shown in the personal preview and bound to publication consent.'),
   category: z.string().max(200).optional(), topicsSelected: z.array(z.string().max(100)).max(20).optional(),
   tags: z.array(z.string().max(100)).max(30).optional(),
   rating: z.number().int().min(1).max(6).optional(), ratingReason: z.string().max(1000).optional(),

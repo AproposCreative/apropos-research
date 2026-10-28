@@ -7,10 +7,47 @@ vi.mock('@/lib/mcp/oauth', () => ({ activeMember: async () => state.member }));
 vi.mock('@/lib/mcp/publication', () => ({ assertPublicationEnabled: vi.fn() }));
 vi.mock('@/lib/editorial/submission-options', () => ({ getSubmissionOptions: async () => ({
   authors: [{ id: 'author', name: 'Liv' }], categories: [{ id: 'category', name: 'Kultur' }], topics: [], requiredFields: [] }) }));
-import { acceptSubmissionConsent, submissionConsentOffer, assertPublicationConsent, consentArticleHash } from '@/lib/editorial/submission-consent';
+import { acceptSubmissionConsent, submissionConsentOffer, assertPublicationConsent, consentArticleHash, matchesConsentArticle } from '@/lib/editorial/submission-consent';
+import { editableArticle } from '@/lib/mcp/workspace';
+import { articleReadingPreview } from '@/lib/editorial/submission-preview';
 import { imageGenerationEvidence } from '@/lib/editorial/image-generation-evidence';
 const id = 'a'.repeat(64), path = `editorialSubmissions/${id}`;
+const trailer = 'https://www.youtube.com/watch?v=ycGRitcszLI';
 let memory: ReturnType<typeof memoryFirestore>;
+it('accepts only the exact CMS projection of an already approved trailer link', () => {
+  const article = { title: 'The Terminal List', content: `<p>Review.</p><a href="${trailer}">Trailer</a>` };
+  const expected = { ...article, videoTrailer: trailer, video_trailer: trailer };
+  const hash = consentArticleHash(article, 'review');
+  expect(matchesConsentArticle(article, expected, hash, 'review')).toBe(true);
+  for (const changed of [
+    { ...expected, title: 'Changed' },
+    { ...expected, content: '<p>Review.</p>' },
+    { ...expected, videoTrailer: trailer.replace('ycGRitcszLI', 'abcdefghijk') },
+    { ...expected, video_trailer: trailer.replace('ycGRitcszLI', 'abcdefghijk') },
+    { ...expected, seoDescription: 'New description' },
+  ]) expect(matchesConsentArticle(article, changed, hash, 'review')).toBe(false);
+  const noLink = { ...article, content: '<p>Review.</p>' };
+  expect(matchesConsentArticle(noLink, { ...noLink, videoTrailer: trailer, video_trailer: trailer }, consentArticleHash(noLink), undefined)).toBe(false);
+  const explicit = { ...article, videoTrailer: 'https://www.youtube.com/watch?v=abcdefghijk' };
+  expect(matchesConsentArticle(explicit, expected, consentArticleHash(explicit, 'review'), 'review')).toBe(false);
+});
+it('stores a trailer separately, shows it in preview, and binds its identity to consent', async () => {
+  const row = memory.rows.get(path);
+  row.article = editableArticle.parse({ ...row.article, videoTrailer: 'https://youtu.be/ycGRitcszLI' });
+  expect(row.article.videoTrailer).toBe(trailer);
+  expect(articleReadingPreview(row.article).videoTrailer).toBe(trailer);
+  expect(row.article.content).not.toContain('youtube');
+  const offer = (await submissionConsentOffer('owner', id))!;
+  await acceptSubmissionConsent('owner', id, 3, offer.id, 'chat-preview');
+  const current = memory.rows.get(path);
+  current.prepared = { expected: { ...current.article, video_trailer: trailer } };
+  expect(assertPublicationConsent(current, offer.id).id).toBe(offer.id);
+  current.prepared.expected.videoTrailer = 'https://www.youtube.com/watch?v=abcdefghijk';
+  expect(() => assertPublicationConsent(current, offer.id)).toThrow('preview_changed');
+});
+it.each(['javascript:alert(1)', 'https://youtube.com.evil.test/watch?v=ycGRitcszLI', 'http://youtube.com/watch?v=ycGRitcszLI', 'https://www.youtube.com/'])('rejects unsafe or invalid trailer input %s', videoTrailer => {
+  expect(() => editableArticle.parse({ title: 'Title', content: '<p>Review</p>', videoTrailer })).toThrow();
+});
 beforeEach(() => {
   memory = memoryFirestore(); state.db = memory.db; state.member = true;
   const article = { title: 'Titel', subtitle: 'Underrubrik', intro: 'Intro', slug: 'titel', seoTitle: 'SEO', seoDescription: 'Beskrivelse',

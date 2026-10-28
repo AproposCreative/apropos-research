@@ -1,4 +1,5 @@
 import { load } from 'cheerio';
+import { normalizeYouTubeUrl } from '@/lib/webflow/field-mapping';
 /** Read-only rendering data: never execute imported rich text in the approval UI. */
 export function submissionPreviewBlocks(content: string) {
   const $ = load(content);
@@ -36,6 +37,7 @@ export function articleReadingPreview(article: Record<string, unknown>) {
     featuredImage: cover?.startsWith('https://') ? cover : '', featuredImageAlt: plain(article.featuredImageAlt),
     fotoCredit: plain(article.fotoCredit), seoTitle: plain(article.seoTitle), seoDescription: plain(article.seoDescription),
     slug: plain(article.slug), articleFormat: plain(article.articleFormat),
+    videoTrailer: normalizeYouTubeUrl(String(article.videoTrailer || article.video_trailer || '')) || '',
     rating: typeof article.rating === 'number' && article.rating > 0 ? article.rating : null,
     blocks: submissionPreviewBlocks(typeof article.content === 'string' ? article.content : ''),
   };

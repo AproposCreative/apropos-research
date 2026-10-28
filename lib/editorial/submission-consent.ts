@@ -13,6 +13,7 @@ import { articleImages } from '@/lib/mcp/markup';
 import type { Transaction } from 'firebase-admin/firestore';
 import { hasCurrentPublicationConsent } from './submission-consent-state';
 import { selectedAssetUrls } from './submission-compressed-media';
+import { extractFirstYouTubeUrl, normalizeYouTubeUrl } from '@/lib/webflow/field-mapping';
 
 export type PublicationConsent = {
   id: string; uid: string; revision: number; contentHash: string; articleHash: string;
@@ -108,12 +109,25 @@ export async function acceptSubmissionConsent(uid: string, id: string, expectedR
   });
 }
 
+/** Webflow projects an already approved body/excerpt YouTube link into its
+ * trailer field. Accept only that exact projection, without changing historical
+ * consent hashes or ignoring explicit trailer choices / any other editorial field. */
+export function matchesConsentArticle(article: Record<string, unknown>, expected: Record<string, unknown>, hash: string, kind?: string) {
+  if (hash === consentArticleHash(expected, kind)) return true;
+  if (article.videoTrailer || article.video_trailer || hash !== consentArticleHash(article, kind)) return false;
+  const candidate = extractFirstYouTubeUrl(`\n${article.content || ''}\n${article.excerpt || ''}`);
+  const trailer = candidate && normalizeYouTubeUrl(candidate);
+  if (!trailer || expected.videoTrailer !== trailer || expected.video_trailer !== trailer) return false;
+  const { videoTrailer: _trailer, video_trailer: _alias, ...rest } = expected;
+  return hash === consentArticleHash(rest, kind);
+}
+
 export function assertPublicationConsent(row: SubmissionRecord & { publicationConsent?: PublicationConsent; prepared?: { expected: Record<string, unknown> }; preparedHash?: string; assets?: Array<{ url: string; hash: string }> }, id: string) {
   const consent = row.publicationConsent;
   if (!consent || consent.id !== id || consent.uid !== row.uid || consent.revision !== row.revision ||
     consent.contentHash !== row.contentHash || row.executionPolicy !== 'chatgpt-first-v1' || row.choices.aiFinalChecks !== 'human' ||
     !row.prepared || (consent.preparedHash && consent.preparedHash !== row.preparedHash) ||
-    consent.articleHash !== consentArticleHash(row.prepared.expected, row.choices.kind) ||
+    !matchesConsentArticle(row.article, row.prepared.expected, consent.articleHash, row.choices.kind) ||
     consent.media.some(media => !row.assets?.some(asset => asset.url === media.url && asset.hash === media.hash))) throw Error('mcp_submission_preview_changed');
   return consent;
 }
