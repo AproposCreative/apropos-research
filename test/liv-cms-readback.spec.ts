@@ -389,3 +389,14 @@ describe('body image byte binding after deterministic CMS optimization', () => {
     expect(result.checks).toContainEqual({ id: 'image:body-assets', ok: false });
   });
 });
+
+
+it.each(['–', '—', '&ndash;', '&#x2014;'])('rejects long dashes in review SEO even when CMS exactly matches approved text: %s', async dash => {
+  const f = fixture();
+  const payload = { ...expected, rating: 4, seoTitle: `Boganmeldelse ${dash} Test` };
+  f.item.fieldData['seo-title'] = payload.seoTitle;
+  const result = await inspectLivCmsDraft({ itemId, expected: payload }, f.dependencies);
+  expect(result.checks).toContainEqual({ id: 'field:seo-title', ok: true });
+  expect(result.checks).toContainEqual({ id: 'style:review-no-long-dash', ok: false });
+  expect(result.publicationReady).toBe(false);
+});

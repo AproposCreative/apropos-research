@@ -1,3 +1,4 @@
+import { isReviewText, reviewLongDashFields, REVIEW_TYPOGRAPHY_RULE } from './review-typography';
 import { load } from 'cheerio';
 import { cmsFieldHash } from '@/lib/liv/cms-field-hash';
 import { articleImages } from '@/lib/mcp/markup';
@@ -14,6 +15,8 @@ export function draftDiagnostics(article: Record<string, unknown>) {
   const intro = visible(article.intro), title = visible(article.title);
   const findings: Finding[] = [];
   const add = (code: string, field: string, excerpt: string, action: string, paragraphId?: string) => findings.push({ code, field, excerpt: excerpt.slice(0, 400), action, ...(paragraphId ? { paragraphId } : {}) });
+  if (isReviewText(article)) for (const field of reviewLongDashFields(article))
+    add('review_long_dash_forbidden', field, visible(article[field]), REVIEW_TYPOGRAPHY_RULE);
   if (!intro) add('missing_intro', 'intro', '', 'Forklar hændelsen, hvem den handler om og hvorfor den er aktuel, før analysen.');
   if (!title) add('missing_title', 'title', '', 'Skriv en konkret titel, der kan forstås uden forhåndsviden.');
   const seen = new Set<string>();

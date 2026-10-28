@@ -1,3 +1,4 @@
+import { REVIEW_TYPOGRAPHY_RULE } from './review-typography';
 import { LIV_EDITORIAL_REMIT } from '@/lib/liv/editorial-remit';
 import { readFileSync } from 'node:fs';
 import path from 'node:path';
@@ -39,9 +40,9 @@ export function editorialWorkflow(input: unknown): { workflow: string; instructi
     const imageInstructions = IMAGE_HANDOFF_INSTRUCTION + ' Hent først status og genbrug eksisterende assets. Nye AI-billeder afvises uden gyldigt brief, uændret prompt, faktiske referencer og filbundet outputCheck. Historiske filer og billedvalg bevares uden efterkonstrueret dokumentation. Eksisterende brugeruploadede pressefotos kan fortsat importeres med kind=photo/origin=user-upload uden et genereringsbrief. Hash-match er en klientindberetning, ikke observeret generatorinput. Den personlige Godkend og udgiv-knap er fortsat nødvendig.';
     const pressInstructions = 'Pressefotos: find_submission_images validerer faktiske rasterbytes og returnerer searchId/candidateId samt kilde/kredit/diagnostik. Hent preview_submission_press_image og kontrollér motivet, før import_submission_press_image gemmer originalen direkte til samme submission med frisk revision/sectionId og stabilt requestId. Ingen opdigtet native filreference. Cover skal være tekstfrit; ukendt licens forbliver ukendt. Manglende billeder færdiggøres før personlig redaktionel bekræftelse. Ved timeout læs status og genbrug identiske importinput, ikke en ny upload.';
     const previewFlow = 'Ét samlet preview: Brug dette billede vælger et vist forslag til den private artikel; artikelteksten og de valgte billeder forbliver synlige i samme visning. Når alle billedvalg er afklaret, afslutter brugeren med Godkend og udgiv samme sted. Bed ikke om at åbne et nyt link eller vende tilbage til chatten efter billedvalg. Billedvalg alene er ikke udgivelsesgodkendelse; den endelige personlige knap binder den viste artikelversion og dens billeder.';
-    return { workflow, instructions: instructions + '\n' + previewFlow + '\n' + imageInstructions + '\n' + pressInstructions + '\n' + COVER_SELECTION_INSTRUCTION + '\n' + SOCIAL_SUBTITLE_INSTRUCTION,
+    return { workflow, instructions: instructions + '\n' + REVIEW_TYPOGRAPHY_RULE + '\n' + previewFlow + '\n' + imageInstructions + '\n' + pressInstructions + '\n' + COVER_SELECTION_INSTRUCTION + '\n' + SOCIAL_SUBTITLE_INSTRUCTION,
       coverSelectionPolicy: coverSelectionPolicy(),
-      versionHash: cmsFieldHash({ instructions, previewFlow, imageInstructions, pressInstructions, coverSelection: COVER_SELECTION_INSTRUCTION, socialSubtitles: SOCIAL_SUBTITLE_INSTRUCTION }), paidAiCalls: 0, publicationApproval: false };
+      versionHash: cmsFieldHash({ instructions, typography: REVIEW_TYPOGRAPHY_RULE, previewFlow, imageInstructions, pressInstructions, coverSelection: COVER_SELECTION_INSTRUCTION, socialSubtitles: SOCIAL_SUBTITLE_INSTRUCTION }), paidAiCalls: 0, publicationApproval: false };
   }
   const instructions = readFileSync(path.join(process.cwd(), '.agents/skills', folders[workflow], 'SKILL.md'), 'utf8') +
     (workflow === 'publish' ? '\n' + COVER_SELECTION_INSTRUCTION : '');

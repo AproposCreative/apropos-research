@@ -1,3 +1,4 @@
+import { isReviewText, reviewLongDashFields } from './review-typography';
 import { assessLivTopic, livReviewSourceEvidence } from '@/lib/liv/editorial-remit';
 import { isLivAuthor } from '@/lib/liv/voice';
 import { z } from 'zod';
@@ -96,6 +97,8 @@ export function inspectSubmission(input: Pick<SubmissionInput, 'article' | 'choi
   if (!choices.media && !film) question('media', 'Skal vi finde pressefotos, lave Apropos-illustrationer eller bruge dine billeder?',
     [{ id: 'press', name: 'Pressefotos' }, { id: 'illustration', name: 'Apropos-illustrationer' }, { id: 'provided', name: 'Mine billeder' }]);
   const blockers: string[] = [];
+  const typographyFields = isReviewText(article, choices.kind) ? reviewLongDashFields(article) : [];
+  if (typographyFields.length && input.status !== 'published') blockers.push('review_long_dash_forbidden');
   const remit = liv && input.status !== 'published' && !input.publishedTarget
     ? assessLivTopic({ title: article.title, kind: choices.kind, articleFormat: article.articleFormat }) : null;
   if (remit && !remit.eligible) blockers.push('liv_review_or_guide_required');
@@ -128,7 +131,7 @@ export function inspectSubmission(input: Pick<SubmissionInput, 'article' | 'choi
   const textReadyForPreparation = !questions.length && !blockers.length && !missingMetadata.length;
   const mediaBeforePreparation = choices.aiFinalChecks === 'human' || ['chatgpt-first-v1', 'chat-final-checks-v1'].includes(input.executionPolicy || '');
   return { questions: questions.slice(0, 3), remainingQuestionCount: Math.max(0, questions.length - 3),
-    missingMetadata, missingMedia, recommendedMedia, blockers, editorialRemit: remit, reviewEvidence,
+    missingMetadata, missingMedia, recommendedMedia, blockers, typographyFields, editorialRemit: remit, reviewEvidence,
     reviewBasis: review ? (completedBookReading ? 'completed_book_reading' : 'review_sources') : null,
     suggestedMedia: film ? 'press' : choices.media || 'press',
     textReadyForPreparation,

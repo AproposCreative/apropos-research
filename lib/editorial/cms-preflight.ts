@@ -1,3 +1,4 @@
+import { isReviewText, reviewLongDashFields } from './review-typography';
 import type { GeneratedArticle } from '@/lib/liv/generate-article';
 import { checkLivArticleLength } from '@/lib/liv/article-length';
 
@@ -23,7 +24,10 @@ export function checkCmsDraft(article: GeneratedArticle, targetWordCount: number
     { id: 'category', label: 'Kategori angivet', ok: !!article.section?.trim() },
     { id: 'length', label: dailyLength ? '450–650 ord i brødteksten, uden billedtekster' : 'Længde inden for 75-130 % af brief',
       ok: dailyLength ? dailyLength.pass : wordCount >= Number(targetWordCount) * 0.75 && wordCount <= Number(targetWordCount) * 1.3 },
-    { id: 'style', label: 'Ingen em dash i artikeltekst', ok: !/[—]/.test([article.title, article.subtitle, article.intro, text].join(' ')) },
+    { id: 'style', label: 'Ingen lange tankestreger i anmeldelser, heller ikke i metadata',
+      ok: isReviewText(article as unknown as Record<string, unknown>)
+        ? reviewLongDashFields(article as unknown as Record<string, unknown>).length === 0
+        : !/[—]/u.test([article.title, article.subtitle, article.intro, text].join(' ')) },
     { id: 'sources', label: 'Mindst to kilde-URL’er registreret, ikke verificeret', ok: new Set((article.researchSources || []).map(s => s.url).filter(url => typeof url === 'string' && /^https?:\/\//.test(url))).size >= 2 },
   ];
   return { checkedAt: new Date().toISOString(), structureReady: checks.every(check => check.ok), publicationReady: false, checks, wordCount, readTime: Math.max(1, Math.ceil(wordCount / 200)) };

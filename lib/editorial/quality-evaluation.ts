@@ -1,3 +1,4 @@
+import { containsLongDash } from './review-typography';
 import { createHash } from 'node:crypto';
 import { z } from 'zod';
 
@@ -42,7 +43,7 @@ export function evaluateQualitySet(input: unknown[], rawScores: unknown[] = []) 
     textHash: qualityTextHash(article), bodyWords: article.bodyText.trim().split(/\s+/u).length,
     // Flags guide review. They are not subjective quality scores or hard rejections.
     reviewFlags: [
-      ...(article.bodyText.includes('—') ? ['em-dash'] : []),
+      ...(containsLongDash([article.title, article.intro, article.bodyText].join(' ')) ? ['em-dash'] : []),
       ...(/\b(?:Det interessante er|Det er værd at bemærke|I en tid hvor)\b/i.test(article.bodyText) ? ['stock-phrase'] : []),
     ],
     humanScores: scores.filter(s => s.caseId === article.id),

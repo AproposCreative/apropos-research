@@ -1,3 +1,4 @@
+import { isReviewText, reviewLongDashFields } from '@/lib/editorial/review-typography';
 import { env } from '@/lib/config/env';
 import { getWebflowConfig } from '@/lib/webflow-config';
 import type { WebflowArticleFields } from '@/lib/webflow/types';
@@ -121,6 +122,10 @@ export async function inspectLivCmsDraft(input: {
   }
   if (schema.id !== collectionId || !schemaFields.length) throw new Error('liv_cms_readback_schema_missing');
   const checks: LivCmsReadback['checks'] = [];
+  if (isReviewText(input.expected as unknown as Record<string, unknown>)) {
+    checks.push({ id: 'style:review-no-long-dash',
+      ok: reviewLongDashFields(input.expected as unknown as Record<string, unknown>).length === 0 });
+  }
   for (const field of schemaFields) {
     if (field.isRequired !== true && field.required !== true) continue;
     const value = fields[text(field.slug)];

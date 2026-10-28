@@ -119,3 +119,11 @@ the SSD dependency gate for new or changed dependencies.
   The Invite must use real film images, without an AI illustration fallback.
 - Do not bypass authentication, paywalls or technical asset/security validation.
   This instruction does not change the recovery override or authorize deployment.
+
+## Review typography (2026-10-28)
+
+The owner prohibits both Unicode en dash (U+2013) and em dash (U+2014) in all
+reviews, regardless of author or workflow: titles, subtitles, introduction, body,
+captions, SEO metadata and social copy. Use sentence punctuation instead; ASCII
+hyphens in compound words remain allowed. Preserve the owner’s requested title.
+Do not rewrite historical reviews in bulk.

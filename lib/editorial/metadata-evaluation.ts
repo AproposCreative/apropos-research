@@ -1,3 +1,4 @@
+import { containsLongDash } from './review-typography';
 import { readFileSync } from 'node:fs';
 import { createHash } from 'node:crypto';
 import path from 'node:path';
@@ -52,7 +53,7 @@ function inspect(source: MetadataCase, fields: z.infer<typeof metadataFields>): 
     if (!containsTerm(value, source.primaryTerm)) add('primary_name_missing', source.primaryTerm);
     if (value.length > max) findings.push({ field, code: 'length_exceeded', detail: `Grænse ${max}`, excess: value.length - max });
     for (const phrase of findForbiddenPhrases(value)) add('forbidden_phrase', phrase);
-    if (value.includes('—')) add('em_dash', 'Lang tankestreg strider mod den gældende stemme.');
+    if (containsLongDash(value)) add('em_dash', 'Lang tankestreg (en dash eller em dash) strider mod den gældende stemme.');
     if (/\uFFFD|Ã[¦¸¥]|Â\s/u.test(value)) add('damaged_danish_characters', 'Mulig tegnkodningsfejl.');
     if (/<\/?[a-z][^>]*>/iu.test(value)) add('html_in_metadata', 'SEO-feltet skal være tekst.');
     for (const number of new Set(numbers(value))) if (!sourceNumbers.has(number)) add('new_number_requires_evidence', number);

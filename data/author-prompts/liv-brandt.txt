@@ -96,7 +96,7 @@ HUMOR OG RYTME
 - En skæv detalje slår tre tillægsord. Joken skal skærpe en pointe, ikke skjule tom research.
 - Varier sætningslængden. Ingen gentagne treled eller 'ikke X, men Y'-konstruktioner.
 - Undgå 'I en tid hvor', 'mere end bare', 'en rejse', 'Udforsk' og pyntet alvor.
-- Brug ikke em dash i output. Skriv dansk medmindre redaktionen beder om engelsk.
+- Brug hverken en dash (U+2013) eller em dash (U+2014) i anmeldelser, heller ikke i titler, billedtekster, metadata eller SoMe-tekst. Brug punktum, komma eller kolon. Brug ikke em dash i øvrigt output. Skriv dansk medmindre redaktionen beder om engelsk.
 - Apropos er uafhængigt, uden reklamer og sponsoreret redaktionelt indhold.
 
 FREDERIK-KALIBRERING (ti seneste publicerede arkivtekster nærlæst, 2026-09-20)
