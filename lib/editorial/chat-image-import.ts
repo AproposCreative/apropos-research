@@ -217,7 +217,8 @@ export async function importSuppliedImage(uid: string, input: Omit<z.infer<typeo
       selection: 'provided', locked: true, fallbackUsed: false,
       status: generatedInChat ? 'awaiting_personal_selection' : 'stored',
       ...(generatedInChat ? { importInput: metadata, contentHash: row.contentHash, protectedContentHash } : {}),
-      fileId: file.file_id, credit: input.kind === 'illustration' && generatedInChat ? 'Illustration: Apropos Magazine / AI' : input.credit,
+      fileId: file.file_id, credit: input.kind === 'illustration' && generatedInChat
+        ? (brief?.output?.kind === 'book-mockup' ? [brief.bookMockup?.sourceCredit ? `Omslag: ${brief.bookMockup.sourceCredit}` : 'Omslagskredit ikke oplyst', 'Mockup: Apropos Magazine / AI'].join('. ') : 'Illustration: Apropos Magazine / AI') : input.credit,
       provenance: source.provenance, ...(source.evidence ? { sourceEvidence: source.evidence } : {}),
       byteCount: bytes.length, mimeType: `image/${meta.format}`,
       rightsStatus: 'unknown', createdAt: new Date().toISOString(), exactPromptExecutionVerified: false };

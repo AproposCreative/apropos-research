@@ -11,7 +11,9 @@ export const nativeImageFileInput = z.object({ download_url: z.string().url().ma
   mime_type: z.string().max(100).optional(), file_name: z.string().max(300).optional() }).strict();
 export const imageReferenceInput = z.object({ submissionId, expectedRevision: z.number().int().positive(),
   requestId: submissionInput.shape.requestId, file: nativeImageFileInput,
-  purpose: z.literal('user-uploaded-subject-photo'),
+  purpose: z.enum(['user-uploaded-subject-photo', 'book-cover-artwork', 'book-mockup-layout']),
+  sourceUrl: z.string().url().max(2000).refine(value => { const url = new URL(value); return url.protocol === 'https:' && !url.username && !url.password && !url.search && !url.hash; }).optional(),
+  sourceCredit: z.string().min(3).max(300).optional(),
 }).strict();
 export type RetainedReference = { storagePath: string; sha256: string; mimeType: string; byteCount: number; width: number; height: number };
 const sha256 = (bytes: Buffer) => createHash('sha256').update(bytes).digest('hex');
@@ -50,6 +52,8 @@ export async function readRetainedReference(reference: RetainedReference) {
 }
 export async function storeSubmissionImageReference(uid: string, raw: unknown) {
   const { file, ...input } = imageReferenceInput.parse(raw), row = await readSubmission(uid, input.submissionId);
+  if (input.purpose !== 'user-uploaded-subject-photo' &&
+      (row.article.subjectType !== 'literature' || !row.article.bookTitle || !row.article.bookAuthor)) throw Error('mcp_submission_book_mockup_requires_book');
   const referenceId = cmsFieldHash({ uid, submissionId: row.id, requestId: input.requestId });
   const { db, collection } = submissionStore(), ref = collection.doc(row.id).collection('imageReferences').doc(referenceId);
   const intentHash = cmsFieldHash(input), previous = (await ref.get()).data();

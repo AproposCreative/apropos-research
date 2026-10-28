@@ -63,6 +63,32 @@ beforeEach(async () => {
 });
 afterEach(() => vi.unstubAllEnvs());
 
+it('stages book product artwork privately with printed cover text, without weakening illustration or personal-selection gates', async () => {
+  const row = memory.rows.get(path);
+  Object.assign(row.article, { subjectType: 'literature', bookTitle: 'Bogtitel', bookAuthor: 'Forfatter' });
+  Object.assign(brief, { output: { kind: 'book-mockup' }, protectedContentHash: imageProtectedContentHash(row.article),
+    bookMockup: { title: 'Bogtitel', author: 'Forfatter', coverReferenceId: subjectId, coverReferenceHash: brief.requiredReferenceHashes[1],
+      layoutReferenceId: null, sourceCredit: 'Omslagsdesigner' } });
+  memory.rows.get(`${path}/imageReferences/${subjectId}`).purpose = 'book-cover-artwork';
+  Object.assign(generated.generationReport.outputCheck, { imageType: 'book-mockup', textVisible: true, logosVisible: true,
+    photorealistic: true, printedCoverPreserved: true, textOutsideBook: false, singleBook: true });
+  expect(await preflightSubmissionImage('owner', input)).toMatchObject({ canGenerate: true, publicationApproval: false });
+  expect(() => assertGenerationContract(generated, brief)).not.toThrow();
+  for (const patch of [{ printedCoverPreserved: false }, { textOutsideBook: true }, { singleBook: false }, { watermarkVisible: true }]) {
+    expect(() => assertGenerationContract({ ...generated, generationReport: { ...generated.generationReport,
+      outputCheck: { ...generated.generationReport.outputCheck, ...patch } } }, brief)).toThrow('generated_image_type_invalid');
+  }
+  const result = await importChatImage('owner', generated);
+  expect(result).toMatchObject({ importStatus: 'awaiting_personal_selection', revision: 2, publicationApproval: false });
+  const asset = memory.rows.get(`${path}/chatAssets/${result.assetId}`);
+  expect(asset.credit).toBe('Omslag: Omslagsdesigner. Mockup: Apropos Magazine / AI');
+  expect(asset.personalSelection).toBeUndefined(); expect(state.upload).not.toHaveBeenCalled(); expect(row.article.featuredImage).toBeUndefined();
+  expect(() => assertGenerationContract(generated, { ...brief, output: { kind: 'standalone-illustration' } })).toThrow('generated_image_type_invalid');
+  expect(() => assertGenerationContract({ ...generated, role: 'body' }, { ...brief, role: 'body' })).toThrow('book_mockup_requires_original');
+  row.article.bookTitle = 'En anden bog';
+  expect((await preflightSubmissionImage('owner', input)).blockers).toContain('mcp_submission_book_mockup_requires_original');
+});
+
 it('a complete read-only preflight permits one reviewed attempt without claiming hidden native proof', async () => {
   const before = cmsFieldHash([...memory.rows]); const result = await preflightSubmissionImage('owner', input);
   expect(result).toMatchObject({ inputsComplete: true, canGenerate: true, canImportGeneratedImage: false, paidAiCalls: 0,

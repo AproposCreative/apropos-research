@@ -94,3 +94,24 @@ it('returns the actual preserved edit-parent reference, and refuses a missing or
   memory.rows.get(`${path}/chatAssets/${parentId}`).storagePath = '';
   await expect(getChatImageBrief('team', value)).rejects.toThrow('reference_missing');
 });
+
+it('binds a book mockup to retained publisher artwork, edition metadata and its distinct output contract', async () => {
+  const row = memory.rows.get(path); Object.assign(row.article, { subjectType: 'literature', bookTitle: 'En bog', bookAuthor: 'Forfatter' });
+  const bytes = await sharp({ create: { width: 700, height: 1000, channels: 3, background: 'teal' } }).jpeg().toBuffer();
+  files.read.mockResolvedValue(bytes);
+  const saved = await storeSubmissionImageReference('team', { submissionId: id, expectedRevision: 1, requestId: 'publisher-cover-original',
+    purpose: 'book-cover-artwork', sourceUrl: 'https://publisher.test/book', sourceCredit: 'Original designer',
+    file: { file_id: 'publisher-original', download_url: 'https://files.test/book' } });
+  const value = { ...await input(), outputKind: 'book-mockup', subjectReferencesRequired: true, subjectReferenceIds: [saved.referenceId] };
+  const result = await getChatImageBrief('team', value);
+  expect(result.brief.output).toMatchObject({ kind: 'book-mockup', text: 'original-printed-cover-only' });
+  expect(result.brief.bookMockup).toMatchObject({ title: 'En bog', author: 'Forfatter', coverReferenceHash: saved.sha256, sourceCredit: 'Original designer' });
+  expect(result.brief.prompt).toContain('Do not redesign, retype, replace or invent');
+  expect(Buffer.from(result.additionalReferences[0].data, 'base64')).toEqual(bytes);
+  expect(row.revision).toBe(1); expect(row.article.featuredImage).toBeUndefined();
+  await expect(getChatImageBrief('team', { ...value, role: 'body' })).rejects.toThrow('book_mockup_requires_original');
+  await expect(getChatImageBrief('team', { ...value, subjectReferenceIds: [] })).rejects.toThrow('book_mockup_requires_original');
+  await expect(getChatImageBrief('team', { ...value, outputKind: 'standalone-illustration' })).rejects.toThrow('subject_reference_required');
+  row.article.bookTitle = '';
+  await expect(getChatImageBrief('team', value)).rejects.toThrow('book_mockup_requires_original');
+});

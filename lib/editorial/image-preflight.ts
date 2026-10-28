@@ -9,6 +9,7 @@ import { imageProtectedContentHash } from './image-content-invariant';
 import { readImageFailures } from './image-failure';
 import { readImageAttemptResume } from './image-attempt-resume';
 import { declinedPlacementImages, isPendingImageCandidate } from './image-candidate-state';
+import { bookMockupBindingValid, expectedSubjectPurpose } from './book-mockup';
 
 export const imagePreflightInput = z.object({ submissionId, expectedRevision: z.number().int().positive(),
   role: z.enum(['cover', 'body']), sectionId: submissionId, briefId: submissionId.optional(),
@@ -37,6 +38,7 @@ export async function preflightSubmissionImage(uid: string, raw: unknown, import
       promptHash(brief.prompt) !== brief.canonicalPromptHash) add('mcp_submission_generation_brief_invalid');
   if (brief && !brief.protectedContentHash) add('mcp_submission_generation_brief_invalid');
   else if (brief && brief.protectedContentHash !== imageProtectedContentHash(row.article)) add('mcp_submission_image_content_changed');
+  if (brief?.output?.kind === 'book-mockup' && (!bookMockupBindingValid(brief, row.article) || !input.subjectReferencesRequired)) add('mcp_submission_book_mockup_requires_original');
 
   const actualReferences: Array<{ purpose: string; sha256: string; byteCount: number; width: number; height: number }> = [];
   const refs = Array.isArray(brief?.retainedReferences) ? brief.retainedReferences : [];
@@ -55,7 +57,7 @@ export async function preflightSubmissionImage(uid: string, raw: unknown, import
   if (brief && JSON.stringify(input.subjectReferenceIds) !== JSON.stringify(brief.subjectReferenceIds || [])) add('mcp_submission_generation_references_mismatch');
   for (const [index, referenceId] of input.subjectReferenceIds.entries()) {
     const subject = (await ref.collection('imageReferences').doc(referenceId).get()).data();
-    if (!subject || subject.uid !== uid || subject.submissionId !== row.id || subject.purpose !== 'user-uploaded-subject-photo' ||
+    if (!subject || subject.uid !== uid || subject.submissionId !== row.id || subject.purpose !== expectedSubjectPurpose(brief, index) ||
         subject.reference?.sha256 !== refs.filter((r: any) => r.purpose === 'subject')[index]?.sha256) add('mcp_submission_subject_reference_required');
   }
   const failures = await readImageFailures(uid, row.id);
