@@ -63,3 +63,16 @@ describe('published metadata CMS adapter', () => {
     expect(fetcher).not.toHaveBeenCalled();
   });
 });
+
+
+it.each(['–', '—', '&ndash;', '&#8212;'])('cannot reintroduce a long dash through post-publication SEO: %s', async dash => {
+  const current = { ...item, fieldData: { ...item.fieldData, name: 'Boganmeldelse: Mayday', stjerne: 4 } };
+  const fetcher = vi.fn(async () => Response.json(current));
+  vi.stubGlobal('fetch', fetcher);
+  const before = await readPublishedArticle('item', 'da');
+  const beforeWrite = vi.fn();
+  await expect(applyPublishedMetadata({ analyzed: before.snapshot, patch: { seoTitle: `Mayday ${dash} anmeldelse` }, beforeWrite })).rejects.toThrow('seo_review_long_dash_forbidden');
+  expect(beforeWrite).not.toHaveBeenCalled();
+  expect(fetcher.mock.calls.every(call => !JSON.stringify(call).includes('PATCH'))).toBe(true);
+  expect(lease.release).toHaveBeenCalledOnce();
+});

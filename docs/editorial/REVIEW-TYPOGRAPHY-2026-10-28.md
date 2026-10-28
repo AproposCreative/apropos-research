@@ -12,6 +12,8 @@ unchanged. It reports field names and never silently rewrites prose.
 New review submissions cannot proceed to preparation with these characters;
 CMS verification also blocks publication even if expected text matches CMS.
 Writer diagnostics and metadata/quality regression screening report them too.
+Post-publication SEO writes also reject new long dashes in review metadata;
+this prevents a later SEO proposal from reintroducing the problem.
 Historical published snapshots are not rewritten or retroactively unapproved.
 
 The existing published Ringo item `6ae1f9da0e01d3d2ff34859f` was corrected through
@@ -23,6 +25,6 @@ fields matched the before snapshot, including slug, images, body and rating.
 Original submission approvals remain historical; no new personal consent was
 fabricated. Local evidence: `output/ringo-title-{before,after}-20261028.json`.
 
-Validation: 224 distinct tests passed across review typography, submission,
+Validation: 232 distinct tests passed across review typography, submission,
 worker, publication, CMS readback, metadata and quality suites. Type check,
 security config and whitespace checks passed. No paid AI or external mail.

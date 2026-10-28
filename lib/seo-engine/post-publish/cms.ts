@@ -1,3 +1,4 @@
+import { containsLongDash, isReviewText } from '@/lib/editorial/review-typography';
 import { env } from '@/lib/config/env';
 import { getWebflowConfig } from '@/lib/webflow-config';
 import { getCmsSeoSlugs, toWebflowSeoPatch } from '@/lib/seo-engine/webflow-adapter';
@@ -90,6 +91,8 @@ export async function applyPublishedMetadata(args: {
     if (!fresh.snapshot.published || fresh.snapshot.hasUnpublishedChanges || reviewKey(fresh.snapshot) !== reviewKey(args.analyzed)) {
       throw new Error('seo_article_changed_before_write');
     }
+    if (isReviewText({ title: fresh.live.fieldData.name, rating: fresh.live.fieldData.stjerne }) &&
+        Object.values(args.patch).some(containsLongDash)) throw Error('seo_review_long_dash_forbidden');
     await args.beforeWrite(fresh.snapshot);
     await lease.assertOwned();
     const { token, collectionId } = runtimeConfig();
