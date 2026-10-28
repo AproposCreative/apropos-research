@@ -28,3 +28,8 @@ fabricated. Local evidence: `output/ringo-title-{before,after}-20261028.json`.
 Validation: 232 distinct tests passed across review typography, submission,
 worker, publication, CMS readback, metadata and quality suites. Type check,
 security config and whitespace checks passed. No paid AI or external mail.
+
+Release: `a9ec38f68a8aadbeb0d56e78b7a11887d0d5b787`, MCP v61. Production
+`ai.aproposmagazine.com` promoted to READY `dpl_B2Z6WdLquN3fkGUeZ9eAJcFoW9Xu`;
+direct Vercel metadata confirmed the source SHA. Unrelated journal edits were
+not included in code commits or deployment output.
