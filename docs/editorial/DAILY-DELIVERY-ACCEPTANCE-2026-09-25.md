@@ -1,5 +1,31 @@
 # Daily delivery: one combined acceptance target
 
+## Interactive alert repair — 28 October 2026, 10:39 Copenhagen
+
+The owner supplied today's misleading `budget_limit` email. Native readback
+identified the deliberate `liv_cost_manual_writer_only` stop. Release
+`ca6367f3382a9b70256df915f65749ca0b52acec` is live on the actual production alias,
+deployment `dpl_3UW5CkrnmzaYxUJPEPqjUYxMHNwj`. Handoff `2026-10-28-v2` and shared
+preparation status now distinguish `paid_automation_disabled` from money/call
+limits and other cost guards. The historical Saveus hint is retained, but the
+active title now agrees with the review/guide remit and weekly overview. The
+handoff continues in the existing ChatGPT editorial chat, without a paid retry.
+
+Native status at 09:38:53.994Z and private context at 09:38:51.823Z confirm that
+**28 October is late, not finally missed before 20:00 Copenhagen**. The stable
+scheduled identity has no private submission, CMS item or publication. There is
+no ready next article or separate ready reserve. Thirty October is still only a
+pending plan. The producer result thread is idle/updated 20 October; reported
+pause remains unverified scheduler state. No producer start/message occurred.
+
+250 targeted tests, TypeScript and build security pass. This is an interactive
+code release, not observer action or unattended delivery. No generation, paid
+retry, import, personal approval, CMS/publication, mail resend, policy/budget/
+reservation reset or provider change occurred. Seven targeted durable records,
+including the original accepted alert payload, have identical before/after hashes.
+Historical misses and all acceptance requirements remain open. See
+`LIV-ALERT-POLICY-CAUSE-2026-10-28.md` and `output/liv-alert-20261028-after.json`.
+
 Do not close this work for a passing build, an enabled flag or one assisted publication.
 
 ## Verified baseline, 25 September

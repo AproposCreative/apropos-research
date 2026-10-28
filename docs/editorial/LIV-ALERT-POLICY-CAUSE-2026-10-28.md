@@ -61,3 +61,33 @@ state. The next safe production step is to inspect that existing producer and
 continue a concrete review/guide through ChatGPT-first with preserved identity,
 sources, media and required personal version approval. Never backdate a slot or
 count operator-assisted recovery as an unattended publication.
+
+## Production verified — 28 October, 10:39 Copenhagen
+
+- Release `ca6367f3382a9b70256df915f65749ca0b52acec`, deployment
+  `dpl_3UW5CkrnmzaYxUJPEPqjUYxMHNwj`: READY, exact Git SHA and actual
+  `ai.aproposmagazine.com` alias confirmed after native readback.
+- Native `get_liv_status` at 09:38:53.994Z returns handoff `2026-10-28-v2`,
+  `paid_automation_disabled` in preparation and blockers, and the separate
+  `editorial_rebrief_required`. Its title agrees with the weekly overview:
+  “Vælg en anmeldelse eller kulturguide”. Saveus is retained as historical context.
+- Native private context at 09:38:51.823Z still has no submission and explicitly
+  disallows backend AI. The day is overdue, not published; ready next/reserve zero.
+- Cost read at 09:38:51.359Z retains two shared historical calls, 0.110120 DKK
+  estimated and 1.214400 DKK reserved, one unknown. The existing manual Writer
+  policy was independently read through existing service auth: 49.889880 DKK
+  remains from its fixed one-time 50 DKK limit. This is not provider balance or
+  permission to spend on Liv. No sensitive Vercel variable was extracted.
+- Durable readback at 09:35:45.359Z and 09:39:32.676Z has identical hashes for all
+  seven checked records: paid policy, ledger policy/month, retained run/plan,
+  missing private submission and original alert. Its accepted alert payload is
+  unchanged. No resend/reset or retrospective email rewrite was performed.
+- The existing producer result thread is still idle, updated 20 October. This
+  does not independently establish the cloud scheduler's state or restart it.
+  The ongoing delivery acceptance remains open.
+
+Evidence: `output/liv-alert-20261028-after.json` and
+`output/liv-alert-durable-20261028-{before,after}.json` (selected fields/hashes,
+no credentials or approval tokens). Native production verified the shared
+projection; the HTTP owner-only preview and mail rendering/deduplication were
+tested locally with mocks, not by sending a production test email.

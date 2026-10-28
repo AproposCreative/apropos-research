@@ -1,5 +1,27 @@
 # Savings rollout: seven-day observation journal
 
+## Interactive alert diagnosis — 28 October 2026, 10:39 Copenhagen
+
+The generic `budget_limit` alert was a classification bug: the retained 28 October
+run/plan failed with `liv_cost_manual_writer_only`. The deployed correction now
+reports the intentional paid-automation stop, without lifting it or instructing
+paid legacy retry. No top-up is justified by that failure. The separate remit
+correction retains the old Saveus hint without presenting it as a finished review.
+
+Native cost read at 09:38:51.359Z: two historical shared calls, 0.110120 DKK
+estimated, 1.214400 DKK reserved, one unresolved; pricing review still due. Durable
+reads at 09:35:45.359Z and 09:39:32.676Z confirm unchanged paid policy, ledger
+policy/month, retained run/plan, absent scheduled submission and original alert.
+Manual Writer: one historical completed call, no reserved amount, 49.889880 DKK
+remaining of the fixed one-time 50 DKK budget, no automatic reset. No current
+provider balance, invoice, SoMe/hosting total or measurable saving is claimed.
+
+This was authorized interactive implementation/test/deployment, not observer
+production. No paid AI, generation, retry, new email, approval, article/CMS write,
+provider hold or financial mutation occurred. Delivery remains late with no ready
+next article/reserve. Exact release and evidence: `LIV-ALERT-POLICY-CAUSE-2026-10-28.md`,
+`output/liv-alert-20261028-after.json` and `output/liv-alert-durable-20261028-after.json`.
+
 Window: 22–28 September 2026 inclusive. Daily read-only control; Vercel, not this local monitor, runs publication. One row per calendar day, regardless of repeated inspections. Pause the existing monitor after seven recorded days and report limitations. Three consecutive **proven automatic** publications remain a separate requirement; do not infer caller identity from a successful HTTP response alone.
 
 ## Day 1 of 7 — 22 September 2026
