@@ -34,3 +34,11 @@ it('app preparation retains its editorial check',async()=>{
   await autoOptimizeArticleFieldData({fieldData:{thumb:{url}}});
   expect(state.clean).toHaveBeenCalledOnce();
 });
+
+it('compresses published delivery copies even with a selected-original lock, preserving the lock',async()=>{
+ await lockProvidedAsset('owner','a'.repeat(64),url,'b'.repeat(64));
+ state.optimize.mockResolvedValue({imagesOptimized:1,imagesFailed:0});
+ await compressArticleFieldData({fieldData:{thumb:{url}},force:true});
+ expect(state.optimize).toHaveBeenCalledTimes(3);expect(state.clean).not.toHaveBeenCalled();
+ expect(await containsLockedProvidedAsset({thumb:{url}})).toBe(true);
+});

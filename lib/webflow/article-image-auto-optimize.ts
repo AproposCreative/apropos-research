@@ -92,9 +92,9 @@ export async function compressArticleFieldData(args: {
   force?: boolean;
 }): Promise<Pick<ArticleImageAutoOptimizeResult,
   'thumbOptimized' | 'mobileOptimized' | 'contentImagesOptimized' | 'contentImagesFailed'>> {
-  if (await containsLockedProvidedAsset(args.fieldData)) {
-    return { thumbOptimized: false, mobileOptimized: false, contentImagesOptimized: 0, contentImagesFailed: 0 };
-  }
+  // Original selection locks still apply before publication above. Encoding a
+  // delivery derivative must not suppress compression of an entire live article.
+  // This path only resizes proportionally/encodes; originals and locks remain.
   if (!isArticleImageAutoOptimizeEnabled()) {
     return {
       thumbOptimized: false,

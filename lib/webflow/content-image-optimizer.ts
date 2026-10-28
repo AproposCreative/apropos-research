@@ -1,4 +1,5 @@
 import { load } from 'cheerio';
+import { imageMeetsPolicy } from '@/lib/images/inspect-image';
 import { replaceOptimizedImageHtml } from '@/lib/images/output-image-html';
 import { FieldValue } from 'firebase-admin/firestore';
 import { getAdminDb } from '@/lib/firebase-admin';
@@ -274,24 +275,15 @@ export async function optimizeContentHtmlInline(
     return { html: html || '', imagesOptimized: 0, imagesFailed: 0, changed: false };
   }
 
-  const imagesPerArticle = Math.min(Math.max(Math.round(options.imagesPerArticle ?? 8), 1), 12);
-  const minOriginalKB = Math.max(0, Math.round(options.minOriginalKB ?? 80));
-  const allImages = extractImageSrcsFromHtml(html).filter((img) => shouldOptimizeSrc(img.src, options.force));
+  // Publication must inspect every unique image, even small files and previously
+  // encoded URLs. Neither a filename nor a HEAD size proves dimensions/format.
+  const allImages = [...new Map(extractImageSrcsFromHtml(html).map(img => [img.src, img])).values()];
+  const maxSizeKB = Math.min(200, options.maxSizeKB ?? Number(process.env.WEBFLOW_CONTENT_IMAGE_MAX_KB || 200));
+  const maxLongEdge = Math.min(1200, options.maxLongEdge ?? Number(process.env.WEBFLOW_CONTENT_IMAGE_MAX_EDGE || 1200));
 
   if (allImages.length === 0) {
     return { html, imagesOptimized: 0, imagesFailed: 0, changed: false };
   }
-
-  const sized = await Promise.all(
-    allImages.map(async (img) => {
-      const sizeKB = await estimateImageSizeKB(img.src);
-      return { ...img, sizeKB };
-    })
-  );
-  const sorted = [...sized]
-    .filter((img) => minOriginalKB === 0 || img.sizeKB === null || img.sizeKB >= minOriginalKB)
-    .sort((a, b) => (b.sizeKB ?? 9999) - (a.sizeKB ?? 9999))
-    .slice(0, imagesPerArticle);
 
   let nextHtml = html;
   let imagesOptimized = 0;
@@ -302,13 +294,14 @@ export async function optimizeContentHtmlInline(
     title: options.articleTitle,
   });
 
-  for (const img of sorted) {
+  for (const img of allImages) {
     const role = buildContentImageRole(img.index);
     try {
+      if (!options.force && await imageMeetsPolicy(img.src, maxSizeKB, maxLongEdge)) continue;
       const output = await optimizeAndUploadImage({
         imageUrl: img.src,
-        maxSizeKB: options.maxSizeKB ?? Number(process.env.WEBFLOW_CONTENT_IMAGE_MAX_KB || 200),
-        maxLongEdge: options.maxLongEdge ?? Number(process.env.WEBFLOW_CONTENT_IMAGE_MAX_EDGE || 1200),
+        maxSizeKB,
+        maxLongEdge,
         qualityStart: 82,
         qualityMin: 55,
         folder: 'webflow/content-images',
@@ -346,12 +339,11 @@ export async function maybeOptimizeContentImagesForFieldData(args: {
     process.env.WEBFLOW_AUTO_CONTENT_IMAGE_OPTIMIZE !== 'false';
   if (!enabled) return { imagesOptimized: 0, imagesFailed: 0 };
 
-  const contentSlug = getContentFieldSlug();
-  const raw = args.fieldData[contentSlug];
-  const html = typeof raw === 'string' ? raw : '';
-  if (!html.trim()) return { imagesOptimized: 0, imagesFailed: 0 };
-
-  try {
+  const totals = { imagesOptimized: 0, imagesFailed: 0 };
+  for (const contentSlug of new Set([getContentFieldSlug(), 'content', 'post-body'])) {
+    const raw = args.fieldData[contentSlug];
+    const html = typeof raw === 'string' ? raw : '';
+    if (!html.trim()) continue;
     const result = await optimizeContentHtmlInline(html, {
       articleTitle: args.articleTitle,
       articleSlug: args.articleSlug,
@@ -361,13 +353,10 @@ export async function maybeOptimizeContentImagesForFieldData(args: {
     if (result.changed) {
       args.fieldData[contentSlug] = result.html;
     }
-    return { imagesOptimized: result.imagesOptimized, imagesFailed: result.imagesFailed };
-  } catch (e) {
-    logger.warn('[webflow/content-image] auto optimize skipped', {
-      message: e instanceof Error ? e.message : String(e),
-    });
-    return { imagesOptimized: 0, imagesFailed: 0 };
+    totals.imagesOptimized += result.imagesOptimized;
+    totals.imagesFailed += result.imagesFailed;
   }
+  return totals;
 }
 
 export async function fetchArticleItemById(itemId: string): Promise<{ id: string; fieldData: Record<string, unknown> }> {

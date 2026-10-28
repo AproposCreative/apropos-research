@@ -127,3 +127,15 @@ reviews, regardless of author or workflow: titles, subtitles, introduction, body
 captions, SEO metadata and social copy. Use sentence punctuation instead; ASCII
 hyphens in compound words remain allowed. Preserve the owner’s requested title.
 Do not rewrite historical reviews in bulk.
+
+## Mandatory website image delivery (owner choice 2026-10-28)
+
+Every article publication and live image update, from MCP, Apropos AI or Webflow,
+must trigger the shared image delivery optimizer. Keep approved original files,
+identity locks, credits and personal approval receipts. Create proportional WebP
+delivery derivatives without cropping, AI editing or changing the selected image.
+Desktop cover: at most 450 KiB/2400px long edge; mobile cover: 260 KiB/1200px;
+every body image: 200 KiB/1200px. Verify actual bytes and CMS readback. A locked
+original or a small file/optimized filename is not an exemption. Failed or skipped
+processing must never be reported as compliant. Do not publish pending editorial
+changes while optimizing an already live article.

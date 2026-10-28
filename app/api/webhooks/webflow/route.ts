@@ -27,7 +27,7 @@ import { verifyWebflowWebhookSignature } from '@/lib/webflow/verify-webhook-sign
 export const runtime = 'nodejs';
 export const maxDuration = 300;
 
-const HANDLED_TRIGGERS = new Set(['collection_item_published', 'collection_item_created']);
+const HANDLED_TRIGGERS = new Set(['collection_item_published', 'collection_item_created', 'collection_item_changed']);
 
 type WebflowItem = {
   id?: string;

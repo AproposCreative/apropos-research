@@ -1,20 +1,22 @@
 import {beforeEach,expect,it,vi} from 'vitest';
 import {memoryFirestore} from './helpers/mcp-firestore';
-const state=vi.hoisted(()=>({db:null as any,compress:vi.fn(),lease:{assertOwned:vi.fn(),release:vi.fn()}}));
+const state=vi.hoisted(()=>({db:null as any,compress:vi.fn(),verifyDelivery:vi.fn(),lease:{assertOwned:vi.fn(),release:vi.fn()}}));
 vi.mock('@/lib/firebase-admin',()=>({getAdminDb:()=>state.db}));
 vi.mock('@/lib/config/env',()=>({env:{WEBFLOW_API_TOKEN:'test-only',WEBFLOW_ARTICLES_COLLECTION_ID:'collection'}}));
 vi.mock('@/lib/webflow-config',()=>({getWebflowConfig:()=>({})}));
 vi.mock('@/lib/seo-engine/cms-write-lease',()=>({acquireCmsWriteLease:async()=>state.lease}));
 vi.mock('@/lib/webflow/locale-items',()=>({resolveWebflowLocaleIds:()=>({dk:'dk',en:'en'})}));
-vi.mock('@/lib/webflow/article-image-auto-optimize',()=>({compressArticleFieldData:state.compress}));
+vi.mock('@/lib/webflow/article-image-auto-optimize',()=>({compressArticleFieldData:state.compress,isArticleImageAutoOptimizeEnabled:()=>true}));
 vi.mock('@/lib/images/text-free',()=>({readEditorialImage:async()=>Buffer.from('same bytes'),imageByteHash:(v:Buffer)=>v.toString('hex')}));
+vi.mock('@/lib/webflow/image-delivery-policy',()=>({IMAGE_DELIVERY_VERSION:'v2-test',verifyArticleImageDelivery:state.verifyDelivery}));
+import {cmsFieldHash} from '@/lib/liv/cms-field-hash';
 import {optimizePublishedArticleImages,verifyCompressedFields} from '@/lib/webflow/published-image-optimization';
 import {shouldRunImageOptimize} from '@/lib/seo-engine/webhook-decisions';
 const id='6ac7a31e994128467aa26e6a';
 const original={name:'Human review',content:'<p>Human copy</p>',stjerne:4,author:'peter',thumb:{url:'https://cdn.test/hero.webp',alt:'Hero'}};
 let live:any,staged:any,fetchMock:ReturnType<typeof vi.fn>;
 beforeEach(()=>{
-  vi.clearAllMocks();state.db=memoryFirestore().db;
+  vi.clearAllMocks();state.verifyDelivery.mockResolvedValue({version:'v2-test',verifiedImages:2});state.db=memoryFirestore().db;
   live={id,cmsLocaleId:'dk',fieldData:structuredClone(original),lastPublished:'2026-10-08T14:14:06Z'};
   staged=structuredClone(live);
   state.compress.mockImplementation(async({fieldData})=>{fieldData.content='<p>Human copy</p><img src="https://cdn.test/encoded.webp">';return{thumbOptimized:false,mobileOptimized:false,contentImagesOptimized:1,contentImagesFailed:0};});
@@ -69,4 +71,22 @@ it('readback rejects changed credit/alt/editorial fields despite valid asset byt
 });
 it('created events cannot auto-publish new items',()=>{
   expect(shouldRunImageOptimize({imageOptOn:true,autoSeoOn:false,autoTranslateOn:false,isPrimaryLocale:true,triggerType:'collection_item_created'})).toBe(false);
+});
+
+it('reconsiders an old locked no-op, retaining dated evidence and then verifies idempotently',async()=>{
+ const ref=state.db.collection('webflowArticleImageAutoOptimize').doc(cmsFieldHash({policy:'published-compression-2026-10-09-v1',itemId:id,cmsLocaleId:'dk',beforeHash:cmsFieldHash(original)}));
+ await ref.set({status:'no_changes',checkedAt:'2026-10-28T15:35:34Z',result:{contentImagesOptimized:0}});
+ expect(await optimizePublishedArticleImages(id,'dk')).toMatchObject({patched:true});
+ expect((await ref.get()).data()).toMatchObject({status:'complete',previousNoChanges:{checkedAt:'2026-10-28T15:35:34Z'}});
+ state.compress.mockImplementation(async()=>({contentImagesFailed:0}));
+ await optimizePublishedArticleImages(id,'dk');await optimizePublishedArticleImages(id,'dk');
+ expect(fetchMock.mock.calls.filter(([,i])=>i?.method==='PATCH')).toHaveLength(1);
+});
+it('does not call an unchanged but oversized file compliant or write an incomplete derivative',async()=>{
+ state.verifyDelivery.mockRejectedValue(Error('image_delivery_noncompliant:thumb'));
+ await expect(optimizePublishedArticleImages(id,'dk')).rejects.toThrow('noncompliant');
+ expect(fetchMock.mock.calls.filter(([,i])=>i?.method==='PATCH')).toHaveLength(0);
+});
+it('handles live API change events without enabling translation or draft publishing',()=>{
+ expect(shouldRunImageOptimize({imageOptOn:true,autoSeoOn:false,autoTranslateOn:false,isPrimaryLocale:false,triggerType:'collection_item_changed'})).toBe(true);
 });

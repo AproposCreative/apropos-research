@@ -3,7 +3,8 @@ import { env } from '@/lib/config/env';
 import { getWebflowConfig } from '@/lib/webflow-config';
 import { cmsFieldHash } from '@/lib/liv/cms-field-hash';
 import { acquireCmsWriteLease } from '@/lib/seo-engine/cms-write-lease';
-import { compressArticleFieldData } from './article-image-auto-optimize';
+import { compressArticleFieldData, isArticleImageAutoOptimizeEnabled } from './article-image-auto-optimize';
+import { IMAGE_DELIVERY_VERSION, verifyArticleImageDelivery } from './image-delivery-policy';
 import { resolveWebflowLocaleIds } from './locale-items';
 import { readEditorialImage, imageByteHash } from '@/lib/images/text-free';
 import { load } from 'cheerio';
@@ -48,6 +49,7 @@ export async function verifyCompressedFields(expected: Fields, actual: Fields, c
 /** Only already-published, unchanged locales. No site publish, model calls,
  * automatic retries of uncertain writes, or promotion of someone else's draft. */
 export async function optimizePublishedArticleImages(itemId: string, cmsLocaleId?: string | null) {
+  if (!isArticleImageAutoOptimizeEnabled()) return { itemId, skipped:true, reason:'image_opt_disabled' };
   const locales = resolveWebflowLocaleIds();
   const locale = !cmsLocaleId || cmsLocaleId === locales.dk ? 'da' : cmsLocaleId === locales.en ? 'en' : null;
   if (!locale) throw Error('image_optimization_unknown_locale');
@@ -77,7 +79,12 @@ export async function optimizePublishedArticleImages(itemId: string, cmsLocaleId
     const ref = db.collection('webflowArticleImageAutoOptimize').doc(cmsFieldHash({ policy:POLICY, itemId, cmsLocaleId, beforeHash }));
     const prior = (await ref.get()).data();
     if (prior?.status === 'write_started') throw Error('image_optimization_write_unconfirmed');
-    if (prior?.status === 'complete' || prior?.status === 'no_changes') return { itemId, skipped:true, reason:'already_processed' };
+    if (prior?.status === 'complete' || (prior?.status === 'no_changes' && prior?.delivery?.version === IMAGE_DELIVERY_VERSION))
+      return { itemId, skipped:true, reason:'already_processed' };
+    // Reconsider historical locked/no-op receipts, preserving their evidence.
+    // Never bypass write_started, including receipts from the old encoder.
+    const previousNoChanges = prior?.previousNoChanges ?? (prior?.status === 'no_changes'
+      ? { checkedAt: prior.checkedAt ?? null, result: prior.result ?? null } : null);
     const fields = structuredClone(before);
     // Reuse stored derivatives after interruption before the actual CMS write.
     const result = prior?.patch ? prior.result : await compressArticleFieldData({fieldData:fields, articleTitle:String(before.name || ''), articleSlug:String(before.slug || '')});
@@ -85,11 +92,12 @@ export async function optimizePublishedArticleImages(itemId: string, cmsLocaleId
     const patch: Fields = prior?.patch ?? Object.fromEntries(Object.entries(fields).filter(([key,value]) => cmsFieldHash({value}) !== cmsFieldHash({value:before[key]})));
     const changed = Object.keys(patch);
     if (changed.some(k => !['thumb','mobile-image','content','post-body'].includes(k))) throw Error('image_optimization_unsafe_patch');
+    const delivery = await verifyArticleImageDelivery({ ...before, ...patch });
     if (!changed.length) {
-      await ref.set({itemId,cmsLocaleId,policy:POLICY,status:'no_changes',beforeHash,result,checkedAt:new Date().toISOString()});
-      return {itemId,skipped:true,reason:'already_compliant_or_locked',...result};
+      await ref.set({itemId,cmsLocaleId,policy:POLICY,status:'no_changes',beforeHash,result,delivery,previousNoChanges,checkedAt:new Date().toISOString()});
+      return {itemId,skipped:true,reason:'verified_compliant',delivery,...result};
     }
-    await ref.set({itemId,cmsLocaleId,policy:POLICY,status:'prepared',beforeHash,before,patch,result,preparedAt:new Date().toISOString()});
+    await ref.set({itemId,cmsLocaleId,policy:POLICY,status:'prepared',beforeHash,before,patch,result,delivery,previousNoChanges,preparedAt:new Date().toISOString()});
     const [freshLive,freshStaged] = await Promise.all([read(true),read(false)]);
     if (!freshLive || !freshStaged || freshStaged.isDraft || freshStaged.isArchived ||
       cmsFieldHash(freshLive.fieldData)!==beforeHash || cmsFieldHash(freshStaged.fieldData)!==beforeHash) throw Error('image_optimization_cms_conflict');
@@ -105,6 +113,7 @@ export async function optimizePublishedArticleImages(itemId: string, cmsLocaleId
     if (!after) throw Error('image_optimization_readback_missing');
     try { await verifyCompressedFields({...before,...patch},after.fieldData,changed); }
     catch(error) { throw writeError || error; }
+    await verifyArticleImageDelivery(after.fieldData);
     await ref.update({status:'complete',afterHash:cmsFieldHash(after.fieldData),completedAt:new Date().toISOString()});
     return {itemId,cmsLocaleId,patched:true,cmsVerified:true,...result};
   } finally { await lease.release(); }

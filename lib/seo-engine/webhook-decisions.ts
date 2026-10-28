@@ -12,7 +12,9 @@ export type WebhookFeatureFlags = {
 
 export function shouldRunImageOptimize(flags: WebhookFeatureFlags): boolean {
   // A create notification is not publication approval.
-  return flags.imageOptOn && flags.triggerType === 'collection_item_published';
+  // Live-API updates can arrive as changed. The image handler independently
+  // requires an already-published item and identical staged/live fields.
+  return flags.imageOptOn && ['collection_item_published', 'collection_item_changed'].includes(flags.triggerType);
 }
 
 export function shouldEnqueueTranslation(flags: WebhookFeatureFlags): boolean {
