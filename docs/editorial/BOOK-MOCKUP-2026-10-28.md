@@ -38,3 +38,35 @@ Three separately commissioned body illustrations are preserved as private
 candidates, anchored to connections, caravan life and moving/lack of roots.
 Their original files and provenance are retained under the local output folder
 and in the authenticated submission. This document does not attest publication.
+
+## Production and actual book readback
+
+Code commit `c4df793882f8c91c779283db181e129d51676009` was built successfully,
+staged as production and promoted to `ai.aproposmagazine.com` on
+`dpl_2qU6PBxCXNcocLyZQJ5q9bZfALfr`. Direct deployment metadata verifies that SHA;
+`gitDirty=1` reflects unrelated journal edits excluded by `.vercelignore`.
+The existing ChatGPT connector initially retained its old enum/schema; its normal
+Refresh tools action resolved that validation error. No alternate client,
+credential changes or false user-upload origin was used.
+
+Live MCP retained the publisher's actual 1000px WebP derivative (original source
+JPG also preserved locally) and the prior Apropos mockup solely as a layout
+reference. Cover brief `f6e5845625a4dbefe5280903a70fb5dc4ab29d874679e10d80e3734220a64147`
+passed native preflight at `2026-10-28T13:15:34.099Z`. One native generation
+produced hash `f3466c82bff40b4ab285f51910d55d6f89d61badfa8bdf318a2abeb76b35df97`;
+the cover title, author and front artwork were visually checked. The caption
+discloses that the spine and physical arrangement are illustrated.
+
+Import saved candidate `5c729353a456889a0a3b27f15f6b2e27e99a2a8881cebde8c28d501022ce91be`
+as `awaiting_personal_selection`, with the original bytes preserved. Preview
+readback at `2026-10-28T13:17:42.306Z` shows four current candidates (one cover,
+three section-bound bodies), no metadata blockers and no preview errors.
+Authenticated browser readback visibly confirms all four images and their
+individual "Brug dette billede" buttons. No button was clicked by the agent.
+The original revision-2 text/metadata hash remains unchanged throughout image
+generation and staging. SEO title/description are 53/138 characters.
+
+The article is NOT published or image-attached yet: real personal image selection
+is outstanding. A local HTML reading proof shows the intended three placements;
+it is explicitly labelled as a preview and does not create approval or CMS state.
+Evidence and all four originals: `output/ringo-images-20261028/` (not committed).
