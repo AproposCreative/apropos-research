@@ -10,6 +10,8 @@ vi.mock('@/lib/firebase-admin', () => ({ getAdminDb: () => state.available ? {
 } : null }));
 import { readNextLivPreparationStatus, livPreparationStatusForRow, canResumeLivPreparationCheckpoint } from '@/lib/liv/preparation-status';
 import { emptyDeliveryState, type ReadyEntry } from '@/lib/liv/delivery-policy';
+import { preparationMessage } from '@/lib/liv/preparation-message';
+import { canRetryUnstartedPreparation } from '@/lib/liv/preparation-retry';
 
 const now = new Date('2026-09-12T10:00:00Z');
 const day = '2026-09-12';
@@ -17,6 +19,25 @@ const entry = (overrides: Partial<ReadyEntry> = {}): ReadyEntry => ({ itemId: 'a
   kind: 'scheduled', scheduledDay: day, expiresDay: day, state: 'ready', preparedAt: now.toISOString(), payloadHash: 'b'.repeat(64), ...overrides });
 beforeEach(() => { state.rows.clear(); state.reads.mockClear(); state.available = true; state.fail = false;
   providerHold.mockReset().mockResolvedValue({ blocked: false }); });
+
+it.each(['prepare', 'prepare-alternative', 'reserve'] as const)('reports a %s policy stop without granting a retry or claiming exhausted money', scope => {
+  const row = { status: 'failed', reason: 'liv_cost_manual_writer_only: private', preparationAttempts: 0,
+    articleCheckpoint: { content: 'saved', preparedMedia: [{}, {}, {}] } }, before = structuredClone(row);
+  const result = livPreparationStatusForRow(day, scope, row, +now);
+  expect(result).toMatchObject({ status: 'blocked_saved_work', nextAction: 'blocked', nextAttemptAt: null,
+    reasonCode: 'paid_automation_disabled' });
+  expect(preparationMessage(result)).toContain('efter ejerens valg');
+  expect(canResumeLivPreparationCheckpoint(row)).toBe(false);
+  expect(canRetryUnstartedPreparation({ status: 'failed', reason: row.reason })).toBe(false);
+  expect(row).toEqual(before); expect(JSON.stringify(result)).not.toContain('private');
+});
+
+it('keeps the policy stop in the shared status even when the provider hold is inactive', async () => {
+  state.rows.set(`prepare-${day}`, { status: 'failed', reason: 'liv_cost_manual_writer_only' });
+  expect(await readNextLivPreparationStatus(emptyDeliveryState(), now)).toMatchObject({
+    day, scope: 'prepare', status: 'blocked_saved_work', reasonCode: 'paid_automation_disabled', nextAction: 'blocked' });
+  expect(state.reads).toHaveBeenCalledTimes(1);
+});
 
 it('reports an empty-source retry as waiting work, not active writing', () => {
   expect(livPreparationStatusForRow(day, 'prepare', { status: 'skipped_no_topic', completedAt: now }, now.getTime()))

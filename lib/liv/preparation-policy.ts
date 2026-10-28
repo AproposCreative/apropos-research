@@ -9,7 +9,7 @@ export type PreparationDecision = {
 /** A dependency failure cannot be worked around by buying a different topic,
  * reserve or day. This is shared with the legacy reserve eligibility path. */
 export function preparationBlocksNewWork(d: PreparationDecision): boolean {
-  return d.action === 'blocked' && ['budget_limit', 'provider_quota_exhausted',
+  return d.action === 'blocked' && ['budget_limit', 'paid_automation_disabled', 'cost_control_blocked', 'provider_quota_exhausted',
     'authentication_required', 'provider_unavailable', 'provider_result_unconfirmed'].includes(d.reasonCode);
 }
 export function timestampMillis(value: any): number {
@@ -49,7 +49,12 @@ export function decidePreparation(row?: Record<string, any>, now = Date.now()): 
     'liv_provider_authentication_failed', 'liv_provider_access_denied'].includes(reason)) return decision('blocked', 'authentication_required');
   if (['research_provider_rate_limited', 'research_provider_provider_unavailable',
     'liv_provider_rate_limited', 'liv_provider_provider_unavailable'].includes(reason)) return decision('blocked', 'provider_unavailable');
-  if (/^liv_cost_/.test(reason)) return decision('blocked', 'budget_limit');
+  // A deliberate policy stop is not exhausted money. Keep every cost failure
+  // blocking, but only call a documented amount/call ceiling a budget limit.
+  if (reason === 'liv_cost_manual_writer_only') return decision('blocked', 'paid_automation_disabled');
+  if (['liv_cost_monthly_budget_exceeded', 'liv_cost_call_limit_exceeded',
+    'liv_cost_pilot_budget_exceeded', 'liv_cost_manual_writer_budget_exceeded'].includes(reason)) return decision('blocked', 'budget_limit');
+  if (/^liv_cost_/.test(reason)) return decision('blocked', 'cost_control_blocked');
   if (/http_(401|403)$|authentication|configuration_missing/.test(reason)) return decision('blocked', 'authentication_required');
   // An empty, deterministic topic lookup has bought no article. Keep the same
   // candidate and poll the refreshed bank at most every 15 minutes, including

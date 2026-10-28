@@ -1,9 +1,33 @@
 import { expect, it, vi } from 'vitest';
-import { claimedRecovery, decidePreparation } from '@/lib/liv/preparation-policy';
+import { claimedRecovery, decidePreparation, executablePreparation, preparationBlocksNewWork } from '@/lib/liv/preparation-policy';
+import { canPrepareReserveFallback } from '@/lib/liv/reserve-fallback-policy';
 import { nextScheduledPreparation } from '@/lib/liv/next-preparation';
 import { emptyDeliveryState } from '@/lib/liv/delivery-policy';
 
 const now = new Date('2026-09-20T08:00:00Z');
+it.each([
+  ['liv_cost_manual_writer_only', 'paid_automation_disabled'],
+  ['liv_cost_monthly_budget_exceeded', 'budget_limit'],
+  ['liv_cost_call_limit_exceeded', 'budget_limit'],
+  ['liv_cost_pilot_budget_exceeded', 'budget_limit'],
+  ['liv_cost_manual_writer_budget_exceeded', 'budget_limit'],
+  ['liv_cost_context_blocked', 'cost_control_blocked'],
+  ['liv_cost_policy_missing_or_expired', 'cost_control_blocked'],
+  ['liv_cost_ledger_requires_reconciliation', 'cost_control_blocked'],
+  ['liv_cost_unknown_future_guard', 'cost_control_blocked'],
+  ['liv_cost_provider_quota_exhausted', 'provider_quota_exhausted'],
+])('classifies %s accurately without permitting retry, alternatives or reserve purchases', async (reason, reasonCode) => {
+  const row = { status: 'failed', reason: `${reason}: Bearer private` }, before = structuredClone(row);
+  const decision = decidePreparation(row, +now);
+  expect(decision).toMatchObject({ action: 'blocked', reasonCode, nextAttemptAt: null });
+  expect(preparationBlocksNewWork(decision)).toBe(true);
+  expect(executablePreparation(decision)).toBe(false);
+  const read = vi.fn(async () => row);
+  const candidate = await nextScheduledPreparation(emptyDeliveryState(), read, now);
+  expect(candidate?.decision).toEqual(decision); expect(read).toHaveBeenCalledTimes(1);
+  expect(canPrepareReserveFallback(candidate)).toBe(false);
+  expect(row).toEqual(before); expect(JSON.stringify(decision)).not.toContain('private');
+});
 it('recovers the September 20 length failure without resetting old attempts', () => {
   const row = { status: 'failed', reason: 'liv_preparation_structure_failed', preparationAttempts: 5,
     articleCheckpoint: { content: 'paid text', preparedMedia: [{}, {}, {}] } };

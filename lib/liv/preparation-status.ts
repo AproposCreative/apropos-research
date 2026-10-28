@@ -22,7 +22,7 @@ export type LivNextPreparationStatus = {
   reasonCode: 'no_preparation_needed' | 'awaiting_preparation' | 'preparation_in_progress' |
     'saved_stage_ready' | 'retry_limit_reached' | 'operator_retry_required' | 'cms_reconciliation_required' |
     'source_evidence_required' | 'factcheck_required' | 'moderation_required' | 'editorial_review_required' |
-    'budget_limit' | 'delivery_reconciliation_required' | 'cover_revision_in_progress' |
+    'budget_limit' | 'paid_automation_disabled' | 'cost_control_blocked' | 'delivery_reconciliation_required' | 'cover_revision_in_progress' |
     'alternative_limit_reached' | 'status_unavailable' | 'article_correction_required' | 'provider_quota_exhausted' | 'provider_unavailable' |
     'source_retry_scheduled' | 'provider_result_unconfirmed' | 'no_topic' | 'candidate_exhausted' | 'already_done' | 'authentication_required';
 };
@@ -69,8 +69,8 @@ export function livPreparationStatusForRow(day: string, scope: PreparationScope,
   }
   const prefix = typeof row.reason === 'string' ? row.reason.split(':', 1)[0] : '';
   let reasonCode: LivNextPreparationStatus['reasonCode'] = 'operator_retry_required';
-  if (['liv_cost_monthly_budget_exceeded', 'liv_cost_call_limit_exceeded', 'liv_cost_context_blocked'].includes(prefix)) reasonCode = 'budget_limit';
-  else if (['research_sources_unavailable', 'research_dated_sources_insufficient'].includes(prefix)) reasonCode = 'source_evidence_required';
+  // Cost stops were already projected by the shared decision above.
+  if (['research_sources_unavailable', 'research_dated_sources_insufficient'].includes(prefix)) reasonCode = 'source_evidence_required';
   else if (runStatus === 'skipped_factcheck') reasonCode = 'factcheck_required';
   else if (runStatus === 'skipped_moderation') reasonCode = 'moderation_required';
   else if (runStatus === 'skipped_tov') reasonCode = 'editorial_review_required';

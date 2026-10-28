@@ -53,7 +53,7 @@ it('does not read handoff context on ordinary polls and includes it on the first
  await notifyDeliveryHealth(state,new Date('2026-10-04T08:10:00Z'));
  expect(readDeliveryAlertContext).not.toHaveBeenCalled();
  await notifyDeliveryHealth(state,new Date('2026-10-04T08:15:00Z'));
- expect(m.send.mock.calls[0][0].text).toContain('KOPIÉR TIL EN NY CHATGPT-CHAT');
+ expect(m.send.mock.calls[0][0].text).toContain('FORTSÆT I DEN EKSISTERENDE REDAKTIONSTRÅD');
  await notifyDeliveryHealth(state,new Date('2026-10-04T08:30:00Z'));
  expect(readDeliveryAlertContext).toHaveBeenCalledTimes(1);
 });

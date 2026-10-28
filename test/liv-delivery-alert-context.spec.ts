@@ -13,6 +13,54 @@ const entry = (overrides = {}): ReadyEntry => ({ itemId: 'a'.repeat(24), title: 
   scheduledDay: day, expiresDay: day, state: 'ready', preparedAt: now.toISOString(), payloadHash: 'b'.repeat(64), ...overrides });
 beforeEach(() => { vi.clearAllMocks(); m.hold.mockResolvedValue(provider); m.cost.mockResolvedValue(null); });
 
+describe('October 28 policy-stop regression', () => {
+  const delayed = () => ({ day: '2026-10-28', now: new Date('2026-10-28T09:15:21.155Z'),
+    state: emptyDeliveryState(), provider: { ...provider, blocked: false, revision: 6 } });
+  const oldTopic = 'I Royal Arena viste Saveus, at han er klar til at være Martin fra Ørum igen';
+  const stopped = () => ({ status: 'failed', reason: 'liv_cost_manual_writer_only: Bearer private', topic: oldTopic,
+    updatedAt: '2026-10-26T19:00:31.287Z' });
+  it('names the intentional stop, keeps the old topic as history and never recommends paid retry', () => {
+    const input = { ...delayed(), runs: [{ id: 'prepare-2026-10-28', row: stopped() }] };
+    const before = structuredClone(input);
+    const c = project(input), mail = renderDeliveryAlert('failure', c);
+    expect(c.blockerCodes).toEqual(['paid_automation_disabled', 'editorial_rebrief_required']);
+    expect(c.title).toBe('Vælg en anmeldelse eller kulturguide');
+    expect(c.retainedTopic).toBe(oldTopic);
+    expect(mail.subject).toContain('Liv er forsinket');
+    expect(mail.subject).not.toContain('Saveus');
+    expect(mail.text).toContain(`Historisk emnehint (ikke valgt artikel): ${oldTopic}`);
+    expect(mail.text).toContain('efter ejerens valg');
+    expect(mail.text).toContain('get_liv_production_context');
+    expect(mail.text).toContain('først endeligt misset efter kl. 20');
+    expect(mail.text).not.toMatch(/budget_limit|Bearer private|provider_quota_exhausted|POST \/api\/liv\/operations\/retry|KOPIÉR TIL EN NY/);
+    expect(c.published).toBe(false); expect(c.itemId).toBeNull();
+    expect(input).toEqual(before);
+  });
+  it('projects a plan-only failure, but does not let a stale plan override a fresh run', () => {
+    const input = { ...delayed(), plan: { status: 'failed', failedReason: 'liv_cost_manual_writer_only',
+      topicHint: 'Anmeldelse: Saveus i Royal Arena', editorialKind: 'review' } };
+    expect(project(input).blockerCodes).toContain('paid_automation_disabled');
+    const c = project({ ...input, runs: [{ id: 'prepare-2026-10-28', row: { status: 'processing',
+      processingStartedAt: input.now.getTime(), articleCheckpoint: { title: input.plan.topicHint, articleFormat: 'research-review' } } }] });
+    expect(c.blockerCodes).not.toContain('paid_automation_disabled');
+    expect(c.title).toBe(input.plan.topicHint); expect(c.retainedTopic).toBeNull();
+  });
+  it.each(['liv_cost_context_blocked', 'liv_cost_policy_missing_or_expired', 'liv_cost_ledger_requires_reconciliation'])(
+    'does not diagnose %s as exhausted money or suggest a paid retry', reason => {
+      const c = project({ ...delayed(), runs: [{ id: 'prepare-2026-10-28', row: { status: 'failed', reason } }] });
+      expect(c.blockerCodes).toEqual(['cost_control_blocked']);
+      expect(renderDeliveryAlert('failure', c).text).not.toMatch(/budget_limit|POST \/api\/liv\/operations\/retry/);
+    });
+  it('preserves published history despite an old policy failure or off-remit title', () => {
+    const input = delayed(); input.state.entries.push(entry({ scheduledDay: input.day, title: oldTopic, state: 'published' }));
+    input.state.slots[input.day] = { itemId: 'a'.repeat(24), state: 'published', token: 'private', leaseUntil: 0, attempts: 1, nextAttemptAt: 0 };
+    const c = project({ ...input, runs: [{ id: 'prepare-2026-10-28', row: stopped() }] });
+    expect(c.published).toBe(true); expect(c.title).toBe(oldTopic); expect(c.retainedTopic).toBeNull();
+    expect(c.blockerCodes).toEqual([]);
+    expect(renderDeliveryAlert('resolved', c).text).not.toContain('POST /api/liv/operations/retry');
+  });
+});
+
 describe('delivery handoff projection', () => {
   it('explains the actual quota incident and marks an old plan as unverified, not written', () => {
     const c = project({ ...base(), plan: { topicHint: 'Dizzy Mizz Lizzy i Tivoli' }, runs: [
@@ -27,7 +75,7 @@ describe('delivery handoff projection', () => {
     expect(c.missing.join(' ')).toContain('Intet artikel-checkpoint');
     expect(c.missing.join(' ')).toContain('cover, brødtekstbillede 1, brødtekstbillede 2');
     expect(c.runs.join(' ')).toContain('reserve-2026-09-28');
-    expect(mail.text).toContain('KOPIÉR TIL EN NY CHATGPT-CHAT');
+    expect(mail.text).toContain('FORTSÆT I DEN EKSISTERENDE REDAKTIONSTRÅD');
     expect(mail.text).toContain('/api/liv/operations/retry');
     expect(mail.text).toContain('Ikke en aktuel providersaldo');
     expect(mail.text).not.toContain('Automatisk behandling fortsætter');

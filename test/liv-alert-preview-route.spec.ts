@@ -26,8 +26,8 @@ it.each(['2026-10-05','2026-10-03','invalid','../../secrets','2026-09-31'])('rej
 it('returns the same read-only email projection with private/no-store',async()=>{
  const r=await GET(request());const d=await r.json();
  expect(r.status).toBe(200);expect(r.headers.get('cache-control')).toBe('private, no-store');
- expect(d.preview).toBe(true);expect(d.context.version).toBe('2026-10-04-v1');
- expect(d.subject).toContain('Liv blev ikke udgivet');expect(d.text).toContain('KOPIÉR TIL EN NY CHATGPT-CHAT');
+ expect(d.preview).toBe(true);expect(d.context.version).toBe('2026-10-28-v2');
+ expect(d.subject).toContain('Liv blev ikke udgivet');expect(d.text).toContain('FORTSÆT I DEN EKSISTERENDE REDAKTIONSTRÅD');
  expect(m.context).toHaveBeenCalledTimes(1);
 });
 it('calls a pending day delayed, not finally missed',async()=>{

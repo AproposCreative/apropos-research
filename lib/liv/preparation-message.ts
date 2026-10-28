@@ -7,6 +7,8 @@ export function preparationMessage(status?: LivNextPreparationStatus) {
     provider_unavailable: 'AI-udbyderen afviser kald lige nu. Gemt arbejde er bevaret; ingen automatisk ny bestilling.',
     authentication_required: 'Serveren mangler gyldig API-adgang.',
     budget_limit: 'Budgetkontrollen har stoppet forberedelsen. Gemt arbejde er bevaret.',
+    paid_automation_disabled: 'Betalt Liv-automatik er slået fra efter ejerens valg. Fortsæt research og skrivning i ChatGPT; dette er ikke et opbrugt budget.',
+    cost_control_blocked: 'Forbrugskontrollen har afvist kaldet. Det dokumenterer ikke et opbrugt budget; gemte kvitteringer skal undersøges.',
     cms_reconciliation_required: 'Den gemte artikel skal afstemmes med Webflow, før den kan udgives.',
     delivery_reconciliation_required: 'En påbegyndt udgivelse mangler bekræftelse. Den bliver ikke bestilt igen.',
     source_evidence_required: 'Der mangler læsbart kildemateriale.',
