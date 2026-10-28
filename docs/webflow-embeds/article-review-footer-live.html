@@ -1,0 +1,209 @@
+<template data-apropos-publication-metadata>
+  <span data-first-published-at>{{wf {&quot;path&quot;:&quot;first-published-at&quot;,&quot;type&quot;:&quot;Date&quot;\} }}</span>
+</template>
+<template data-apropos-book-metadata>
+  <span data-book-title>{{wf {&quot;path&quot;:&quot;book-title&quot;,&quot;type&quot;:&quot;PlainText&quot;\} }}</span>
+  <span data-book-author>{{wf {&quot;path&quot;:&quot;book-author&quot;,&quot;type&quot;:&quot;PlainText&quot;\} }}</span>
+</template>
+<!-- Primary topic is a fallback for an empty current-article Topics list.
+     The Designer supplies one hidden [data-apropos-review-metadata] container,
+     with this article's Topics collection items as [data-review-topic-slug]
+     plain text. Never read the site navigation or infer type from SEO copy. -->
+<template data-apropos-primary-topic>
+  <span data-review-topic-slug>{{wf {&quot;path&quot;:&quot;topic:slug&quot;,&quot;type&quot;:&quot;PlainText&quot;\} }}</span>
+</template>
+<script>
+// Only a receipt-backed CMS date is a publication date. CMS creation and later
+// lastPublished/update timestamps must never become a guessed first publication.
+function aproposVerifiedPublicationDate() {
+  var metadata = document.querySelector('template[data-apropos-publication-metadata]');
+  var element = metadata && metadata.content && metadata.content.querySelector('[data-first-published-at]');
+  var value = element ? element.textContent.trim() : '';
+  if (!/^\d{4}-\d{2}-\d{2}T\d{2}:\d{2}:\d{2}(?:\.\d{1,3})?Z$/.test(value)) return null;
+  var timestamp = Date.parse(value);
+  if (!Number.isFinite(timestamp) || timestamp > Date.now()) return null;
+  var normalized = new Date(timestamp).toISOString();
+  // Reject invalid dates normalized by Date.parse, such as 30 February.
+  if (normalized.slice(0, 19) !== value.slice(0, 19)) return null;
+  return normalized;
+}
+
+// Strip only explicit review-title wrappers. Do not invent a work title from
+// prose, or use this fallback in place of the dedicated book metadata below.
+function aproposReviewedWorkName(headline) {
+  var original = String(headline || '').trim();
+  var name = original
+    .replace(/^(?:anmeldelse|filmanmeldelse|serieanmeldelse|spilanmeldelse|albumanmeldelse|review|film review|game review|album review)\s*[:\u2013\u2014-]\s*/i, '')
+    .replace(/\s+(?:[\u2013\u2014-]\s*)?(?:anmeldelse|review)\s*$/i, '').trim();
+  return name || original;
+}
+
+// Book metadata is distinct from Article.author (the reviewer).
+// Read plain text from inert HTML, never interpolate book titles into JavaScript strings.
+function aproposReviewedBook(article) {
+  var metadata = document.querySelector('template[data-apropos-book-metadata]');
+  function field(selector) {
+    var element = metadata && metadata.content && metadata.content.querySelector(selector);
+    var value = element ? element.textContent.trim() : '';
+    return /\{\{\s*wf\b/i.test(value) ? '' : value;
+  }
+  var title = field('[data-book-title]');
+  if (!title) return null;
+  var book = { '@type': 'Book', name: title };
+  if (article.image) book.image = article.image;
+  var authors = field('[data-book-author]').split(';').map(function (name) {
+    return name.trim();
+  }).filter(Boolean).map(function (name) {
+    return { '@type': 'Person', name: name };
+  });
+  if (authors.length) book.author = authors.length === 1 ? authors[0] : authors;
+  return book;
+}
+
+// These exact DA/EN slugs were verified against CMS topic identities on
+// 2026-10-21. Broad sections (including Series & Movies), titles, descriptions,
+// keywords and global topic links are deliberately not classification inputs.
+function aproposResolveReviewedWork(article) {
+  var metadata = document.querySelector('[data-apropos-review-metadata]');
+  var topicTypes = { film: 'Movie', movies: 'Movie', serier: 'TVSeries', series: 'TVSeries', gaming: 'VideoGame' };
+  var eventKinds = { koncerter: 'concert', concerts: 'concert', festival: 'festival' };
+  function slug(element) {
+    var value = element ? String(element.textContent || '').trim().toLowerCase() : '';
+    return /\{\{\s*wf\b/i.test(value) ? '' : value;
+  }
+  function known(value) {
+    return Object.prototype.hasOwnProperty.call(topicTypes, value) ||
+      Object.prototype.hasOwnProperty.call(eventKinds, value) || value === 'anmeldelser' || value === 'reviews';
+  }
+  var topics = metadata ? Array.from(metadata.querySelectorAll('[data-review-topic-slug]')).map(slug).filter(Boolean) : [];
+  // A real primary reference can supply missing structured taxonomy, but never
+  // override a populated, recognized article Topics list.
+  if (!topics.some(known)) {
+    var primary = document.querySelector('template[data-apropos-primary-topic]');
+    var fallback = slug(primary && primary.content && primary.content.querySelector('[data-review-topic-slug]'));
+    if (fallback) topics.push(fallback);
+  }
+  var types = [];
+  var events = [];
+  topics.forEach(function (topic) {
+    var type = Object.prototype.hasOwnProperty.call(topicTypes, topic) ? topicTypes[topic] : null;
+    var event = Object.prototype.hasOwnProperty.call(eventKinds, topic) ? eventKinds[topic] : null;
+    if (type && types.indexOf(type) === -1) types.push(type);
+    if (event && events.indexOf(event) === -1) events.push(event);
+  });
+  var book = aproposReviewedBook(article);
+  if (book) types.push('Book');
+  var hasReviewFormat = topics.indexOf('anmeldelser') !== -1 || topics.indexOf('reviews') !== -1;
+  var result;
+  if (events.length) {
+    // A topic alone does not establish an Event's date/location. Keep the
+    // editorial label, but omit Review/Event markup even with mixed taxonomy.
+    result = { type: null, eventKind: events.length === 1 ? events[0] : 'event', reason: types.length ? 'event-type-conflict' : 'event-omitted' };
+  } else if (types.length === 1) {
+    result = { type: types[0], book: book, reason: 'typed' };
+  } else {
+    // A rating plus an explicit review-format topic supports a generic work.
+    // Missing taxonomy alone does not establish a review, nor choose a medium.
+    result = { type: hasReviewFormat ? 'CreativeWork' : null, reason: types.length > 1 ? 'conflicting-types' : hasReviewFormat ? 'generic-review' : 'missing-type' };
+  }
+  if (metadata) metadata.setAttribute('data-review-resolution', result.reason);
+  return result;
+}
+
+// One resolved result supplies both JSON-LD and the visible localized label.
+// Deferred execution preserves the existing DOM-ready integration; there is no
+// second prose-based classifier that can overwrite the selected type later.
+document.addEventListener('DOMContentLoaded', function () {
+  setTimeout(function () {
+    var lang = (document.documentElement.lang || 'da').split('-')[0];
+    var url = 'https://www.aproposmagazine.com' + location.pathname.replace(/\/+$/, '');
+    var canonical = document.querySelector('link[rel="canonical"]');
+    if (canonical) canonical.href = url;
+    var articleEntry = null;
+    var reviewEntry = null;
+    document.querySelectorAll('script[type="application/ld+json"]').forEach(function (node) {
+      try {
+        var root = JSON.parse(node.textContent || '');
+        var items = root['@graph'] || [root];
+        var article = items.find(function (item) { return item['@type'] === 'Article'; });
+        var review = items.find(function (item) { return item['@type'] === 'Review'; });
+        if (article) articleEntry = { node: node, root: root, data: article };
+        if (review) reviewEntry = { node: node, root: root, data: review };
+      } catch (error) {}
+    });
+    if (articleEntry) {
+      var publicationDate = aproposVerifiedPublicationDate();
+      if (publicationDate) articleEntry.data.datePublished = publicationDate;
+      else delete articleEntry.data.datePublished;
+      articleEntry.data.url = url;
+      articleEntry.data.inLanguage = lang;
+      articleEntry.node.textContent = JSON.stringify(articleEntry.root);
+    }
+    var label = document.querySelector('.apropos-review-label');
+    function removeReview() {
+      if (!reviewEntry) return;
+      if (reviewEntry.root['@graph']) {
+        reviewEntry.root['@graph'] = reviewEntry.root['@graph'].filter(function (item) { return item !== reviewEntry.data; });
+        reviewEntry.node.textContent = JSON.stringify(reviewEntry.root);
+      } else reviewEntry.node.remove();
+    }
+    var rating = Number('{{wf {&quot;path&quot;:&quot;stjerne&quot;,&quot;type&quot;:&quot;Number&quot;\} }}');
+    if (!articleEntry || !Number.isFinite(rating) || rating < 1 || rating > 6) {
+      removeReview();
+      if (label) label.style.display = 'none';
+      return;
+    }
+    var article = articleEntry.data;
+    var resolved = aproposResolveReviewedWork(article);
+    var workName = resolved.book ? resolved.book.name : aproposReviewedWorkName(article.headline);
+    if (!workName || (!resolved.type && !resolved.eventKind)) {
+      removeReview();
+      if (label) label.style.display = 'none';
+      return;
+    }
+    if (resolved.eventKind) removeReview();
+    else {
+      var review = {
+        '@context': 'https://schema.org',
+        '@type': 'Review',
+        '@id': url + '#review',
+        url: url,
+        name: article.headline,
+        reviewBody: article.description,
+        inLanguage: lang,
+        datePublished: article.datePublished,
+        dateModified: article.dateModified,
+        author: article.author ? {
+          '@type': article.author['@type'] || 'Person',
+          name: article.author.name,
+          url: article.author.url
+        } : undefined,
+        publisher: article.publisher,
+        reviewRating: { '@type': 'Rating', ratingValue: rating, bestRating: 6, worstRating: 1 },
+        itemReviewed: resolved.book || { '@type': resolved.type, name: workName, image: article.image }
+      };
+      if (reviewEntry) {
+        if (reviewEntry.root['@graph']) {
+          reviewEntry.root['@graph'] = reviewEntry.root['@graph'].map(function (item) { return item === reviewEntry.data ? review : item; });
+          reviewEntry.node.textContent = JSON.stringify(reviewEntry.root);
+        } else reviewEntry.node.textContent = JSON.stringify(review);
+      } else {
+        var node = document.createElement('script');
+        node.type = 'application/ld+json';
+        node.dataset.aproposReviewSchema = '';
+        node.textContent = JSON.stringify(review);
+        document.head.appendChild(node);
+      }
+    }
+    var labelsDa = { Book: 'Boganmeldelse', Movie: 'Filmanmeldelse', TVSeries: 'Serieanmeldelse', VideoGame: 'Spilanmeldelse', CreativeWork: 'Anmeldelse' };
+    var labelsEn = { Book: 'Book review', Movie: 'Film review', TVSeries: 'Series review', VideoGame: 'Game review', CreativeWork: 'Review' };
+    var eventLabelsDa = { festival: 'Festivalanmeldelse', concert: 'Koncertanmeldelse', event: 'Eventanmeldelse' };
+    var eventLabelsEn = { festival: 'Festival review', concert: 'Concert review', event: 'Event review' };
+    if (label) {
+      label.style.display = '';
+      label.textContent = resolved.eventKind ? (lang === 'en' ? eventLabelsEn : eventLabelsDa)[resolved.eventKind] : (lang === 'en' ? labelsEn : labelsDa)[resolved.type];
+      label.classList.add('is-visible');
+    }
+  }, 0);
+});
+</script>
