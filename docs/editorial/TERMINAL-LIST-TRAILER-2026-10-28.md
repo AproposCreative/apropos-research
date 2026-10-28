@@ -60,3 +60,20 @@ opened preview, followed by existing server continuation and public/CMS readback
 Evidence: output/terminal-consent-diagnostic-20261028.json,
 output/terminal-trailer-deployment-20261028.json and
 output/terminal-trailer-update-receipt-20261028.json. No approval tokens in receipts.
+
+## Published after the owner's new approval
+
+Before this turn ended, native status advanced to revision 12 / published /
+publication_approved. The server completed the ordinary preparation/publication
+path. No agent approval was manufactured. Fresh direct live CMS readback confirms
+the same item is no longer a draft, lastPublished 2026-10-28T15:25:28.804Z.
+The public URL returned HTTP 200 at 15:27:02.223Z with the correct H1, SEO title
+and canonical. CMS video-trailer contains the official ycGRitcszLI video, and
+the public HTML includes its player. CMS body contains no occurrence of that
+trailer ID, retains the Prime Video watch link and all four body images.
+
+Live: https://www.aproposmagazine.com/articles/anmeldelse-the-terminal-list-saeson-1
+
+Evidence: output/terminal-published-readback-20261028.json. The previous pending
+state above is preserved as chronology; publication is now verified. This is an
+owner-approved submission, not an unattended Liv delivery.
