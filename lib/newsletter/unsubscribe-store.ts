@@ -54,7 +54,8 @@ export async function getUnsubscribedEmails(): Promise<Set<string>> {
 export async function filterUnsubscribedFromList(emails: string[]): Promise<Set<string>> {
   const db = getAdminDb();
   const unsubscribed = new Set<string>();
-  if (!db || emails.length === 0) return unsubscribed;
+  if (emails.length === 0) return unsubscribed;
+  if (!db) throw new Error('newsletter_unsubscribe_storage_unavailable');
 
   const unique = [...new Set(emails.map((e) => e.trim().toLowerCase()))];
   const BATCH_SIZE = 100;
@@ -69,7 +70,7 @@ export async function filterUnsubscribedFromList(emails: string[]): Promise<Set<
       }
     }
   } catch (e) {
-    console.warn('[newsletter/unsubscribe-store] filterUnsubscribedFromList:', e);
+    throw new Error('newsletter_unsubscribe_check_failed');
   }
   return unsubscribed;
 }

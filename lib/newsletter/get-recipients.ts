@@ -1,13 +1,15 @@
+import { mergeSignups, type NewsletterSignup } from './signup-details';
 import { env } from '@/lib/config/env';
 import { fetchNewsletterEmails } from '@/lib/newsletter/webflow-forms';
 import { fetchNewsletterSignupEmails } from '@/lib/newsletter/webflow-sources';
 import {
   filterUnsubscribedFromList,
-  removeUnsubscribeRecordsForEmails,
 } from '@/lib/newsletter/unsubscribe-store';
 
 export type RecipientResult = {
   emails: string[];
+  subscribers?: Array<NewsletterSignup & { active: boolean | null }>;
+  verified?: boolean;
   total: number;
   unsubscribedCount: number;
   source: 'forms-api' | 'cms-collection' | 'none';
@@ -58,7 +60,7 @@ function clarifyFetchError(
  * Hvis `WEBFLOW_NEWSLETTER_SIGNUPS_COLLECTION_ID` er sat, prøves CMS først (kun relevant hvis I
  * selv har en collection til e-mails). Ellers / ved 0 fra CMS: Forms API (`WEBFLOW_NEWSLETTER_FORM_ID`
  * eller auto-find «Subscribe»/«nyhedsbrev»). Frameldte filtreres via Firestore; gen-tilmelding i Webflow
- * rydder automatisk frameldings-dokumentet for den e-mail.
+ * ændrer aldrig frameldings-dokumenter. Gen-tilmelding kræver en faktisk ny signup-hændelse.
  */
 export async function getNewsletterRecipients(): Promise<RecipientResult> {
   const formId = env.WEBFLOW_NEWSLETTER_FORM_ID?.trim() || undefined;
@@ -66,6 +68,7 @@ export async function getNewsletterRecipients(): Promise<RecipientResult> {
   const hadSignupCollectionId = Boolean(colId);
 
   let rawEmails: string[] = [];
+  let signupDetails: NewsletterSignup[] = [];
   let source: RecipientResult['source'] = 'none';
   let formName: string | undefined;
   let fetchErr: string | undefined;
@@ -75,6 +78,7 @@ export async function getNewsletterRecipients(): Promise<RecipientResult> {
     const r = await fetchNewsletterSignupEmails(colId, emailSlug);
     if (r.emails.length > 0) {
       rawEmails = r.emails;
+      signupDetails = r.subscribers ?? [];
       source = 'cms-collection';
       fetchErr = r.error;
     } else if (r.error && isWebflowResourceNotFound(r.error)) {
@@ -89,6 +93,7 @@ export async function getNewsletterRecipients(): Promise<RecipientResult> {
     const r = await fetchNewsletterEmails(formId || undefined);
     if (r.emails.length > 0) {
       rawEmails = r.emails;
+      signupDetails = r.subscribers ?? [];
       source = 'forms-api';
       formName = r.formName;
       fetchErr = r.error;
@@ -110,27 +115,23 @@ export async function getNewsletterRecipients(): Promise<RecipientResult> {
       unsubscribedCount: 0,
       source,
       formName,
+      verified: !fetchErr && source !== 'none', subscribers: [],
       error: fetchErr || (source === 'none' ? 'Ingen tilmeldinger fundet' : undefined),
     };
   }
 
-  const norm = (e: string) => e.trim().toLowerCase();
-  const uniqueNormed = [...new Set(rawEmails.map(norm))];
-  const unsub = await filterUnsubscribedFromList(uniqueNormed);
-
-  const resubscribed = uniqueNormed.filter((e) => unsub.has(e));
-  if (resubscribed.length > 0) {
-    await removeUnsubscribeRecordsForEmails(resubscribed);
-    for (const e of resubscribed) unsub.delete(e);
+  const signups = mergeSignups([...signupDetails, ...rawEmails.map(email => ({ email, signedUpAt: null }))]);
+  let unsub: Set<string>;
+  try { unsub = await filterUnsubscribedFromList(signups.map(row => row.email)); }
+  catch {
+    return { emails: [], total: signups.length, unsubscribedCount: 0, source, formName, verified: false,
+      subscribers: signups.map(row => ({ ...row, active: null })),
+      error: 'Frameldinger kunne ikke kontrolleres. Ingen modtagere er godkendt til afsendelse.' };
   }
-  const filtered = rawEmails.filter((e) => !unsub.has(norm(e)));
-
+  const subscribers = signups.map(row => ({ ...row, active: !unsub.has(row.email) }));
   return {
-    emails: filtered,
-    total: rawEmails.length,
-    unsubscribedCount: unsub.size,
-    source,
-    formName,
-    error: fetchErr,
+    emails: subscribers.filter(row => row.active).map(row => row.email),
+    subscribers, total: signups.length, unsubscribedCount: unsub.size, verified: !fetchErr,
+    source, formName, error: fetchErr,
   };
 }

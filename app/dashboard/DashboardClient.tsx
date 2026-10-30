@@ -1,8 +1,9 @@
 'use client';
 
+import NewsletterPanel from './NewsletterPanel';
 import toolStyles from '@/components/tool-surface.module.css';
 
-import { useCallback, useEffect, useMemo, useState } from 'react';
+import { useCallback, useEffect, useMemo, useState, useRef } from 'react';
 import AuthModal from '@/components/AuthModal';
 import { EmbeddedAppHeader } from '@/components/embedded-app';
 import { useAuth } from '@/lib/auth-context';
@@ -17,7 +18,8 @@ type DashboardClientProps = {
   onClose?: () => void;
 };
 
-function fmt(n: number): string {
+function fmt(n: number | null | undefined): string {
+  if (n == null) return '—';
   return new Intl.NumberFormat('da-DK').format(n);
 }
 
@@ -42,8 +44,8 @@ function MiniTrend({ points }: { points: Array<{ date: string; views: number }> 
         <div
           key={p.date}
           className="min-w-0 flex-1 rounded-t-sm bg-white/20 hover:bg-white/35 transition-colors"
-          style={{ height: `${Math.max(4, (p.views / max) * 100)}%` }}
-          title={`${p.date}: ${fmt(p.views)} visninger`}
+          style={{ height: `${p.views > 0 ? Math.max(1, (p.views / max) * 100) : 0}%` }}
+          title={`${p.date}: ${fmt(p.views)} visninger`} role="img" aria-label={`${p.date}: ${fmt(p.views)} visninger`}
         />
       ))}
     </div>
@@ -79,30 +81,34 @@ export default function DashboardClient({ embedded = false, onClose }: Dashboard
   const [data, setData] = useState<DashboardPayload | null>(null);
   const [loading, setLoading] = useState(false);
   const [error, setError] = useState<string | null>(null);
+  const request = useRef<AbortController | null>(null);
 
   const load = useCallback(async () => {
     if (!user) return;
+    request.current?.abort();
+    const controller = new AbortController(); request.current = controller;
     setLoading(true);
+    setData(null);
     setError(null);
     try {
       const token = await user.getIdToken();
       const res = await fetch(`/api/dashboard?period=${period}`, {
         headers: { Authorization: `Bearer ${token}` },
-        cache: 'no-store',
+        cache: 'no-store', signal: controller.signal,
       });
       const json = await res.json();
       if (!res.ok) throw new Error(json.error || `HTTP ${res.status}`);
-      setData(json.data as DashboardPayload);
+      if (!controller.signal.aborted) setData(json.data as DashboardPayload);
     } catch (e) {
-      setError(e instanceof Error ? e.message : 'Kunne ikke hente dashboard');
-      setData(null);
+      if (!controller.signal.aborted) { setError('Trafikoverblikket kunne ikke hentes. Prøv igen.'); setData(null); }
     } finally {
-      setLoading(false);
+      if (!controller.signal.aborted) setLoading(false);
     }
   }, [user, period]);
 
   useEffect(() => {
     void load();
+    return () => request.current?.abort();
   }, [load]);
 
   const periodLabel = useMemo(
@@ -182,12 +188,12 @@ export default function DashboardClient({ embedded = false, onClose }: Dashboard
                 embedded ? 'bg-[#1c1c1e] lg:top-3' : 'bg-black/55 lg:top-24'
               }`}
             >
-              <h2 className="text-[14px] font-medium text-white/85">Forfatter-leaderboard</h2>
-              <p className="mt-0.5 text-[11px] text-white/40">Læsninger i perioden</p>
+              <h2 className="text-[14px] font-medium text-white/85">Forfattere</h2>
+              <p className="mt-0.5 text-[11px] text-white/40">Artikelvisninger i perioden</p>
               <ul className="mt-3 space-y-3">
                 {(data?.authorLeaderboard || []).length === 0 ? (
                   <li className="py-8 text-center text-[12px] text-white/40">
-                    {loading ? 'Henter…' : 'Ingen data endnu'}
+                    {loading ? 'Henter…' : data?.availability?.authors === false ? 'Forfatterdata kunne ikke hentes' : 'Ingen visninger i perioden'}
                   </li>
                 ) : (
                   data?.authorLeaderboard.map((a, i) => (
@@ -197,7 +203,7 @@ export default function DashboardClient({ embedded = false, onClose }: Dashboard
                       <div className="min-w-0 flex-1">
                         <p className="truncate text-[13px] font-medium text-white/80">{a.name}</p>
                         <p className="text-[10px] text-white/35">
-                          {fmt(a.views)} læsninger · {a.articleCount} artikler
+                          {fmt(a.views)} visninger · {a.articleCount} artikler i arkivet
                         </p>
                       </div>
                     </li>
@@ -214,26 +220,26 @@ export default function DashboardClient({ embedded = false, onClose }: Dashboard
                 value={fmt(data.newsletter.signups)}
                 hint={
                   data?.newsletter.error
-                    ? 'Tjek Webflow forms'
+                    ? 'Data ikke tilgængelige'
                     : data
-                      ? `${fmt(data.newsletter.totalSignups)} tilmeldt i alt`
+                      ? `${fmt(data.newsletter.totalSignups)} bevarede tilmeldinger i alt`
                       : 'Aktive modtagere'
                 }
               />}
               <StatCard
                 label="Artikler"
                 value={data ? fmt(data.articles.published) : '—'}
-                hint={data?.articles.drafts !== undefined ? `${fmt(data.articles.drafts)} kladder` : 'Publiceret i Webflow'}
+                hint={data?.articles.drafts !== undefined ? `${fmt(data.articles.drafts)} kladder · samlet arkiv` : 'Publiceret i Webflow'}
               />
               <StatCard
                 label="Besøgende"
-                value={data ? fmt(data.overview.activeUsers) : '—'}
-                hint="Unikke brugere"
+                value={data ? fmt(data.overview?.activeUsers) : '—'}
+                hint="Aktive brugere målt af GA4"
               />
               <StatCard
                 label="Sidevisninger"
-                value={data ? fmt(data.overview.pageViews) : '—'}
-                hint={data ? `${fmt(data.overview.sessions)} sessioner` : undefined}
+                value={data ? fmt(data.overview?.pageViews) : '—'}
+                hint={data ? `${fmt(data.overview?.sessions)} sessioner` : undefined}
               />
               <StatCard
                 label="Google klik"
@@ -243,7 +249,7 @@ export default function DashboardClient({ embedded = false, onClose }: Dashboard
                 hint={
                   data?.google.searchConsoleLinked
                     ? 'Search Console'
-                    : 'Knyt Search Console'
+                    : 'Søgetal ikke tilgængelige'
                 }
               />
               <StatCard
@@ -256,16 +262,13 @@ export default function DashboardClient({ embedded = false, onClose }: Dashboard
                     ? data.google.ctr != null
                       ? `CTR ${(data.google.ctr * 100).toFixed(1)}%`
                       : 'Google søgning'
-                    : 'Kræver GSC-link'
+                    : 'Søgetal ikke tilgængelige'
                 }
               />
             </div>
 
-            <div className="rounded-xl border border-white/[0.06] bg-[#1c1c1e] px-3.5 py-3">
-              <p className="text-[10px] uppercase tracking-[0.14em] text-white/35">App downloads</p>
-              <p className="mt-1 text-[15px] font-medium text-white/75">Kommer snart</p>
-              <p className="mt-0.5 text-[11px] text-white/35">iOS — måles når appen er i App Store</p>
-            </div>
+            {data?.newsletter && <NewsletterPanel period={period} active={data.newsletter.signups} />}
+            {data?.availability && Object.values(data.availability).some(value => !value) && <p role="status" className="text-xs text-amber-300">Nogle datakilder kunne ikke hentes. Manglende tal vises som ukendte.</p>}
 
             <section
               className={`rounded-xl border border-white/12 p-4 backdrop-blur-xl lg:p-3 ${
@@ -276,11 +279,12 @@ export default function DashboardClient({ embedded = false, onClose }: Dashboard
                 <div>
                   <h2 className="text-[14px] font-medium text-white/85">Sidevisninger</h2>
                   <p className="text-[11px] text-white/40">
-                    {data ? fmt(data.overview.pageViews) : '—'} i alt · {data ? fmt(data.overview.sessions) : '—'} sessioner
+                    {data ? fmt(data.overview?.pageViews) : '—'} i alt · {data ? fmt(data.overview?.sessions) : '—'} sessioner
                   </p>
                 </div>
               </div>
-              <MiniTrend points={data?.viewsTrend || []} />
+              {loading ? <p role="status" className="text-xs text-white/40">Henter trafik…</p> : data?.availability?.viewsTrend === false ? <p className="text-xs text-white/40">Sidevisninger kunne ikke hentes.</p> : <MiniTrend points={data?.viewsTrend || []} />}
+              {data?.range && <p className="mt-2 text-xs text-white/40">{data.range.startDate} til {data.range.endDate}. I dag er foreløbig.</p>}
             </section>
 
             <section
@@ -293,7 +297,7 @@ export default function DashboardClient({ embedded = false, onClose }: Dashboard
               <ul className="mt-3 divide-y divide-white/[0.06]">
                 {(data?.topArticles || []).length === 0 ? (
                   <li className="py-3 text-center text-[12px] text-white/40">
-                    {loading ? 'Henter artikler…' : 'Ingen artikeldata'}
+                    {loading ? 'Henter artikler…' : data?.availability?.topArticles === false ? 'Artikeldata kunne ikke hentes' : 'Ingen artikelvisninger i perioden'}
                   </li>
                 ) : (
                   data?.topArticles.map((a, i) => (
@@ -302,7 +306,7 @@ export default function DashboardClient({ embedded = false, onClose }: Dashboard
                         {i + 1}
                       </span>
                       <div className="min-w-0 flex-1">
-                        <p className="text-[13px] font-medium text-white/85 line-clamp-2">{a.title || a.slug}</p>
+                        <a href={`https://www.aproposmagazine.com${a.path}`} target="_blank" rel="noopener noreferrer" className="text-[13px] font-medium text-white/85 line-clamp-2 hover:underline">{a.title || a.slug}</a>
                         <p className="mt-0.5 truncate text-[10px] text-white/35">{a.path}</p>
                       </div>
                       <span className="shrink-0 text-[12px] tabular-nums text-white/70">{fmt(a.views)}</span>
@@ -365,14 +369,10 @@ export default function DashboardClient({ embedded = false, onClose }: Dashboard
               </section>
             </div>
 
-            <section className="rounded-xl border border-white/[0.06] bg-[#1c1c1e] p-4">
-              <h2 className="text-[12px] font-medium text-white/55">Anbefalinger til næste version</h2>
-              <ul className="mt-2 list-disc space-y-1.5 pl-4 text-[11px] text-white/40">
-                {(data?.recommendations || []).map((r) => (
-                  <li key={r}>{r}</li>
-                ))}
-              </ul>
-            </section>
+            {data && <details className="rounded-xl bg-[#1c1c1e] px-3 py-2 text-xs text-white/45"><summary className="min-h-11 flex items-center cursor-pointer">Om tallene</summary>
+              <p className="pb-2">Trafik: den valgte periode. Artikler og aktive modtagere: samlet status nu. Forfattertal er sidevisninger, ikke dokumenteret gennemlæsning. App-downloads er endnu ikke målt.</p>
+              <p className="pb-2">Overblik hentet {new Date(data.generatedAt).toLocaleString('da-DK', { timeZone: 'Europe/Copenhagen' })}. GA4 og Google kan have forsinkelse.</p>
+            </details>}
           </div>
         </div>
       </main>

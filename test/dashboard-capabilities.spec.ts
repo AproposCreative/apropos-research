@@ -41,6 +41,9 @@ it('requires verified editorial access and hides upstream errors', async () => {
   mock.access.mockResolvedValue({ uid: 'frederik', owner: true });
   mock.recipients.mockRejectedValue(new Error('sensitive upstream error'));
   const response = await GET(new NextRequest('https://example.test/api/dashboard'));
-  expect(response.status).toBe(503);
-  expect(await response.json()).toEqual({ ok: false, error: 'Dashboard kunne ikke hentes.' });
+  expect(response.status).toBe(200);
+  const partial = await response.json();
+  expect(partial.data.newsletter.signups).toBeNull();
+  expect(partial.data.overview.pageViews).toBe(8);
+  expect(JSON.stringify(partial)).not.toContain('sensitive upstream error');
 });

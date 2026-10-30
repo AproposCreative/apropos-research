@@ -1,3 +1,5 @@
+import { safeNewsletterClick } from '@/lib/newsletter/analytics-link';
+import { recordNewsletterEvent } from '@/lib/newsletter/engagement';
 import { NextRequest, NextResponse } from 'next/server';
 import { Webhook } from 'svix';
 import { env } from '@/lib/config/env';
@@ -26,24 +28,6 @@ function firstToEmail(data: Record<string, unknown>): string | null {
   return null;
 }
 
-/** Parse UTM-parametre fra et klik-link, så GA4 kan rapportere per-artikel CTR. */
-function utmParamsFromLink(link: string | undefined): Record<string, string> {
-  if (!link) return {};
-  try {
-    const url = new URL(link);
-    const out: Record<string, string> = {};
-    const keys = ['utm_source', 'utm_medium', 'utm_campaign', 'utm_content', 'utm_term'];
-    for (const k of keys) {
-      const v = url.searchParams.get(k);
-      if (v) out[k] = v.slice(0, 100);
-    }
-    out.click_host = url.hostname.slice(0, 80);
-    return out;
-  } catch {
-    return {};
-  }
-}
-
 /**
  * Resend → Svix-signeret webhook. Mapper hele mail-funnel til GA4 MP:
  *  - email.delivered, email.opened, email.clicked
@@ -66,14 +50,14 @@ export async function POST(req: NextRequest) {
     return NextResponse.json({ error: 'Manglende Svix-headers' }, { status: 400 });
   }
 
-  let evt: { type?: string; data?: Record<string, unknown> };
+  let evt: { type?: string; created_at?: string; data?: Record<string, unknown> };
   try {
     const wh = new Webhook(secret);
     evt = wh.verify(payload, {
       'svix-id': svixId,
       'svix-timestamp': svixTimestamp,
       'svix-signature': svixSignature,
-    }) as { type?: string; data?: Record<string, unknown> };
+    }) as { type?: string; created_at?: string; data?: Record<string, unknown> };
   } catch {
     return NextResponse.json({ error: 'Ugyldig signatur' }, { status: 400 });
   }
@@ -96,6 +80,13 @@ export async function POST(req: NextRequest) {
     if (type === 'email.received') {
       return NextResponse.json({ ok: true, received: type, funding: false, accreditation: false });
     }
+  }
+
+  try { await recordNewsletterEvent(svixId, type, evt.created_at, data); }
+  catch {
+    // A verified event is retried by Resend if durable storage is unavailable.
+    // No email is sent here, and retries deduplicate by the signed event ID.
+    return NextResponse.json({ ok: false, error: 'Mailhændelsen kunne ikke gemmes.' }, { status: 503 });
   }
 
   const to = firstToEmail(data);
@@ -134,8 +125,7 @@ export async function POST(req: NextRequest) {
   if (type === 'email.clicked') {
     const click = data.click as Record<string, unknown> | undefined;
     const link = click && typeof click.link === 'string' ? click.link.slice(0, 500) : undefined;
-    if (link) extra.link = link;
-    Object.assign(extra, utmParamsFromLink(link));
+    Object.assign(extra, safeNewsletterClick(link));
   }
 
   // Bounce-events: medsend bounce-type/årsag hvis Resend leverer det.
@@ -143,7 +133,7 @@ export async function POST(req: NextRequest) {
     const bounce = data.bounce as Record<string, unknown> | undefined;
     if (bounce) {
       if (typeof bounce.type === 'string') extra.bounce_type = bounce.type.slice(0, 60);
-      if (typeof bounce.reason === 'string') extra.bounce_reason = bounce.reason.slice(0, 200);
+      // Raw bounce reasons can contain recipient addresses; keep only the type.
     }
   }
 

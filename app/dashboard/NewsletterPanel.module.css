@@ -1,0 +1,27 @@
+.panel { background: #1c1c1e; border-radius: 16px; color: #f5f5f7; font-family: -apple-system, BlinkMacSystemFont, "Segoe UI", sans-serif; }
+.panel > summary { display: flex; flex-wrap: wrap; align-items: center; justify-content: space-between; gap: 6px; min-height: 52px; padding: 10px 12px; font-size: 15px; cursor: pointer; list-style: none; }
+.panel > summary::-webkit-details-marker { display: none; }
+.panel > summary > span:last-child { color: #0a84ff; font-size: 13px; }
+.body { padding: 0 12px 8px; }
+.row { display: flex; align-items: center; justify-content: space-between; gap: 8px; }
+.row h2 { font-size: 15px; font-weight: 500; }
+.row button { color: #0a84ff; min-height: 44px; padding: 4px 8px; border: 0; background: none; font-size: 14px; }
+.row button:disabled { opacity: .4; }
+.body p { margin: 6px 0; font-size: 13px; line-height: 1.45; }
+.note { color: #98989d; font-size: 12px; }
+.label { display: block; font-size: 13px; color: #98989d; margin-top: 12px; }
+.label select, .label input { width: 100%; height: 44px; margin-top: 4px; border-radius: 9px; border: 1px solid #38383a; padding: 0 10px; background: #2c2c2e; color: #f5f5f7; font-size: 16px; color-scheme: dark; }
+.stats { display: grid; grid-template-columns: repeat(2, minmax(0, 1fr)); gap: 0; margin: 12px 0 4px; border-top: 1px solid #38383a; }
+.stats > div { padding: 10px 4px; min-width: 0; }
+.stats span { display: block; color: #98989d; font-size: 12px; }
+.stats strong { display: block; margin-top: 3px; font-size: 20px; font-weight: 500; font-variant-numeric: tabular-nums; }
+.explanation { font-size: 13px; color: #98989d; border-bottom: 1px solid #38383a; }
+.explanation summary { min-height: 44px; display: flex; align-items: center; color: #0a84ff; cursor: pointer; }
+.audience { list-style: none; margin: 8px 0 0; padding: 0; max-height: 480px; overflow-y: auto; }
+.audience li { padding: 10px 0; border-top: 1px solid #38383a; display: flex; flex-wrap: wrap; align-items: center; justify-content: space-between; gap: 5px 12px; font-size: 13px; }
+.audience li > div { min-width: 0; flex: 1 1 210px; }
+.audience li > div span { display: block; }
+.email { overflow-wrap: anywhere; }
+.messageStatus { color: #d1d1d6; font-size: 12px; }
+.panel button:focus-visible, .panel summary:focus-visible, .panel input:focus-visible, .panel select:focus-visible { outline: 2px solid #0a84ff; outline-offset: 2px; }
+@media(min-width:640px) { .stats { grid-template-columns: repeat(4,minmax(0,1fr)); } }

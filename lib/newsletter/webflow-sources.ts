@@ -1,3 +1,4 @@
+import { signupDate, type NewsletterSignup } from './signup-details';
 import { getWebflowConfig } from '@/lib/webflow-config';
 import { env } from '@/lib/config/env';
 import type { WeekRange } from '@/lib/newsletter/week-range';
@@ -496,7 +497,7 @@ export async function resolveArticlesByIdsOrdered(
 export async function fetchNewsletterSignupEmails(
   collectionId: string | undefined,
   emailFieldSlug: string
-): Promise<{ emails: string[]; error?: string }> {
+): Promise<{ emails: string[]; subscribers?: NewsletterSignup[]; error?: string }> {
   if (!collectionId?.trim()) {
     return { emails: [], error: 'WEBFLOW_NEWSLETTER_SIGNUPS_COLLECTION_ID er ikke sat' };
   }
@@ -508,6 +509,7 @@ export async function fetchNewsletterSignupEmails(
 
   const seen = new Set<string>();
   const emails: string[] = [];
+  const subscribers: NewsletterSignup[] = [];
   const re = /^[^\s@]+@[^\s@]+\.[^\s@]+$/i;
 
   for (const it of items) {
@@ -518,9 +520,10 @@ export async function fetchNewsletterSignupEmails(
     if (!re.test(e) || seen.has(e)) continue;
     seen.add(e);
     emails.push(e);
+    subscribers.push({ email: e, signedUpAt: signupDate(fd['subscribed-at'] ?? fd['signup-date'] ?? fd['signed-up-at']) });
   }
 
-  return { emails };
+  return { emails, subscribers, error };
 }
 
 /**

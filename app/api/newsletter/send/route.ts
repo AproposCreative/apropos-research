@@ -83,6 +83,7 @@ export async function POST(req: NextRequest) {
         html,
         tags: [
           { name: 'channel', value: 'newsletter' },
+          { name: 'send_type', value: 'manual_test' },
           { name: 'campaign', value: newsletterUtmCampaignFromWeek(week).slice(0, 128) },
         ],
       });
@@ -134,6 +135,7 @@ export async function POST(req: NextRequest) {
       html,
       tags: [
         { name: 'channel', value: 'newsletter' },
+        { name: 'send_type', value: 'manual_broadcast' },
         { name: 'campaign', value: campaign.slice(0, 128) },
       ],
     });

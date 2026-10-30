@@ -1,3 +1,4 @@
+import { env } from '@/lib/config/env';
 import { getWebflowConfig } from '@/lib/webflow-config';
 import { getWebflowAuthors } from '@/lib/webflow-service';
 
@@ -11,9 +12,10 @@ export type CmsArticleMeta = {
   isPublished: boolean;
 };
 
-export async function fetchCmsArticles(): Promise<CmsArticleMeta[]> {
-  const { apiToken: token, siteId, articlesCollectionId } = getWebflowConfig();
-  if (!token || !siteId || !articlesCollectionId) return [];
+export async function fetchCmsArticles(live = false): Promise<CmsArticleMeta[]> {
+  const config = getWebflowConfig();
+  const token = config.apiToken || env.WEBFLOW_API_TOKEN, siteId = config.siteId || env.WEBFLOW_SITE_ID, articlesCollectionId = config.articlesCollectionId || env.WEBFLOW_ARTICLES_COLLECTION_ID;
+  if (!token || !siteId || !articlesCollectionId) throw Error('dashboard_cms_unavailable');
 
   const headers = { Authorization: `Bearer ${token}`, 'Accept-Version': '1.0.0' };
   const pageSize = 100;
@@ -21,9 +23,9 @@ export async function fetchCmsArticles(): Promise<CmsArticleMeta[]> {
   const items: CmsArticleMeta[] = [];
 
   while (offset < 5000) {
-    const url = `https://api.webflow.com/v2/sites/${siteId}/collections/${articlesCollectionId}/items?limit=${pageSize}&offset=${offset}`;
-    const res = await fetch(url, { headers, next: { revalidate: 300 } });
-    if (!res.ok) break;
+    const url = `https://api.webflow.com/v2/collections/${articlesCollectionId}/items${live ? "/live" : ""}?limit=${pageSize}&offset=${offset}`;
+    const res = await fetch(url, { headers, next: { revalidate: 300 }, signal: AbortSignal.timeout(20000) });
+    if (!res.ok) throw Error('dashboard_cms_read_failed');
     const data = (await res.json()) as { items?: Array<Record<string, unknown>> };
     const batch = data.items || [];
     for (const it of batch) {
@@ -36,7 +38,7 @@ export async function fetchCmsArticles(): Promise<CmsArticleMeta[]> {
         authorId: typeof fd.author === 'string' ? fd.author : undefined,
         authorName: typeof fd['author-name'] === 'string' ? fd['author-name'] : undefined,
         isDraft: Boolean(it.isDraft),
-        isPublished: !it.isDraft && !it.isArchived && typeof it.lastPublished === 'string' && Number.isFinite(Date.parse(it.lastPublished)),
+        isPublished: live || !it.isDraft && !it.isArchived && typeof it.lastPublished === 'string' && Number.isFinite(Date.parse(it.lastPublished)),
       });
     }
     if (batch.length < pageSize) break;
@@ -47,13 +49,16 @@ export async function fetchCmsArticles(): Promise<CmsArticleMeta[]> {
 }
 
 export async function fetchArticleCounts() {
-  const articles = await fetchCmsArticles();
-  const published = articles.filter((a) => a.isPublished).length;
-  return {
-    total: articles.length,
-    published,
-    drafts: articles.length - published,
-  };
+  const config = getWebflowConfig();
+  const token = config.apiToken || env.WEBFLOW_API_TOKEN, collectionId = config.articlesCollectionId || env.WEBFLOW_ARTICLES_COLLECTION_ID;
+  if (!token || !collectionId) throw Error('dashboard_cms_unavailable');
+  const [articles, response] = await Promise.all([fetchCmsArticles(), fetch(`https://api.webflow.com/v2/collections/${collectionId}/items/live?limit=1`, {
+    headers: { Authorization: `Bearer ${token}` }, next: { revalidate: 300 }, signal: AbortSignal.timeout(20000),
+  })]);
+  if (!response.ok) throw Error('dashboard_live_cms_unavailable');
+  const data = await response.json();
+  if (!Number.isSafeInteger(data.pagination?.total) || data.pagination.total < 0) throw Error('dashboard_live_count_unknown');
+  return { total: articles.length, published: data.pagination.total as number, drafts: articles.filter(article => article.isDraft).length };
 }
 
 export async function buildAuthorLeaderboard(
@@ -67,7 +72,7 @@ export async function buildAuthorLeaderboard(
     articleCount: number;
   }>
 > {
-  const [authors, cmsArticles] = await Promise.all([getWebflowAuthors(), fetchCmsArticles()]);
+  const [authors, cmsArticles] = await Promise.all([getWebflowAuthors(), fetchCmsArticles(publishedOnly)]);
   const authorById = new Map(authors.map((a) => [a.id, a]));
 
   const stats = new Map<

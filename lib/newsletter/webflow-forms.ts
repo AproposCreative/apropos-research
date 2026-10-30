@@ -1,3 +1,4 @@
+import { mergeSignups, signupDate, type NewsletterSignup } from './signup-details';
 import { env } from '@/lib/config/env';
 import { getWebflowConfig } from '@/lib/webflow-config';
 
@@ -412,6 +413,13 @@ async function fetchNewsletterSubmissionsViaListForms(
   return { submissions };
 }
 
+export function extractSignupDetails(submissions: Array<Record<string, unknown>>): NewsletterSignup[] {
+  return mergeSignups(submissions.flatMap(row => {
+    const email = getSubmissionEmailFromRow(row);
+    return email ? [{ email, signedUpAt: signupDate(row.dateSubmitted ?? row.submittedAt ?? row.createdOn ?? row.createdAt) }] : [];
+  }));
+}
+
 export function extractEmailsFromSubmissions(
   submissions: Array<Record<string, unknown>>
 ): string[] {
@@ -436,7 +444,7 @@ export function extractEmailsFromSubmissions(
  */
 export async function fetchNewsletterEmails(
   formIdOrName?: string
-): Promise<{ emails: string[]; formId?: string; formName?: string; error?: string }> {
+): Promise<{ emails: string[]; subscribers?: NewsletterSignup[]; formId?: string; formName?: string; error?: string }> {
   const token = resolveToken();
   const siteId = resolveSiteId();
   if (!token || !siteId) {
@@ -450,7 +458,7 @@ export async function fetchNewsletterEmails(
     const direct = await fetchFormSubmissions(search, {});
     const fromDirect = extractEmailsFromSubmissions(direct.submissions);
     if (fromDirect.length > 0) {
-      return { emails: fromDirect, formId: search, formName: search };
+      return { emails: fromDirect, subscribers: extractSignupDetails(direct.submissions), formId: search, formName: search, error: direct.error };
     }
   }
 
@@ -462,7 +470,7 @@ export async function fetchNewsletterEmails(
       const first = filtered[0];
       const formName =
         typeof first?.displayName === 'string' ? first.displayName : 'Nyhedsbrevs-formular';
-      return { emails, formName };
+      return { emails, subscribers: extractSignupDetails(filtered), formName, error: siteWide.error };
     }
   }
 
@@ -491,7 +499,7 @@ export async function fetchNewsletterEmails(
 
 async function fetchNewsletterEmailsViaListForms(
   formIdOrName?: string
-): Promise<{ emails: string[]; formId?: string; formName?: string; error?: string }> {
+): Promise<{ emails: string[]; subscribers?: NewsletterSignup[]; formId?: string; formName?: string; error?: string }> {
   const { forms, error: listErr } = await listForms();
   if (listErr) return { emails: [], error: listErr };
   if (forms.length === 0) return { emails: [], error: 'Ingen forms fundet på Webflow-sitet' };
@@ -522,5 +530,5 @@ async function fetchNewsletterEmailsViaListForms(
   }
 
   const emails = extractEmailsFromSubmissions(submissions);
-  return { emails, formId: form.id, formName: form.displayName };
+  return { emails, subscribers: extractSignupDetails(submissions), formId: form.id, formName: form.displayName, error: subErr };
 }
