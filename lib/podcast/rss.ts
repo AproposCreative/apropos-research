@@ -3,6 +3,7 @@ import type { PodcastManifest, PodcastManifestEpisode } from '@/lib/podcast/type
 import { formatItunesDuration } from '@/lib/podcast/probe-duration';
 import { articleUrlFromSlug } from '@/lib/podcast/manifest-format';
 import { podcastEpisodeGuid, selectPodcastRssEpisodes } from '@/lib/podcast/rss-episodes';
+import { applyPodcastFeedMetadata, type PodcastFeedMetadataMap } from './feed-metadata-format';
 
 function escapeXml(value: string): string {
   return value
@@ -72,11 +73,13 @@ export function buildPodcastRssXml(input: {
   manifest: PodcastManifest;
   feedUrl: string;
   showCoverUrl?: string;
+  metadata?: PodcastFeedMetadataMap;
 }): string {
   const showCover = input.showCoverUrl || podcastShowCoverUrl();
-  const lastBuild = input.manifest.updatedAt || new Date().toISOString();
+  const lastBuild = [input.manifest.updatedAt, ...Object.values(input.metadata || {}).map(m => m.updatedAt)]
+    .filter(Boolean).sort().at(-1) || new Date().toISOString();
   const episodes = selectPodcastRssEpisodes(input.manifest.episodes);
-  const items = episodes.map((ep) => buildItemXml(ep, showCover)).join('\n');
+  const items = episodes.map((ep) => buildItemXml(applyPodcastFeedMetadata(ep, input.metadata?.[podcastEpisodeGuid(ep)]), showCover)).join('\n');
 
   return `<?xml version="1.0" encoding="UTF-8"?>
 <rss version="2.0"

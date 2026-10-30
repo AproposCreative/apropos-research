@@ -3,6 +3,7 @@ import { readPodcastManifest } from '@/lib/podcast/manifest';
 import { podcastCorsHeaders, podcastPublicOptions } from '@/lib/podcast/public-cors';
 import { buildPodcastRssXml } from '@/lib/podcast/rss';
 import { podcastRssFeedUrl, podcastShowCoverUrl } from '@/lib/podcast/show-config';
+import { readPodcastFeedMetadata } from '@/lib/podcast/feed-metadata';
 
 export const runtime = 'nodejs';
 
@@ -14,8 +15,11 @@ export async function GET(req: NextRequest) {
   try {
     const origin = req.nextUrl.origin;
     const manifest = await readPodcastManifest();
+    let metadataAvailable = true;
+    const metadata = await readPodcastFeedMetadata(manifest).catch(() => { metadataAvailable = false; return {}; });
     const xml = buildPodcastRssXml({
       manifest,
+      metadata,
       feedUrl: podcastRssFeedUrl(origin),
       showCoverUrl: podcastShowCoverUrl(origin),
     });
@@ -25,16 +29,16 @@ export async function GET(req: NextRequest) {
       headers: {
         ...podcastCorsHeaders(req),
         'Content-Type': 'application/rss+xml; charset=utf-8',
-        'Cache-Control': 'public, s-maxage=300, stale-while-revalidate=600',
+        'Cache-Control': metadataAvailable ? 'public, s-maxage=300, stale-while-revalidate=600' : 'no-store',
+        'X-Podcast-Metadata': metadataAvailable ? 'synced' : 'temporarily-unavailable',
       },
     });
-  } catch (e) {
-    const msg = e instanceof Error ? e.message : 'Kunne ikke bygge RSS-feed';
+  } catch {
     return NextResponse.json(
-      { ok: false, error: msg },
+      { ok: false, error: 'Kunne ikke bygge RSS-feed' },
       {
         status: 500,
-        headers: podcastCorsHeaders(req),
+        headers: { ...podcastCorsHeaders(req), 'Cache-Control': 'no-store' },
       }
     );
   }

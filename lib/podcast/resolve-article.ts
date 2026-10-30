@@ -51,6 +51,8 @@ function descriptionFromRecord(data: Record<string, unknown>): string | null {
     'excerpt',
     'meta-description',
     'metaDescription',
+    'intro',
+    'subtitle',
     'seo-description',
     'post-summary',
     'post-body',
@@ -69,7 +71,7 @@ function coverUrlFromRecord(data: Record<string, unknown>): string | null {
       ? (data.fieldData as Record<string, unknown>)
       : data;
 
-  for (const key of ['cover', 'thumbnail', 'main-image', 'mainImage', 'image']) {
+  for (const key of ['thumb', 'cover', 'thumbnail', 'main-image', 'mainImage', 'image']) {
     const v = fd[key];
     if (typeof v === 'string' && /^https?:\/\//i.test(v.trim())) return v.trim();
     if (v && typeof v === 'object') {
@@ -143,7 +145,7 @@ async function fetchWebflowArticles(): Promise<{ items: any[]; error?: string }>
   const items: any[] = [];
 
   while (offset < 5000) {
-    const url = `https://api.webflow.com/v2/sites/${siteId}/collections/${collectionId}/items?limit=${pageSize}&offset=${offset}`;
+    const url = `https://api.webflow.com/v2/collections/${collectionId}/items/live?limit=${pageSize}&offset=${offset}`;
     const res = await fetch(url, { headers, cache: 'no-store' });
     if (!res.ok) {
       const j = await res.json().catch(() => ({}));

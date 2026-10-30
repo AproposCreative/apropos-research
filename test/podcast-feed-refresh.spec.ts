@@ -1,0 +1,40 @@
+import { beforeEach, expect, it, vi } from 'vitest';
+import { NextRequest } from 'next/server';
+const mock = vi.hoisted(() => ({ access: vi.fn(), refresh: vi.fn(), manifest: vi.fn(), metadata: vi.fn() }));
+vi.mock('@/lib/editorial-access', () => ({ editorialRequestAccess: mock.access }));
+vi.mock('@/lib/podcast/feed-refresh', () => ({ refreshPodcastFeed: mock.refresh }));
+vi.mock('@/lib/podcast/manifest', () => ({ readPodcastManifest: mock.manifest }));
+vi.mock('@/lib/podcast/feed-metadata', () => ({ readPodcastFeedMetadata: mock.metadata }));
+import { POST } from '../app/api/podcast/metadata/sync/route';
+import { GET as cron } from '../app/api/cron/podcast-metadata/route';
+import { GET as rss } from '../app/api/podcast/rss/route';
+beforeEach(() => { vi.clearAllMocks(); mock.access.mockResolvedValue(null); });
+it('requires a verified current owner for metadata writes', async () => {
+  const request = new NextRequest('https://example.test/api/podcast/metadata/sync', { method: 'POST' });
+  expect((await POST(request)).status).toBe(401);
+  mock.access.mockResolvedValue({ owner: false });
+  expect((await POST(request)).status).toBe(403);
+  expect(mock.refresh).not.toHaveBeenCalled();
+  mock.access.mockResolvedValue({ owner: true }); mock.refresh.mockResolvedValue(new Response('{}'));
+  expect((await POST(request)).status).toBe(200);
+  expect(mock.refresh).toHaveBeenCalledTimes(1);
+});
+it('requires the real cron bearer, including in development', async () => {
+  vi.stubEnv('CRON_SECRET', 'test-secret');
+  expect((await cron(new NextRequest('https://example.test/api/cron/podcast-metadata'))).status).toBe(401);
+  expect(mock.refresh).not.toHaveBeenCalled();
+  await cron(new NextRequest('https://example.test/api/cron/podcast-metadata', { headers: { authorization: 'Bearer test-secret' } }));
+  expect(mock.refresh).toHaveBeenCalledTimes(1);
+  vi.unstubAllEnvs();
+});
+it('serves existing audio during metadata outages, without caching a degraded feed or exposing errors', async () => {
+  mock.manifest.mockResolvedValue({ version: 1, episodes: [{ id: 'original', articleSlug: 'boganmeldelse', title: 'Boganmeldelse', hosts: [], audioURL: 'https://example.test/audio.m4a', publishedAt: '2026-10-01T10:00:00Z' }] });
+  mock.metadata.mockRejectedValue(Error('credential details'));
+  const response = await rss(new NextRequest('https://example.test/api/podcast/rss'));
+  expect(response.status).toBe(200);
+  expect(response.headers.get('cache-control')).toBe('no-store');
+  expect(response.headers.get('x-podcast-metadata')).toBe('temporarily-unavailable');
+  const xml = await response.text();
+  expect(xml).toContain('https://example.test/audio.m4a');
+  expect(xml).not.toContain('credential details');
+});
