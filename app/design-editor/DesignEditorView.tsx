@@ -2,7 +2,8 @@
 
 import { useState, useEffect, useCallback, useRef, useMemo } from 'react';
 import { Amiri } from 'next/font/google';
-import { EmbeddedAppHeader } from '@/components/embedded-app';
+import SocialEditorToolbar from './SocialEditorToolbar';
+import styles from './SocialEditor.module.css';
 import SocialCardCanvas, { type SocialCardData, type SocialCardSize, DIMENSIONS } from './SocialCardCanvas';
 import { exportCardToPng, exportCardToJpegBlob } from './exportCardToPng';
 import { useCardSubtitle } from './useCardSubtitle';
@@ -58,22 +59,6 @@ function describePublishError(error: unknown, stage: 'export' | 'upload'): strin
 
   return `Der opstod en fejl (${message || 'ukendt'}). Prøv igen.`;
 }
-
-/** Samme segment-knapper som Liv / Nyhedsbrev (apropos-design-system). */
-const segBtn = (active: boolean) =>
-  `min-h-11 min-w-11 rounded-lg px-2.5 py-2 text-[13px] font-medium transition-colors duration-200 ${
-    active ? 'bg-white/12 text-white shadow-sm border border-white/10' : 'text-white/45 hover:text-white/75 border border-transparent'
-  }`;
-
-const embedHeaderIconBtn = (active?: boolean) =>
-  `flex h-11 w-11 shrink-0 items-center justify-center rounded-lg border transition-colors duration-200 ${
-    active
-      ? 'border-white/25 bg-white/10 text-white'
-      : 'border-white/12 bg-white/[0.06] text-white/75 hover:bg-white/[0.12] hover:border-white/18 hover:text-white'
-  } disabled:opacity-40 disabled:pointer-events-none`;
-
-const embedHeaderPostBtn =
-  'flex h-11 shrink-0 items-center justify-center rounded-lg border border-white/15 bg-white/[0.06] px-3 text-[13px] font-medium text-white/85 transition-colors duration-200 hover:bg-white/[0.12] hover:text-white disabled:opacity-40 disabled:pointer-events-none';
 
 function PublishFeedback({
   success,
@@ -393,9 +378,10 @@ export default function DesignEditorView({ onBack, embedMode }: DesignEditorView
     const cardW = DIMENSIONS[size].width;
     const cardH = DIMENSIONS[size].height;
     const update = () => {
-      const w = el.clientWidth;
-      const h = el.clientHeight;
-      if (w && h) setScale(Math.min(w / cardW, h / cardH));
+      const padding = getComputedStyle(el);
+      const w = el.clientWidth - parseFloat(padding.paddingLeft) - parseFloat(padding.paddingRight);
+      const h = el.clientHeight - parseFloat(padding.paddingTop) - parseFloat(padding.paddingBottom);
+      if (w && h) setScale(Math.min(w / cardW, matchMedia('(min-width: 1024px)').matches ? h / cardH : Infinity, 1));
     };
     update();
     const ro = new ResizeObserver(update);
@@ -564,8 +550,8 @@ export default function DesignEditorView({ onBack, embedMode }: DesignEditorView
 
   const previewAspectRatio = size === 'story' ? '9 / 16' : '1 / 1';
   const previewMaxHeight = size === 'story' ? 996 : 468;
-  const renderedCanvasWidth = Math.max(220, Math.round(DIMENSIONS[size].width * scale));
-  const renderedCanvasHeight = Math.max(220, Math.round(DIMENSIONS[size].height * scale));
+  const renderedCanvasWidth = Math.max(1, Math.round(DIMENSIONS[size].width * scale));
+  const renderedCanvasHeight = Math.max(1, Math.round(DIMENSIONS[size].height * scale));
 
   // Preview must use the exact same rendering pipeline as export (WYSIWYG)
   useEffect(() => {
@@ -757,21 +743,21 @@ export default function DesignEditorView({ onBack, embedMode }: DesignEditorView
       ) : (
         <div
           ref={previewRef}
-          className="flex-1 min-h-0 w-full flex flex-col items-center overflow-y-auto overflow-x-hidden touch-pan-y [overscroll-behavior:contain] justify-start bg-black/25 p-3 md:p-6 app-safe-bottom"
+          className={`${styles.workspace} flex-1 min-h-0 w-full flex flex-col items-center overflow-y-auto overflow-x-hidden touch-pan-y [overscroll-behavior:contain] justify-start app-safe-bottom`}
         >
-          <div className="w-full flex min-h-min flex-col items-center gap-5 md:gap-6 pt-3 md:pt-6 pb-8">
-            {selected && <TitleControls key={cardTitle.key} title={cardTitle} />}
-            {selected?.excerpt && (
-              <SubtitleControls key={subtitle.key} subtitle={subtitle} />
-            )}
+          <div className={styles.workspaceContent}>
+            {selected && <div className={styles.copyGroup}>
+              <TitleControls key={cardTitle.key} title={cardTitle} />
+              {selected.excerpt && <SubtitleControls key={subtitle.key} subtitle={subtitle} />}
+            </div>}
             {eyebrowChips.length > 0 && size !== 'story' && (
-              <div className="inline-flex max-w-full overflow-x-auto no-scrollbar justify-start items-center gap-1.5 md:gap-2 rounded-2xl border border-white/15 bg-black/65 p-1.5 md:p-2 mb-2 md:mb-5 backdrop-blur-md shadow-[0_8px_24px_rgba(0,0,0,0.35)]">
+              <div className={`${styles.metaControls} no-scrollbar`}>
                 {eyebrowChips.map((chip, index) => (
                   <button
                     key={`${chip.type}-${index}-${chip.value}`}
                     type="button"
                     onClick={() => cycleEyebrowChip(index)}
-                    className="shrink-0 px-3 md:px-5 py-1.5 md:py-2 rounded-xl text-white text-xs md:text-[15px] font-medium bg-white/15 border border-white/25 transition-all duration-200 hover:bg-white/25 hover:border-white/50 focus:outline-none focus:ring-2 focus:ring-white/40"
+                    className={styles.metaButton}
                     title="Klik for at vælge næste"
                   >
                     {chip.label}
@@ -780,11 +766,11 @@ export default function DesignEditorView({ onBack, embedMode }: DesignEditorView
               </div>
             )}
             {size === 'story' && (
-              <div className="inline-flex max-w-full items-center gap-2 rounded-xl border border-white/15 bg-black/30 p-1.5">
+              <div className={styles.metaControls}>
                 <button
                   type="button"
                   onClick={() => setStoryMetaShuffleSeed((prev) => prev + 1)}
-                  className="min-h-11 shrink-0 px-4 py-2 rounded-lg text-white text-[13px] font-medium bg-white/10 border border-white/15 transition-colors hover:bg-white/15 focus-visible:outline focus-visible:outline-2 focus-visible:outline-white"
+                  className={styles.metaButton}
                   title="Byt rundt på story-felter"
                 >
                   Byt felter
@@ -793,7 +779,7 @@ export default function DesignEditorView({ onBack, embedMode }: DesignEditorView
                   type="button"
                   onClick={() => setStoryMetaShuffleSeed(0)}
                   disabled={storyMetaShuffleSeed === 0}
-                  className="min-h-11 shrink-0 px-4 py-2 rounded-lg text-white text-[13px] border border-white/15 transition-colors hover:bg-white/10 focus-visible:outline focus-visible:outline-2 focus-visible:outline-white disabled:opacity-45 disabled:pointer-events-none"
+                  className={styles.metaButton}
                   title="Gendan de oprindelige felter"
                 >
                   Nulstil
@@ -841,18 +827,15 @@ export default function DesignEditorView({ onBack, embedMode }: DesignEditorView
               </div>
             </div>
             {size === 'square' && (
-              <div className="px-2 pb-2" style={{ width: renderedCanvasWidth }}>
-                <div className="rounded-xl border border-white/12 bg-black/55 p-3">
-                  <div className="mb-2 flex items-center justify-between gap-3">
-                    <p className="text-[12px] font-medium text-white/80">Tekst under opslaget</p>
-                    <span className="text-[10px] uppercase tracking-wider text-white/35">1:1 post</span>
-                  </div>
+              <div className={styles.caption} style={{ width: renderedCanvasWidth }}>
+                <div>
+                  <label htmlFor="social-post-caption" className={styles.captionLabel}>Opslagstekst</label>
                   <textarea
                     value={caption}
                     onChange={(e) => setCaption(e.target.value)}
-                    placeholder="Skriv eller rediger teksten under opslaget…"
-                    className="apropos-input-dark w-full min-h-[184px] rounded-lg border px-3 py-2.5 text-[13px] resize-y"
-                    rows={7}
+                    id="social-post-caption"
+                    placeholder="Skriv opslagstekst…"
+                    rows={5}
                   />
                   <div className="mt-2">
                     <PublishFeedback success={publishSuccess} warning={publishWarning} error={instagramError} />
@@ -867,88 +850,21 @@ export default function DesignEditorView({ onBack, embedMode }: DesignEditorView
   );
 
   const rootClass = embedMode
-    ? `flex flex-col h-full min-h-0 text-white bg-[#0a0a0a] lg:bg-transparent font-poppins overflow-hidden ${amiri.variable}`
-    : `min-h-[100dvh] h-[100dvh] bg-[#0a0a0a] md:bg-[#0a0a0a] md:p-[1%] p-0 flex flex-col md:flex-row relative overflow-hidden ${amiri.variable}`;
+    ? `flex flex-col h-full min-h-0 text-white bg-black overflow-hidden ${amiri.variable}`
+    : `min-h-[100dvh] h-[100dvh] bg-black p-0 flex flex-col md:flex-row relative overflow-hidden ${amiri.variable}`;
 
-  /** Shared controls wrap onto a separate row on narrow screens. */
-  const embedToolbarControlsInner = (
-    <>
-      <div
-        className="flex shrink-0 items-center rounded-xl border border-white/15 bg-black/30 p-0.5 gap-0.5"
-        role="group"
-        aria-label="Kortformat"
-      >
-        <button
-          type="button"
-          onClick={() => { if (size !== 'square') { subtitle.carryToNextFormat(); setSize('square'); } }}
-          className={segBtn(size === 'square')}
-          aria-pressed={size === 'square'}
-          title="1080×1080 (kvadrat)"
-        >
-          1:1
-        </button>
-        <button
-          type="button"
-          onClick={() => { if (size !== 'story') { subtitle.carryToNextFormat(); setSize('story'); } }}
-          className={segBtn(size === 'story')}
-          aria-pressed={size === 'story'}
-          title="1080×1920 (story)"
-        >
-          9:16
-        </button>
-      </div>
-      <button type="button" onClick={() => setTheme(value => value === 'light' ? 'dark' : 'light')}
-        className={embedHeaderIconBtn(theme === 'dark')} aria-label={theme === 'light' ? 'Skift til mørkt design' : 'Skift til lyst design'}
-        aria-pressed={theme === 'dark'} title={theme === 'light' ? 'Mørkt design' : 'Lyst design'}>
-        <span aria-hidden="true" className="text-lg">{theme === 'light' ? '◐' : '☀'}</span>
-      </button>
-      <button
-        type="button"
-        onClick={requestPostToInstagram}
-        disabled={postingToInstagram || instagramConfigured === false}
-        className={embedHeaderPostBtn}
-        title={size === 'story' ? 'Post det viste story-design direkte til Instagram Story' : 'Post det viste opslag direkte til Instagram'}
-        aria-label={size === 'story' ? 'Post til Instagram Story' : 'Post til Instagram'}
-      >
-        {postingToInstagram ? 'Udgiver…' : 'Udgiv'}
-      </button>
-      <button
-        type="button"
-        onClick={handleExportPng}
-        disabled={exporting}
-        className={embedHeaderIconBtn()}
-        title="Eksporter PNG"
-        aria-label={exporting ? 'Eksporterer…' : 'Eksporter PNG'}
-      >
-        <svg className="size-4" fill="none" stroke="currentColor" strokeWidth="2" strokeLinecap="round" strokeLinejoin="round" viewBox="0 0 24 24"><path d="M21 15v4a2 2 0 0 1-2 2H5a2 2 0 0 1-2-2v-4"/><polyline points="7 10 12 15 17 10"/><line x1="12" y1="15" x2="12" y2="3"/></svg>
-      </button>
-    </>
-  );
-  const embedToolbarForDesktopHeader = <div className="flex flex-wrap items-center justify-start md:justify-end gap-2">{embedToolbarControlsInner}</div>;
+  const toolbar = <SocialEditorToolbar embedded={embedMode} articlesOpen={articlesOpen}
+    onArticles={() => setArticlesOpen(value => !value)} size={size}
+    onSize={next => { if (size !== next) { subtitle.carryToNextFormat(); setSize(next); } }}
+    dark={theme === 'dark'} onTheme={() => setTheme(value => value === 'light' ? 'dark' : 'light')}
+    publishing={postingToInstagram} publishDisabled={postingToInstagram || instagramConfigured === false} onPublish={requestPostToInstagram}
+    exporting={exporting} onExport={handleExportPng} onClose={onBack} />;
 
   return (
-    <div ref={rootRef} className={rootClass}>
+    <div ref={rootRef} className={`${rootClass} ${styles.root}`}>
       {embedMode ? (
         <>
-          <EmbeddedAppHeader
-            embedded
-            title="Sociale medier"
-            inlineControls
-            onClose={onBack}
-            leading={
-              <button
-                type="button"
-                onClick={() => setArticlesOpen((o) => !o)}
-                className="lg:hidden w-11 h-11 shrink-0 flex items-center justify-center rounded-lg border border-white/15 bg-white/[0.06] text-white hover:bg-white/[0.1] transition-colors"
-                title={articlesOpen ? 'Luk artikelliste' : 'Mine artikler'}
-                aria-label={articlesOpen ? 'Luk artikelliste' : 'Mine artikler'}
-                aria-pressed={articlesOpen}
-              >
-                <svg width="18" height="18" viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="2"><path d="M4 6h16M4 12h16M4 18h16" /></svg>
-              </button>
-            }
-            trailing={embedToolbarForDesktopHeader}
-          />
+          {toolbar}
           <div className="flex-1 flex min-h-0 overflow-hidden flex-col lg:flex-row">
             <aside className="hidden lg:flex w-[min(300px,100%)] shrink-0 flex-col border-r border-white/10 bg-black/10 overflow-hidden">
               <div className="px-4 py-3 border-b border-white/10 shrink-0">
@@ -991,7 +907,7 @@ export default function DesignEditorView({ onBack, embedMode }: DesignEditorView
             </aside>
 
             {/* Samme mønster som NewsletterClient embedded: ingen ekstra “kort” indeni — kun ydre embeddedPanelShell */}
-            <main className="flex-1 min-w-0 min-h-0 flex flex-col overflow-hidden bg-[#0a0a0a] lg:bg-transparent p-3">
+            <main className="flex-1 min-w-0 min-h-0 flex flex-col overflow-hidden bg-black">
               {editorCanvas}
             </main>
           </div>
@@ -1165,19 +1081,7 @@ export default function DesignEditorView({ onBack, embedMode }: DesignEditorView
       >
         <div className="h-full flex flex-col rounded-xl border border-white/15 overflow-hidden bg-black/55 md:bg-[#070707]/90 backdrop-blur-2xl md:backdrop-blur-xl shadow-[0_20px_70px_rgba(0,0,0,0.55)]">
           {/* Top bar */}
-          <EmbeddedAppHeader
-            embedded={false}
-            title="Sociale medier"
-            inlineControls
-            onClose={onBack}
-            showBackLink={!onBack}
-            leading={
-              <button onClick={() => setArticlesOpen(value => !value)} className={embedHeaderIconBtn(articlesOpen)} aria-label="Artikler" aria-pressed={articlesOpen}>
-                <svg width="18" height="18" viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="2" className="text-white"><path d="M4 6h16M4 12h16M4 18h16" /></svg>
-              </button>
-            }
-            trailing={embedToolbarForDesktopHeader}
-          />
+          {toolbar}
           {editorCanvas}
         </div>
       </div>

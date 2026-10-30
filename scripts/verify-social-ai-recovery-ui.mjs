@@ -29,16 +29,16 @@ function App(){const[id,setId]=useState('6ae474fd88698245425a7ddc');const[size,s
  const subtitle=useCardSubtitle(id,id.endsWith('c')?'TONY':'Bog',source,size,'Georgia');
  return <><nav><button onClick={()=>setId('6ae474fd88698245425a7ddc')}>TONY</button><button onClick={()=>setId('6ae1f9da0e01d3d2ff34859f')}>Bog</button><button onClick={()=>setSize('square')}>1:1</button><button onClick={()=>setSize('story')}>9:16</button></nav><p data-result>{subtitle.text}</p><Controls subtitle={subtitle}/></>}
 createRoot(document.getElementById('root')).render(<StrictMode><App/></StrictMode>);
-` }, bundle:true,write:false,jsx:'automatic',format:'iife',define:{'process.env.NODE_ENV':'"development"'},plugins:[{name:'fixture',setup(b){
+` }, bundle:true,write:false,outdir:'/virtual',jsx:'automatic',format:'iife',define:{'process.env.NODE_ENV':'"development"'},plugins:[{name:'fixture',setup(b){
  b.onResolve({filter:/^@\/lib\/firebase$/},()=>({path:'firebase',namespace:'fixture'}));
  b.onLoad({filter:/.*/,namespace:'fixture'},()=>({contents:'export const auth={authStateReady:async()=>{},currentUser:{getIdToken:async()=>"fixture-only"}};'}));
  if(baseline)b.onLoad({filter:/app\/design-editor\/useCardSubtitle\.ts$/},()=>({contents:original,loader:'ts',resolveDir:process.cwd()+'/app/design-editor'}));
  }}] });
- bundles[baseline?'baseline':'fixed']=result.outputFiles[0].text;
+ bundles[baseline?'baseline':'fixed']={js:result.outputFiles.find(f=>f.path.endsWith('.js')).text,css:result.outputFiles.find(f=>f.path.endsWith('.css'))?.text??''};
 }
 const server=createServer((req,res)=>{
- if(req.url.startsWith('/bundle-')){res.setHeader('Content-Type','text/javascript');res.end(bundles[req.url.includes('baseline')?'baseline':'fixed']);return;}
- res.setHeader('Content-Type','text/html; charset=utf-8');res.end('<!doctype html><html lang="da"><meta name="viewport" content="width=device-width,initial-scale=1"><style>body{margin:16px;background:#111;color:#fff;font:16px/1.5 system-ui}button,textarea{font:inherit;color:inherit;background:#222;border:1px solid #777;border-radius:8px;padding:8px;max-width:100%;box-sizing:border-box}textarea{width:100%}nav{display:flex;gap:8px}details{margin-top:20px}</style><div id="root"></div><script src="/bundle-'+(req.url.includes('baseline')?'baseline':'fixed')+'.js"></script></html>');
+ if(req.url.startsWith('/bundle-')){const ext=req.url.endsWith('.css')?'css':'js';res.setHeader('Content-Type',ext==='css'?'text/css':'text/javascript');res.end(bundles[req.url.includes('baseline')?'baseline':'fixed'][ext]);return;}
+ res.setHeader('Content-Type','text/html; charset=utf-8');res.end('<!doctype html><html lang="da"><meta name="viewport" content="width=device-width,initial-scale=1"><style>body{margin:16px;background:#111;color:#fff;font:16px/1.5 system-ui}button,textarea{font:inherit;color:inherit;background:#222;border:1px solid #777;border-radius:8px;padding:8px;max-width:100%;box-sizing:border-box}textarea{width:100%}nav{display:flex;gap:8px}details{margin-top:20px}</style><link rel="stylesheet" href="/bundle-fixed.css"><div id="root"></div><script src="/bundle-'+(req.url.includes('baseline')?'baseline':'fixed')+'.js"></script></html>');
 });
 await new Promise(r=>server.listen(0,'127.0.0.1',r));const origin='http://127.0.0.1:'+server.address().port;
 const browser=await chromium.launch({channel:'chrome',headless:true});const reports=[];
@@ -46,7 +46,7 @@ await mkdir('output/some-recovery-20261030',{recursive:true});
 const titleId='6ae474fd88698245425a7ddc';
 async function open(width=390,baseline=false){const p=await browser.newPage({viewport:{width,height:900}});
  await p.route('**/*',r=>new URL(r.request().url()).origin===origin?r.continue():r.abort());
- await p.goto(origin+(baseline?'/?baseline=1':''));await p.locator('summary').click();await p.getByRole('alert').waitFor();return p;}
+ await p.goto(origin+(baseline?'/?baseline=1':''));await p.locator('[data-copy-control=subtitle] > summary').click();await p.getByRole('alert').waitFor();return p;}
 const ready=async p=>{await p.waitForFunction(()=>document.querySelector('[data-result]').textContent==='Bourdains formative sommer får liv på film.'&&!document.querySelector('[role="alert"]'));};
 try{
  // Reproduce the exact broken boundary in the committed old hook.

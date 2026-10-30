@@ -1,47 +1,33 @@
 'use client';
 
 import type { useCardSubtitle } from './useCardSubtitle';
-
-const buttonClass = 'min-h-11 rounded-lg border border-white/30 px-3 py-2 focus-visible:outline focus-visible:outline-2 focus-visible:outline-offset-2 focus-visible:outline-white disabled:opacity-40';
+import { CopyChevron, CopyHelp, CopySuggestions, CopyTextarea } from './CopyControlParts';
+import styles from './SocialEditor.module.css';
 
 export default function SubtitleControls({ subtitle }: { subtitle: ReturnType<typeof useCardSubtitle> }) {
-  const adapted = subtitle.status === 'excerpt' || subtitle.status === 'chatgpt' || subtitle.status === 'ai';
-  return (
-    <details className="w-full max-w-xl rounded-xl border border-white/15 px-4 py-3 text-sm text-white">
-      <summary className="cursor-pointer py-1 leading-relaxed">Undertekst på billedet{subtitle.checking ? ' · AI forkorter automatisk' : subtitle.error ? ' · Kontrollér teksten' : !subtitle.ready ? ' · Kontrollér teksten' : adapted ? ' · Automatisk tilpasset' : ' · Klar'}</summary>
-      <label className="mt-3 block">Redigér undertekst
-        <textarea aria-label="Undertekst på billedet" value={subtitle.text} onChange={event => subtitle.edit(event.target.value)} rows={3} className="apropos-input-dark mt-1 w-full rounded-lg border p-2" />
-      </label>
-      <div className="mt-3 flex flex-wrap gap-2">
-        <button type="button" onClick={subtitle.reset} className={buttonClass}>Tilpas automatisk</button>
-        <button type="button" onClick={subtitle.nextVariant} disabled={!subtitle.canGetMore} className={buttonClass}>
-          {subtitle.checking ? 'Henter forslag…' : 'Nye forslag med AI'}
+  const status = subtitle.checking ? 'Henter…' : subtitle.error || !subtitle.ready ? 'Tjek' :
+    subtitle.status === 'ai' ? 'AI' : subtitle.status === 'excerpt' ? 'Uddrag' : subtitle.status === 'manual' ? 'Redigeret' : null;
+  return <details className={styles.copySection} data-copy-control="subtitle">
+    <summary className={styles.copySummary}><span>Undertekst</span>
+      {status && <span className={styles.copyStatus} role="status">{status}</span>}<CopyChevron />
+    </summary>
+    <div className={styles.copyBody}>
+      <CopyTextarea label="Undertekst på billedet" value={subtitle.text} onChange={subtitle.edit} />
+      <div className={styles.copyActions}>
+        <button type="button" onClick={subtitle.reset} className={styles.textButton} aria-label="Tilpas automatisk">Tilpas</button>
+        <button type="button" onClick={subtitle.nextVariant} disabled={!subtitle.canGetMore} className={styles.textButton} aria-label="Nye forslag med AI">
+          {subtitle.checking ? 'Henter…' : 'Nye forslag'}
         </button>
-        <button type="button" onClick={subtitle.restore} className={buttonClass}>Gendan original</button>
+        <button type="button" onClick={subtitle.restore} className={styles.textButton} aria-label="Gendan original">Original</button>
+        <CopyHelp />
       </div>
-      {subtitle.options.length > 0 && <div className="mt-3" aria-label="Forslag til undertekst">
-        <p className="mb-2 text-white/70">Vælg den vinkel, der passer bedst til artiklen:</p>
-        <div className="flex flex-col gap-2">
-          {subtitle.options.map((option, index) => <button key={`${index}-${option}`} type="button"
-            onClick={() => subtitle.choose(option)} aria-pressed={subtitle.status === 'ai' && subtitle.text === option}
-            className={`${buttonClass} text-left leading-relaxed ${subtitle.status === 'ai' && subtitle.text === option ? 'border-white bg-white/15' : ''}`}>
-            {option}
-          </button>)}
-        </div>
-      </div>}
-      {subtitle.maxVariantsReached && <p className="mt-2 text-white/70">Alle forslag til denne artikelversion er hentet. Du kan stadig vælge eller redigere dem.</p>}
-      <p className="mt-3 text-white/70 leading-relaxed">Kun underteksten på billedet ændres. Den oprindelige artikel bevares. Hvert nyt forslagssæt bruger ét AI-kald inden for det eksisterende engangsloft på 10 kr.</p>
-      {subtitle.status === 'ai' && <p className="mt-2 text-white/70">Forkortet automatisk med AI til dette billedformat. Kontrollér teksten før udgivelse.</p>}
-      {subtitle.status === 'chatgpt' && <p className="mt-2 text-white/70">Bruger den SoMe-tekst, ChatGPT gemte med denne artikelversion.</p>}
-      {subtitle.status === 'excerpt' && <p className="mt-2 text-white/70">{subtitle.truncated ? 'Viser begyndelsen af originalen med …' : 'Viser et afsluttet, ordret uddrag fra originalen.'} Dette er et uddrag, ikke en AI-omskrivning.</p>}
-      {subtitle.error && <p className="mt-2 text-amber-300" role="alert">{subtitle.error}</p>}
-      {subtitle.canResume && <div className="mt-3">
-        <p className="mb-2 text-white/70">En tidligere AI-afvisning er gemt. Hvis API-adgangen er genoprettet, kan ejeren genoptage her. Engangsloftet på 10 kr. gælder stadig.</p>
-        <button type="button" onClick={subtitle.resume} disabled={subtitle.resuming} className={buttonClass}>
-          {subtitle.resuming ? 'Genoptager…' : 'Genoptag AI'}
-        </button>
-      </div>}
-      {!subtitle.ready && !subtitle.checking && <p className="mt-2 text-amber-300">Denne tekst passer ikke i læsbar størrelse. Vælg Tilpas automatisk, eller redigér den.</p>}
-    </details>
-  );
+      <CopySuggestions options={subtitle.options} selected={subtitle.text} onChoose={subtitle.choose} label="Forslag til undertekst" />
+      {subtitle.maxVariantsReached && <p className={styles.copyNote}>Alle forslag er hentet.</p>}
+      {subtitle.error && <p className={styles.copyError} role="alert">{subtitle.error}</p>}
+      {subtitle.canResume && <button type="button" onClick={subtitle.resume} disabled={subtitle.resuming} className={styles.textButton}>
+        {subtitle.resuming ? 'Genoptager…' : 'Genoptag AI'}
+      </button>}
+      {!subtitle.ready && !subtitle.checking && !subtitle.error && <p className={styles.copyNote}>Forkort teksten, så den passer på billedet.</p>}
+    </div>
+  </details>;
 }
