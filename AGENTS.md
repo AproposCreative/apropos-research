@@ -8,6 +8,9 @@ tools with their actual status. Never replace the desktop workspace with the
 mobile launcher. Preserve explicit tool deep links, the mobile launcher, stored
 Writer work and personal settings. Test `/ai` without `?view=ai`, not only the
 direct Writer link. Showing a tool does not authorize paid work or change access.
+Keep the original desktop menu presentation: separate rounded outlined cards,
+40px icon tiles, compact Poppins labels and desktop ordering. The mobile tool
+list remains a separate presentation.
 
 ## Owner Google login (owner choice 2026-10-30)
 
