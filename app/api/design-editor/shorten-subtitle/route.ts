@@ -55,8 +55,9 @@ export async function POST(req: NextRequest) {
     if (claim.state === 'pending') return NextResponse.json({ code: 'subtitle_pending' }, { status: 202,
       headers: { ...headers, 'Retry-After': '1' } });
     if (claim.state === 'ambiguous') return NextResponse.json({ error: 'Det tidligere AI-kald har ukendt resultat og bliver ikke sendt igen automatisk.' }, { status: 503, headers });
-    if (claim.state === 'failed') return NextResponse.json({ code: claim.reason, generation: claim.generation, error: claim.reason in providerFailureLabel
-      ? `${providerFailureLabel[claim.reason as keyof typeof providerFailureLabel]} Kaldet bliver ikke gentaget automatisk.`
+    if (claim.state === 'failed') return NextResponse.json({ code: claim.reason, generation: claim.generation, error: claim.reason === 'quota_exhausted'
+      ? 'Et tidligere AI-kald blev afvist på grund af credits eller udbyderens forbrugsgrænse. Kaldet bliver ikke gentaget automatisk.'
+      : claim.reason in providerFailureLabel ? `${providerFailureLabel[claim.reason as keyof typeof providerFailureLabel]} Kaldet bliver ikke gentaget automatisk.`
       : 'AI-forkortelsen mislykkedes tidligere for denne tekst. Den bliver ikke kørt igen automatisk.' }, { status: 502, headers });
     key = claim.key;
     generation = claim.generation;

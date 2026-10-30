@@ -1,10 +1,11 @@
 'use client';
 
-import { useState, useEffect, useRef } from 'react';
+import { useState, useEffect, useRef, useCallback } from 'react';
 import { auth } from '@/lib/firebase';
 import { fitCardText } from './fitCardText';
 import { fitSubtitleAutomatically, type SubtitleFit } from './subtitleCopy';
 import type { SocialCardSize } from './SocialCardCanvas';
+import { notifySocialAiResumed, useSocialAiRecovery } from './useSocialAiRecovery';
 const MAX_VARIANTS = 5;
 
 export function subtitleIsReadable(text: string, size: SocialCardSize, family: string) {
@@ -95,6 +96,12 @@ export function useCardSubtitle(id: string, title: string, original: string, siz
   const latestCopy = aiCopy[JSON.stringify([key, variants[key]?.latest ?? 0])];
   const failedGeneration = ai?.state === 'failed' ? ai.generation : undefined;
   const canResume = ai?.state === 'failed' && ai.code === 'quota_exhausted' && Number.isSafeInteger(failedGeneration);
+  const recover = useCallback((generation: number) => {
+    setAiCopy(prev => Object.fromEntries(Object.entries(prev).filter(([, copy]) =>
+      !(copy.state === 'failed' && copy.code === 'quota_exhausted' &&
+        Number.isSafeInteger(copy.generation) && copy.generation! < generation))));
+  }, []);
+  useSocialAiRecovery(canResume ? failedGeneration : undefined, recover, aiKey);
   const resume = async () => {
     if (!canResume || resuming) return;
     setResuming(true);
@@ -114,8 +121,14 @@ export function useCardSubtitle(id: string, title: string, original: string, siz
       setVariants(prev => ({ ...prev, [key]: { active: 0, latest: 0, forced: true } }));
       setRefresh(value => value + 1);
     } catch (error) {
-      setAiCopy(prev => ({ ...prev, [aiKey]: { state: 'failed', error: error instanceof Error ? error.message : 'Genoptagelsen mislykkedes.' } }));
-    } finally { setResuming(false); }
+      setAiCopy(prev => ({ ...prev, [aiKey]: { state: 'failed', code: 'quota_exhausted', generation: failedGeneration,
+        error: error instanceof Error ? error.message : 'Genoptagelsen mislykkedes.' } }));
+    } finally {
+      // A conflicting/lost response may mean another card already resumed.
+      // This event only requests a read; the server generation remains proof.
+      notifySocialAiResumed();
+      setResuming(false);
+    }
   };
   const available = Array.from({ length: (variants[key]?.latest ?? 0) + 1 }, (_, index) => {
     const copy = aiCopy[JSON.stringify([key, index])];

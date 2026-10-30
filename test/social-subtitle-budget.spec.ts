@@ -3,8 +3,8 @@ import { beforeEach, describe, expect, it, vi } from 'vitest';
 const mocks = vi.hoisted(() => ({ db: null as unknown, allowed: vi.fn() }));
 vi.mock('@/lib/firebase-admin', () => ({ getAdminDb: () => mocks.db }));
 vi.mock('@/lib/ai/no-paid-calls', () => ({ assertPaidAiAllowed: mocks.allowed }));
-vi.mock('@/lib/ai/provider-hold', () => ({ providerHoldRef: () => ({ path: 'holds/provider' }) }));
-import { claimSocialSubtitle, finishSocialSubtitle, resumeSocialSubtitleBudget, socialSubtitleKey, socialSubtitleQuoteDkkMicros,
+vi.mock('@/lib/ai/provider-hold', () => ({ providerHoldRef: (db: { collection: (name: string) => { doc: (id: string) => unknown } }) => db.collection('holds').doc('provider') }));
+import { claimSocialSubtitle, finishSocialSubtitle, readSocialSubtitleStatus, resumeSocialSubtitleBudget, socialSubtitleKey, socialSubtitleQuoteDkkMicros,
   SOCIAL_SUBTITLE_LIMIT_DKK_MICROS } from '../lib/ai/social-subtitle-budget';
 
 const input = { articleId: '6accb9d4a4cfa06c22daba31', title: 'En titel',
@@ -119,6 +119,38 @@ describe('one-time SoMe AI cap', () => {
     expect(rows.get(`socialSubtitleAI/${firstKey}`)?.failure).toBe('quota_exhausted');
     expect(rows.get(budgetPath)?.calls).toBe(2);
     expect(rows.get(budgetPath)?.limitDkkMicros).toBe(SOCIAL_SUBTITLE_LIMIT_DKK_MICROS);
+    expect(rows.get(budgetPath)?.resumedBy).toBe('owner');
+    expect(rows.get(`socialSubtitleAI/${socialSubtitleKey(input, 1)}`)?.generation).toBe(1);
+  });
+  it('reads the current resumption without resetting a cap, failure or reservation', async () => {
+    const rows = fakeStore();
+    await claimSocialSubtitle(input, 'editor-1', JSON.stringify(input));
+    await finishSocialSubtitle(socialSubtitleKey(input), null, null, 'quota_exhausted');
+    expect(await readSocialSubtitleStatus()).toEqual({ generation: 0, blocked: true });
+    await resumeSocialSubtitleBudget('owner', 0);
+    const before = JSON.stringify([...rows]);
+    expect(await readSocialSubtitleStatus()).toEqual({ generation: 1, blocked: false });
+    expect(JSON.stringify([...rows])).toBe(before);
+    rows.set('holds/provider', { blocked: true });
+    expect(await readSocialSubtitleStatus()).toEqual({ generation: 1, blocked: true });
+  });
+  it('does not let a late old provider failure reblock an explicitly resumed generation', async () => {
+    const rows = fakeStore(), another = { ...input, articleId: '6accb9d4a4cfa06c22daba32' };
+    await claimSocialSubtitle(input, 'editor-1', JSON.stringify(input));
+    await claimSocialSubtitle(another, 'editor-1', JSON.stringify(another));
+    await finishSocialSubtitle(socialSubtitleKey(input), null, null, 'quota_exhausted');
+    await resumeSocialSubtitleBudget('owner', 0);
+    const before = { ...rows.get(budgetPath) };
+    await finishSocialSubtitle(socialSubtitleKey(another), null, null, 'quota_exhausted');
+    expect(rows.get(budgetPath)).toEqual(before);
+    expect(rows.get(`socialSubtitleAI/${socialSubtitleKey(another)}`)?.failure).toBe('quota_exhausted');
+    expect(await readSocialSubtitleStatus()).toEqual({ generation: 1, blocked: false });
+  });
+  it('fails closed for a missing or malformed recovery status', async () => {
+    const rows = fakeStore();
+    await expect(readSocialSubtitleStatus()).rejects.toThrow('social_subtitle_budget_invalid');
+    rows.set(budgetPath, { id: 'other', generation: 1000 });
+    await expect(readSocialSubtitleStatus()).rejects.toThrow('social_subtitle_budget_invalid');
   });
   it('rejects a new call before transport if the fixed lifetime cap is exhausted', async () => {
     const rows = fakeStore();

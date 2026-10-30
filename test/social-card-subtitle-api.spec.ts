@@ -56,6 +56,14 @@ describe('SoMe subtitle AI', () => {
     expect(pending.headers.get('retry-after')).toBe('1');
     expect(mocks.create).not.toHaveBeenCalled();
   });
+  it('labels a retained quota failure as historical and returns its recovery generation without transport', async () => {
+    mocks.claim.mockResolvedValueOnce({ state: 'failed', reason: 'quota_exhausted', generation: 1 });
+    const response = await POST(request(input)), body = await response.json();
+    expect(response.status).toBe(502);
+    expect(body).toMatchObject({ code: 'quota_exhausted', generation: 1 });
+    expect(body.error).toMatch(/^Et tidligere AI-kald blev afvist/);
+    expect(mocks.create).not.toHaveBeenCalled(); expect(mocks.finish).not.toHaveBeenCalled();
+  });
   it('requests a distinct, explicit variant and excludes earlier suggestions', async () => {
     mocks.previous.mockResolvedValue(['Kontrapunkt former vores visuelle hverdag.']);
     mocks.create.mockResolvedValueOnce({ choices: [{ finish_reason: 'stop', message: { content:

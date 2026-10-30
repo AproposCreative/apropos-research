@@ -26,6 +26,22 @@ function database() {
   return db;
 }
 
+/** Read-only recovery signal. A newer explicit resumption may invalidate a
+ * browser's old quota error; this never resumes a budget or calls a provider. */
+export async function readSocialSubtitleStatus() {
+  const db = database();
+  const [budget, hold] = await Promise.all([
+    db.collection('aiExecutionPolicies').doc(BUDGET_ID).get(), providerHoldRef(db).get(),
+  ]);
+  const row = budget.data();
+  if (!row || row.id !== BUDGET_ID || row.mode !== VERSION || row.limitDkkMicros !== SOCIAL_SUBTITLE_LIMIT_DKK_MICROS ||
+    !Number.isSafeInteger(row.generation ?? 0) || (row.generation ?? 0) < 0 || (row.generation ?? 0) > 100 ||
+    !Number.isSafeInteger(row.usedUpperDkkMicros) || row.usedUpperDkkMicros < 0 ||
+    row.usedUpperDkkMicros > SOCIAL_SUBTITLE_LIMIT_DKK_MICROS) throw new Error('social_subtitle_budget_invalid');
+  return { generation: row.generation ?? 0,
+    blocked: row.blocked === true || hold.data()?.blocked === true || row.usedUpperDkkMicros >= SOCIAL_SUBTITLE_LIMIT_DKK_MICROS };
+}
+
 export function socialSubtitleKey(input: SocialSubtitleInput, generation = 0, variant = 0) {
   return createHash('sha256').update(JSON.stringify([VERSION, input.articleId, input.title, input.subtitle, input.size,
     ...(generation ? [generation] : []), ...(variant ? [`variant:${variant}`] : []),
@@ -107,12 +123,12 @@ export async function claimSocialSubtitle(input: SocialSubtitleInput, uid: strin
     if (old?.blocked === true) return { state: 'failed', reason: typeof old.blockedReason === 'string' ? old.blockedReason : 'unknown', generation };
     if (used + amount > SOCIAL_SUBTITLE_LIMIT_DKK_MICROS) throw new Error('social_subtitle_budget_exceeded');
     const now = new Date().toISOString();
-    tx.set(budgetRef, { id: BUDGET_ID, mode: VERSION, limitDkkMicros: SOCIAL_SUBTITLE_LIMIT_DKK_MICROS,
+    tx.set(budgetRef, { ...old, id: BUDGET_ID, mode: VERSION, limitDkkMicros: SOCIAL_SUBTITLE_LIMIT_DKK_MICROS,
       usedUpperDkkMicros: used + amount, calls: (old?.calls ?? 0) + 1,
       blocked: old?.blocked ?? false, generation, activatedAt: old?.activatedAt ?? now,
       activatedBy: old?.activatedBy ?? uid, pricingSource: 'https://developers.openai.com/api/docs/models/gpt-6-luna',
       priceCheckedAt: '2026-10-25', usdToDkkCeiling: 12, priceMultiplier: 2, updatedAt: now });
-    tx.create(cacheRef, { status: 'pending', articleId: input.articleId, size: input.size, field: input.field ?? 'subtitle', variant,
+    tx.create(cacheRef, { status: 'pending', generation, articleId: input.articleId, size: input.size, field: input.field ?? 'subtitle', variant,
       model: SOCIAL_SUBTITLE_MODEL, reservedUpperDkkMicros: amount, createdAt: now, createdBy: uid });
     return { state: 'reserved', key, generation };
   });
@@ -150,9 +166,12 @@ export async function finishSocialSubtitle(key: string, candidates: string[] | n
   const db = database(), ref = db.collection('socialSubtitleAI').doc(key);
   const budgetRef = db.collection('aiExecutionPolicies').doc(BUDGET_ID);
   await db.runTransaction(async tx => {
-    const snap = await tx.get(ref);
+    const [snap, budget] = await Promise.all([tx.get(ref), tx.get(budgetRef)]);
     if (snap.data()?.status !== 'pending') return;
-    if (!candidates?.length && TERMINAL_PROVIDER_FAILURES.has(failure ?? '')) {
+    // A late response from before an explicit resumption must not close the
+    // current generation. Keep that old failure and its reservation intact.
+    if (!candidates?.length && TERMINAL_PROVIDER_FAILURES.has(failure ?? '') &&
+      (snap.data()?.generation ?? 0) === (budget.data()?.generation ?? 0)) {
       tx.update(budgetRef, { blocked: true, blockedReason: failure, blockedAt: new Date().toISOString() });
     }
     tx.update(ref, { status: candidates?.length ? 'ready' : 'failed',
