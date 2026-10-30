@@ -15,6 +15,8 @@ const STORY_META_TO_CTA_GAP = 40;
 // Additional whitespace below the subtitle, not added line-height. Preview,
 // download and publishing all share this renderer (1080px export coordinates).
 const SUBTITLE_BOTTOM_SPACE = 18;
+// Visible ink-to-ink gap, independent of manual title/subtitle enlargement.
+const TITLE_TO_SUBTITLE_GAP = 24;
 
 const SQUARE_LOGO_TOP = 60;
 const SQUARE_LOGO_W = 150;
@@ -312,21 +314,24 @@ async function renderCardToContext(
   ctx.fillStyle = foreground;
   const titleLines = titleFit.lines;
   const lineHeightPx = titleSize * (typeof titleLineHeight === 'number' ? titleLineHeight : 1.2);
+  let titleInkBottom = y;
   for (const line of titleLines) {
     ctx.fillText(line, width / 2, y);
+    const descent = ctx.measureText(line).actualBoundingBoxDescent;
+    titleInkBottom = y + (Number.isFinite(descent) ? descent : titleSize * 0.2);
     y += lineHeightPx;
   }
 
   // Byline (under H1): #353535, Amiri italic 57px, 400, line-height 120%
   if (data.excerpt) {
-    // Story gets 16px more breathing room; following metadata/CTA/image move with it.
-    y += isStory ? 6 : -10;
     const excerptFit = sizeCardText(ctx, data.excerpt, maxBylineWidth, isStory ? 3 : 2, excerptSize, value => `italic 400 ${value}px ${amiriFontFamily}`, data.subtitleSizePercent);
     excerptSize = excerptFit.fontSize;
     ctx.font = `italic 400 ${excerptSize}px ${amiriFontFamily}`;
     ctx.fillStyle = dark ? foreground : isStory ? STORY_BYLINE_COLOR : BYLINE_COLOR;
     ctx.textAlign = 'center';
     const excerptLines = excerptFit.lines;
+    const ascent = ctx.measureText(excerptLines[0] || '').actualBoundingBoxAscent;
+    y = titleInkBottom + TITLE_TO_SUBTITLE_GAP + (Number.isFinite(ascent) ? ascent : excerptSize * 0.75);
     const bylineLineHeight = excerptSize * (isStory ? STORY_BYLINE_LINE_HEIGHT : BYLINE_LINE_HEIGHT);
     for (const line of excerptLines) {
       ctx.fillText(line, width / 2, y);
