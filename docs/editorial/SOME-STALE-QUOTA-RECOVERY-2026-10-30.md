@@ -61,3 +61,25 @@ CMS/social afsendelse indgår i browsertesten.
 Evidens: output/some-recovery-20261030/readback-tony.json,
 browser-report.json og de tre recovered-skærmbilleder. Deployment/readback
 tilføjes efter release; lokale fixtures er ikke bevis for ny TONY-generering.
+
+## Produktion, 30. oktober kl. 12:28 Copenhagen
+
+Commit 27acac5f81b7cca0472e792be5554afde9369a95 er bygget og deployet som
+dpl_B1Lqvk8CDEiWKZWDUBWYP6GoDAgu. Vercel READY og direkte opslag af
+ai.aproposmagazine.com matchede samme SHA og deployment. Den nye private
+statusroute returnerede HTTP 401/no-store uden redaktørlogin. Læsefunktionen
+blev desuden verificeret mod de aktuelle durable records med eksisterende
+serviceadgang og korrekt credential-bundet providerhold: generation=2,
+blocked=false. Dette er ikke en ny kvota-/saldopåstand.
+
+Kl. 2026-10-30T11:28:00.985Z var SoMe stadig 13 kald / 237.720 DKK-mikro
+reserveret af det uændrede 10 DKK-loft. De syv observerede policy-/ledger-/
+nyhedsbrevsrecords havde identiske før/efter-hashes. Verifikationen foretog
+ingen AI-kald eller produktionsdataændringer. TONY havde fortsat ingen gemt
+generering; et nyt faktisk forslag må ikke påstås modtaget før en ny
+godkendt-generation-request fra editoren. De allerede gemte rigtige bogsvar
+og den isolerede browsertest er forskellige beviser.
+
+Receipt: output/some-recovery-20261030/production-receipt.json. En allerede
+åben browser skal indlæse den nye klientversion én gang. Derefter bliver
+fremtidige genoptagelser synkroniseret uden gentagne login-/betalingskrav.
