@@ -1,4 +1,7 @@
 'use client';
+import ToolTabs from '@/components/embedded-app/ToolTabs';
+
+import toolStyles from '@/components/tool-surface.module.css';
 
 import { useCallback, useEffect, useMemo, useState } from 'react';
 import { EmbeddedAppHeader } from '@/components/embedded-app';
@@ -38,10 +41,6 @@ const secondaryBtn =
   'px-3 py-2 rounded-xl border border-white/12 text-[12px] text-white/75 hover:bg-white/[0.05] hover:border-white/18 disabled:opacity-40 transition-all duration-200 active:scale-[0.98]';
 const dangerOutlineBtn =
   'px-3 py-2 rounded-xl border border-white/25 text-[12px] text-white/90 hover:bg-white/[0.08] disabled:opacity-40 transition-all duration-200 active:scale-[0.98]';
-const segBtn = (active: boolean) =>
-  `rounded-lg px-2.5 py-1 text-[11px] font-medium tracking-wide transition-all duration-200 active:scale-[0.97] ${
-    active ? 'bg-white/12 text-white shadow-sm border border-white/10' : 'text-white/45 hover:text-white/75'
-  }`;
 const inputClass =
   'apropos-input-dark w-full rounded-lg border border-white/[0.12] bg-[#141414] px-3 py-2.5 text-[13px] text-white focus:border-white/25 focus:outline-none focus:ring-1 focus:ring-white/10 [color-scheme:dark]';
 
@@ -102,7 +101,7 @@ function InboxItemCard({
   const canSend = canAct && !isTask && Boolean(item.draftReply?.trim());
 
   return (
-    <div className="rounded-xl border border-white/[0.08] bg-white/[0.02] p-3.5">
+    <div className="rounded-xl border border-white/[0.08] bg-[#1c1c1e] p-3.5">
       <div className="flex flex-wrap items-start justify-between gap-2">
         <div className="min-w-0">
           <p className="truncate text-[13px] font-medium text-white/90">{item.subject || '(intet emne)'}</p>
@@ -175,7 +174,7 @@ function InboxItemCard({
       ) : (
         item.draftReply &&
         item.status !== 'dismissed' && (
-          <pre className="mt-2.5 whitespace-pre-wrap rounded-lg border border-white/[0.06] bg-black/30 px-3 py-2.5 font-poppins text-[12px] leading-relaxed text-white/80">
+          <pre className={`${toolStyles.surface} mt-2.5 whitespace-pre-wrap rounded-lg border border-white/[0.06] bg-black/30 px-3 py-2.5  text-[12px] leading-relaxed text-white/80`}>
             {item.draftReply}
           </pre>
         )
@@ -267,7 +266,7 @@ function AutoToggle({
         />
       </span>
       <span className="text-[12px] font-medium tracking-wide whitespace-nowrap">
-        Auto-svar {enabled ? 'ON' : 'OFF'}
+        Auto {enabled ? 'til' : 'fra'}
       </span>
     </button>
   );
@@ -484,24 +483,12 @@ export default function LivInboxClient({ embedded = false, onClose }: Props) {
   ];
 
   return (
-    <div className="flex flex-col h-full min-h-0 text-white bg-transparent font-poppins">
+    <div className={`${toolStyles.surface} flex flex-col h-full min-h-0 text-white bg-transparent `}>
       <EmbeddedAppHeader
         embedded={embedded}
         title="Liv Indbakke"
-        subtitle="Liv svarer proaktivt og rækker kun ud, når hun er i tvivl"
         onClose={onClose}
-        trailing={
-          <div className="flex flex-wrap items-center gap-2">
-            <AutoToggle enabled={deskLive} busy={busy} onToggle={toggleAuto} />
-            <div className="flex flex-wrap items-center gap-1">
-              {tabs.map((t) => (
-                <button key={t.id} type="button" className={segBtn(tab === t.id)} onClick={() => setTab(t.id)}>
-                  {t.label}
-                </button>
-              ))}
-            </div>
-          </div>
-        }
+        trailing={<div className="flex items-center gap-1"><AutoToggle enabled={deskLive} busy={busy} onToggle={toggleAuto} /><ToolTabs value={tab} options={tabs} onChange={setTab} label="Postkassevisning" /></div>}
       />
 
       <main className="flex-1 min-h-0 overflow-y-auto nice-scrollbar px-3 py-3 lg:px-4 lg:py-4">
@@ -513,7 +500,7 @@ export default function LivInboxClient({ embedded = false, onClose }: Props) {
 
         {tab === 'inbox' && (
           <div className="flex flex-col gap-3">
-            <div className="rounded-xl border border-white/[0.08] bg-white/[0.02] p-3.5">
+            <div className="rounded-xl border border-white/[0.08] bg-[#1c1c1e] p-3.5">
               <div className="flex flex-wrap items-center justify-between gap-3">
                 <div className="min-w-0">
                   <p className="flex items-center gap-2 text-[12px] font-medium text-white/80">
@@ -578,7 +565,7 @@ export default function LivInboxClient({ embedded = false, onClose }: Props) {
 
             <div className="flex flex-col gap-3">
               {openItems.length === 0 && (
-                <div className="rounded-xl border border-white/[0.06] bg-white/[0.02] px-3.5 py-8 text-center text-[12px] text-white/40">
+                <div className="rounded-xl border border-white/[0.06] bg-[#1c1c1e] px-3.5 py-8 text-center text-[12px] text-white/40">
                   {dismissedItems.length
                     ? 'Ingen åbne henvendelser. Afviste ligger nedenfor.'
                     : 'Ingen henvendelser endnu. Tryk Hent nye mails, eller vent på næste auto-hentning.'}
@@ -610,7 +597,7 @@ export default function LivInboxClient({ embedded = false, onClose }: Props) {
                   className={`flex items-center gap-3 w-full px-3.5 py-2.5 rounded-xl border transition-all duration-200 active:scale-[0.98] ${
                     dismissedOpen
                       ? 'border-white/15 bg-white/[0.05]'
-                      : 'border-white/[0.06] hover:bg-white/[0.03]'
+                      : 'border-white/[0.06] hover:bg-[#1c1c1e]'
                   }`}
                 >
                   <div className="flex size-7 shrink-0 items-center justify-center rounded-lg bg-white/[0.06] text-white/50">
@@ -747,7 +734,7 @@ export default function LivInboxClient({ embedded = false, onClose }: Props) {
                 { label: 'Eskaleringsrate', value: metrics ? `${metrics.escalationRate}%` : '-' },
                 { label: 'Kendte kontakter', value: metrics ? String(metrics.knownContacts) : '-' },
               ].map((m) => (
-                <div key={m.label} className="rounded-xl border border-white/[0.08] bg-white/[0.02] p-3">
+                <div key={m.label} className="rounded-xl border border-white/[0.08] bg-[#1c1c1e] p-3">
                   <p className="text-[18px] font-medium text-white/90">{m.value}</p>
                   <p className="mt-0.5 text-[10px] uppercase tracking-wider text-white/40">{m.label}</p>
                 </div>
@@ -759,14 +746,14 @@ export default function LivInboxClient({ embedded = false, onClose }: Props) {
               <p className="mb-2 text-[12px] font-medium text-white/80">Seneste aktivitet</p>
               <div className="flex flex-col gap-1.5">
                 {activity.length === 0 && (
-                  <p className="rounded-xl border border-white/[0.06] bg-white/[0.02] px-4 py-6 text-center text-[12px] text-white/40">
+                  <p className="rounded-xl border border-white/[0.06] bg-[#1c1c1e] px-4 py-3 text-center text-[12px] text-white/40">
                     Ingen aktivitet endnu.
                   </p>
                 )}
                 {activity.map((e) => (
                   <div
                     key={e.id}
-                    className="flex items-center justify-between gap-3 rounded-lg border border-white/[0.06] bg-white/[0.02] px-3 py-2"
+                    className="flex items-center justify-between gap-3 rounded-lg border border-white/[0.06] bg-[#1c1c1e] px-3 py-2"
                   >
                     <div className="min-w-0">
                       <span className="text-[11px] font-medium text-white/80">

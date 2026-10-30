@@ -1,5 +1,7 @@
 'use client';
 
+import toolStyles from '@/components/tool-surface.module.css';
+
 import { useCallback, useEffect, useMemo, useRef, useState } from 'react';
 import Link from 'next/link';
 import { EmbeddedAppHeader } from '@/components/embedded-app';
@@ -875,7 +877,7 @@ export default function NewsletterClient({ embedded = false, onClose }: Newslett
       className={`flex items-center gap-3 w-full px-4 py-3 rounded-xl border transition-all duration-200 active:scale-[0.98] ${
         mobileSection === key
           ? 'border-white/20 bg-white/[0.06]'
-          : 'border-white/[0.08] bg-white/[0.02] hover:bg-white/[0.04]'
+          : 'border-white/[0.08] bg-[#1c1c1e] hover:bg-white/[0.04]'
       }`}
     >
       <div className="flex size-8 shrink-0 items-center justify-center rounded-lg bg-white/[0.06] text-white/60">
@@ -1074,7 +1076,7 @@ export default function NewsletterClient({ embedded = false, onClose }: Newslett
   );
 
   const metaBlock = meta && (
-    <div className="rounded-xl border border-white/[0.08] bg-white/[0.02] px-3 py-3 space-y-2.5 text-[13px]">
+    <div className="rounded-xl border border-white/[0.08] bg-[#1c1c1e] px-3 py-3 space-y-2.5 text-[13px]">
       {subject ? (<div><p className="text-[12px] text-white/38 mb-0.5">Emne</p><p className="text-white/[0.88] leading-snug break-words">{subject}</p></div>) : null}
       <div className="grid gap-1 text-white/45 text-[12px]">
         {meta.headline ? <p><span className="text-white/40">Overskrift</span> <span className="text-white/70">{meta.headline}</span></p> : null}
@@ -1172,7 +1174,7 @@ export default function NewsletterClient({ embedded = false, onClose }: Newslett
 
       <p className="text-[12px] text-white/38 mt-3">Valgte artikler ({customSelectedIds.length}/8)</p>
       {customSelectedIds.length > 0 ? (
-        <ul className="space-y-1.5 rounded-lg border border-white/[0.10] bg-white/[0.03] p-2">
+        <ul className="space-y-1.5 rounded-lg border border-white/[0.10] bg-[#1c1c1e] p-2">
           {customSelectedIds.map((id, i) => (
             <li
               key={id}
@@ -1225,7 +1227,7 @@ export default function NewsletterClient({ embedded = false, onClose }: Newslett
         placeholder="Titel…"
         className="w-full px-3 py-2 rounded-lg border border-white/[0.12] bg-[#141414] text-[13px] text-white placeholder:text-white/28 focus:border-white/25 focus:outline-none focus:ring-1 focus:ring-white/10 [color-scheme:dark]"
       />
-      <div className="max-h-52 overflow-y-auto rounded-lg border border-white/[0.10] bg-black/20 mt-1 divide-y divide-white/[0.06]">
+      <div className="max-h-52 overflow-y-auto rounded-lg border border-white/[0.10] bg-[#1c1c1e] mt-1 divide-y divide-white/[0.06]">
         {articlePickerLoading ? (
           <p className="text-[12px] text-white/40 p-3">Henter…</p>
         ) : articlePicker.length === 0 ? (
@@ -1272,7 +1274,7 @@ export default function NewsletterClient({ embedded = false, onClose }: Newslett
           const on = Boolean(presetTestActive[email]);
           return (
             <button key={email} type="button" onClick={() => setPresetTestActive((p) => ({ ...p, [email]: !p[email] }))} aria-pressed={on}
-              className={`inline-flex max-w-full min-h-0 items-center gap-0.5 rounded-md border px-1.5 py-0.5 text-left text-[10px] leading-snug transition-colors active:scale-[0.98] ${on ? 'border-emerald-500/45 bg-emerald-500/[0.12] text-emerald-50/95' : 'border-white/[0.08] bg-white/[0.03] text-white/40 hover:border-white/15 hover:bg-white/[0.05] hover:text-white/55'}`}>
+              className={`inline-flex max-w-full min-h-0 items-center gap-0.5 rounded-md border px-1.5 py-0.5 text-left text-[10px] leading-snug transition-colors active:scale-[0.98] ${on ? 'border-emerald-500/45 bg-emerald-500/[0.12] text-emerald-50/95' : 'border-white/[0.08] bg-[#1c1c1e] text-white/40 hover:border-white/15 hover:bg-white/[0.05] hover:text-white/55'}`}>
               {on ? <svg className="size-2.5 shrink-0 text-emerald-400" viewBox="0 0 12 12" fill="none" aria-hidden><path d="M10 3L4.5 8.5L2 6" stroke="currentColor" strokeWidth="1.5" strokeLinecap="round" strokeLinejoin="round" /></svg> : null}
               <span className="truncate">{email}</span>
             </button>
@@ -1348,7 +1350,7 @@ export default function NewsletterClient({ embedded = false, onClose }: Newslett
       </div>
     </div>
   ) : (
-    <div className="h-full min-h-[160px] flex items-center justify-center rounded-xl border border-dashed border-white/[0.08] bg-black/15 text-white/32 text-[13px] px-6 text-center">
+    <div className="h-full min-h-[160px] flex items-center justify-center rounded-xl border border-dashed border-white/[0.08] bg-black/15 text-white/32 text-[13px] px-3 text-center">
       {busy ? 'Henter preview…' : 'Hent Preview'}
     </div>
   );
@@ -1356,33 +1358,24 @@ export default function NewsletterClient({ embedded = false, onClose }: Newslett
   /* ══════════════════════════ RENDER ══════════════════════════ */
 
   return (
-    <div className={embedded
-      ? 'flex flex-col h-full min-h-0 text-white bg-transparent font-poppins'
-      : 'min-h-[100dvh] flex flex-col text-white bg-[#0a0a0a] font-poppins'
-    }>
+    <div className={`${toolStyles.surface} ${embedded
+      ? 'flex flex-col h-full min-h-0 text-white bg-transparent font-sans'
+      : 'min-h-[100dvh] flex flex-col text-white bg-[#0a0a0a] font-sans'}`}>
       <EmbeddedAppHeader
         embedded={embedded}
         title="Nyhedsbrev"
         onClose={onClose}
-        trailing={
-          <div className="hidden lg:flex items-center gap-2">
-            <div className="flex rounded-lg border border-white/12 p-0.5 gap-0.5 bg-black/30 backdrop-blur-sm" role="group" aria-label="Preview-tema">
-              <button type="button" onClick={() => setPreviewTheme('light')} className={segBtn(previewTheme === 'light')}>Lys</button>
-              <button type="button" onClick={() => setPreviewTheme('dark')} className={segBtn(previewTheme === 'dark')}>Mørk</button>
-            </div>
-            <div className="flex rounded-lg border border-white/12 p-0.5 gap-0.5 bg-black/30 backdrop-blur-sm" role="group" aria-label="Preview-bredde">
-              <button type="button" onClick={() => setPreviewViewport('mobile')} className={segBtn(previewViewport === 'mobile')}>Mobile</button>
-              <button type="button" onClick={() => setPreviewViewport('desktop')} className={segBtn(previewViewport === 'desktop')}>Desktop</button>
-            </div>
-          </div>
-        }
+        trailing={<div className="flex items-center gap-1">
+          <button type="button" className={toolStyles.iconButton} onClick={() => setPreviewTheme(previewTheme === 'light' ? 'dark' : 'light')} aria-label={previewTheme === 'light' ? 'Vis mørkt preview' : 'Vis lyst preview'} title="Skift preview-tema"><svg aria-hidden="true" width="20" height="20" viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="1.6"><circle cx="12" cy="12" r="9"/><path d="M12 3a9 9 0 0 0 0 18Z" fill="currentColor"/></svg></button>
+          <button type="button" className={toolStyles.iconButton} onClick={() => setPreviewViewport(previewViewport === 'mobile' ? 'desktop' : 'mobile')} aria-label={previewViewport === 'mobile' ? 'Vis på computer' : 'Vis på mobil'} title="Skift preview-bredde"><svg aria-hidden="true" width="20" height="20" viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="1.6">{previewViewport === 'mobile' ? <rect x="6" y="2" width="12" height="20" rx="2"/> : <><rect x="2" y="3" width="20" height="14" rx="2"/><path d="M8 21h8m-4-4v4"/></>}</svg></button>
+        </div>}
       />
 
       {/* ── Desktop: classic sidebar + preview ── */}
       <div className="flex-1 hidden lg:flex min-h-0 overflow-hidden">
         <aside className={embedded
           ? 'w-[min(300px,100%)] shrink-0 border-r border-white/10 p-3 px-4 py-4 space-y-3 overflow-y-auto bg-black/10'
-          : 'w-[380px] shrink-0 border-r border-white/10 p-5 space-y-4 overflow-y-auto bg-[#0c0c0c]'
+          : 'w-[380px] shrink-0 border-r border-white/10 p-3 space-y-4 overflow-y-auto bg-[#0c0c0c]'
         }>
           {/* Status dashboard */}
           {statusDashboard}
@@ -1401,7 +1394,7 @@ export default function NewsletterClient({ embedded = false, onClose }: Newslett
             {/* Auto-send */}
             <button type="button" onClick={() => toggleDesktopSection('auto')}
               aria-label={`Automatisk udsendelse, ${weeklyAutoEnabled ? `${ISO_WEEKDAY_DA[weeklyWeekdayIso] ?? '—'} kl. ${weeklyTimeHHMM}` : 'Slået fra'}`}
-              className={`flex items-center gap-3 w-full px-3.5 py-2.5 rounded-xl border transition-all duration-200 active:scale-[0.98] ${desktopSection === 'auto' ? 'border-white/15 bg-white/[0.05]' : 'border-white/[0.06] hover:bg-white/[0.03]'}`}>
+              className={`flex items-center gap-3 w-full px-3.5 py-2.5 rounded-xl border transition-all duration-200 active:scale-[0.98] ${desktopSection === 'auto' ? 'border-white/15 bg-white/[0.05]' : 'border-white/[0.06] hover:bg-[#1c1c1e]'}`}>
               <div className="flex size-7 shrink-0 items-center justify-center rounded-lg bg-white/[0.06] text-white/50">
                 <svg width="14" height="14" viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="1.5"><circle cx="12" cy="12" r="10"/><path d="M12 6v6l4 2"/></svg>
               </div>
@@ -1412,13 +1405,13 @@ export default function NewsletterClient({ embedded = false, onClose }: Newslett
               <svg className={`size-3.5 shrink-0 text-white/25 transition-transform duration-200 ${desktopSection === 'auto' ? 'rotate-180' : ''}`} viewBox="0 0 20 20" fill="none" stroke="currentColor" strokeWidth={1.5}><path strokeLinecap="round" strokeLinejoin="round" d="M6 8l4 4 4-4" /></svg>
             </button>
             {desktopSection === 'auto' && (
-              <div className="rounded-xl border border-white/[0.08] bg-white/[0.02] px-3 py-3 space-y-3 ml-1">{autoSendBlock}</div>
+              <div className="rounded-xl border border-white/[0.08] bg-[#1c1c1e] px-3 py-3 space-y-3 ml-1">{autoSendBlock}</div>
             )}
 
             {/* Test */}
             <button type="button" onClick={() => toggleDesktopSection('test')}
               aria-label={`Testmail, ${activeTestRecipients.length} modtager${activeTestRecipients.length !== 1 ? 'e' : ''}`}
-              className={`flex items-center gap-3 w-full px-3.5 py-2.5 rounded-xl border transition-all duration-200 active:scale-[0.98] ${desktopSection === 'test' ? 'border-white/15 bg-white/[0.05]' : 'border-white/[0.06] hover:bg-white/[0.03]'}`}>
+              className={`flex items-center gap-3 w-full px-3.5 py-2.5 rounded-xl border transition-all duration-200 active:scale-[0.98] ${desktopSection === 'test' ? 'border-white/15 bg-white/[0.05]' : 'border-white/[0.06] hover:bg-[#1c1c1e]'}`}>
               <div className="flex size-7 shrink-0 items-center justify-center rounded-lg bg-white/[0.06] text-white/50">
                 <svg width="14" height="14" viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="1.5"><path d="M4 4h16c1.1 0 2 .9 2 2v12c0 1.1-.9 2-2 2H4c-1.1 0-2-.9-2-2V6c0-1.1.9-2 2-2z"/><path d="m22 6-10 7L2 6"/></svg>
               </div>
@@ -1437,7 +1430,7 @@ export default function NewsletterClient({ embedded = false, onClose }: Newslett
               type="button"
               onClick={() => toggleDesktopSection('custom')}
               aria-label={`Custom nyhedsbrev, ${customSelectedIds.length} ${customSelectedIds.length === 1 ? 'artikel' : 'artikler'} valgt`}
-              className={`flex items-center gap-3 w-full px-3.5 py-2.5 rounded-xl border transition-all duration-200 active:scale-[0.98] ${desktopSection === 'custom' ? 'border-white/15 bg-white/[0.05]' : 'border-white/[0.06] hover:bg-white/[0.03]'}`}
+              className={`flex items-center gap-3 w-full px-3.5 py-2.5 rounded-xl border transition-all duration-200 active:scale-[0.98] ${desktopSection === 'custom' ? 'border-white/15 bg-white/[0.05]' : 'border-white/[0.06] hover:bg-[#1c1c1e]'}`}
             >
               <div className="flex size-7 shrink-0 items-center justify-center rounded-lg bg-white/[0.06] text-white/50">
                 <svg width="14" height="14" viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="1.5">
@@ -1462,7 +1455,7 @@ export default function NewsletterClient({ embedded = false, onClose }: Newslett
               </svg>
             </button>
             {desktopSection === 'custom' && (
-              <div className="rounded-xl border border-white/[0.08] bg-white/[0.02] px-3 py-3 space-y-2 ml-1">
+              <div className="rounded-xl border border-white/[0.08] bg-[#1c1c1e] px-3 py-3 space-y-2 ml-1">
                 {customNewsletterBlock}
               </div>
             )}
@@ -1470,7 +1463,7 @@ export default function NewsletterClient({ embedded = false, onClose }: Newslett
             {/* Schedule */}
             <button type="button" onClick={() => toggleDesktopSection('schedule')}
               aria-label={pendingSchedules.length > 0 ? `Planlæg afsendelse, ${pendingSchedules.length} i kø` : 'Planlæg afsendelse'}
-              className={`flex items-center gap-3 w-full px-3.5 py-2.5 rounded-xl border transition-all duration-200 active:scale-[0.98] ${desktopSection === 'schedule' ? 'border-white/15 bg-white/[0.05]' : 'border-white/[0.06] hover:bg-white/[0.03]'}`}>
+              className={`flex items-center gap-3 w-full px-3.5 py-2.5 rounded-xl border transition-all duration-200 active:scale-[0.98] ${desktopSection === 'schedule' ? 'border-white/15 bg-white/[0.05]' : 'border-white/[0.06] hover:bg-[#1c1c1e]'}`}>
               <div className="flex size-7 shrink-0 items-center justify-center rounded-lg bg-white/[0.06] text-white/50">
                 <svg width="14" height="14" viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="1.5"><rect x="3" y="4" width="18" height="18" rx="2" ry="2"/><line x1="16" y1="2" x2="16" y2="6"/><line x1="8" y1="2" x2="8" y2="6"/><line x1="3" y1="10" x2="21" y2="10"/></svg>
               </div>
@@ -1489,7 +1482,7 @@ export default function NewsletterClient({ embedded = false, onClose }: Newslett
               <>
                 <button type="button" onClick={() => toggleDesktopSection('log')}
                   aria-label={`Historik, ${mergedSendLog.length} poster`}
-                  className={`flex items-center gap-3 w-full px-3.5 py-2.5 rounded-xl border transition-all duration-200 active:scale-[0.98] ${desktopSection === 'log' ? 'border-white/15 bg-white/[0.05]' : 'border-white/[0.06] hover:bg-white/[0.03]'}`}>
+                  className={`flex items-center gap-3 w-full px-3.5 py-2.5 rounded-xl border transition-all duration-200 active:scale-[0.98] ${desktopSection === 'log' ? 'border-white/15 bg-white/[0.05]' : 'border-white/[0.06] hover:bg-[#1c1c1e]'}`}>
                   <div className="flex size-7 shrink-0 items-center justify-center rounded-lg bg-white/[0.06] text-white/50">
                     <svg width="14" height="14" viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="1.5"><path d="M14 2H6a2 2 0 0 0-2 2v16a2 2 0 0 0 2 2h12a2 2 0 0 0 2-2V8z"/><path d="M14 2v6h6"/><line x1="16" y1="13" x2="8" y2="13"/><line x1="16" y1="17" x2="8" y2="17"/></svg>
                   </div>
@@ -1506,7 +1499,7 @@ export default function NewsletterClient({ embedded = false, onClose }: Newslett
             )}
           </div>
         </aside>
-        <main className={`flex-1 min-h-0 flex flex-col ${embedded ? 'p-3 bg-transparent' : 'p-5 bg-[#080808]'} ${html && previewViewport === 'mobile' ? 'items-center' : ''}`}>
+        <main className={`flex-1 min-h-0 flex flex-col ${embedded ? 'p-3 bg-transparent' : 'p-3 bg-[#080808]'} ${html && previewViewport === 'mobile' ? 'items-center' : ''}`}>
           {previewIframe}
         </main>
       </div>
@@ -1573,18 +1566,6 @@ export default function NewsletterClient({ embedded = false, onClose }: Newslett
             <div className="flex-1 overflow-y-auto px-4 pb-4 space-y-2 overscroll-contain">
               {/* Status dashboard */}
               {statusDashboard}
-
-              {/* Preview toggles */}
-              <div className="flex gap-2">
-                <div className="flex flex-1 rounded-xl border border-white/12 p-0.5 gap-0.5 bg-black/30" role="group">
-                  <button type="button" onClick={() => setPreviewTheme('light')} className={`flex-1 ${segBtn(previewTheme === 'light')}`}>Lys</button>
-                  <button type="button" onClick={() => setPreviewTheme('dark')} className={`flex-1 ${segBtn(previewTheme === 'dark')}`}>Mørk</button>
-                </div>
-                <div className="flex flex-1 rounded-xl border border-white/12 p-0.5 gap-0.5 bg-black/30" role="group">
-                  <button type="button" onClick={() => setPreviewViewport('mobile')} className={`flex-1 ${segBtn(previewViewport === 'mobile')}`}>Mobile</button>
-                  <button type="button" onClick={() => setPreviewViewport('desktop')} className={`flex-1 ${segBtn(previewViewport === 'desktop')}`}>Desktop</button>
-                </div>
-              </div>
 
               {/* Primary actions */}
               <div className="space-y-2">

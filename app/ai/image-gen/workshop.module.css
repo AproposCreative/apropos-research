@@ -23,3 +23,19 @@
 .embeddedShell > .content { min-height: 0; overflow: auto; width: 100%; max-width: none; padding: 22px; }
 .utility { border: 1px solid #2d2d2d; border-radius: 12px; padding: 0 14px; margin: 12px 0; background: rgba(255,255,255,.015); }.utility summary { cursor: pointer; padding: 14px 0; color: #aaa; }.utility[open] summary { color: #eee; border-bottom: 1px solid #252525; margin-bottom: 12px; }.utility > :not(summary) { margin-left: 2px; margin-right: 2px; }
 @media(max-width: 680px) { .list { grid-template-columns: 1fr; }.content { padding: 16px; }.header { padding: 16px; }.content h2 { font-size: 25px; }.actions { flex-direction: column; }.actions button { width: 100%; } }
+
+/* Compact tool chrome; selected image pixels and approval steps are unchanged. */
+.shell, .embeddedShell { background: #000; }
+.content, .embeddedShell > .content { width: 100%; padding: 8px; }
+.content h2 { font-size: 20px; margin: 16px 0 10px; }
+.content h3 { font-size: 17px; margin: 12px 0 8px; }
+.content section { margin-top: 16px; }
+.content p { margin: 8px 0; line-height: 1.5; }
+.content details { padding: 8px 12px; background: #1c1c1e; border-color: #38383a; border-radius: 18px; }
+.content summary { min-height: 44px; display: flex; align-items: center; }
+.content button { min-height: 44px; padding: 8px 12px; border-color: #38383a; background: #2c2c2e; }
+.content input:not([type=checkbox]), .content textarea, .content select { background: #242426; border-color: #38383a; }
+.list { gap: 12px; margin: 12px 0; }
+.card, .article, .settingsPanel { padding: 12px; background: #1c1c1e; border-color: #38383a; border-radius: 18px; }
+.gear { width: 44px; height: 44px; border: 0 !important; border-radius: 50% !important; font-size: 22px; }
+@media (min-width: 768px) { .content, .embeddedShell > .content { padding: 12px; } }

@@ -1,4 +1,7 @@
 'use client';
+import ToolTabs from '@/components/embedded-app/ToolTabs';
+
+import toolStyles from '@/components/tool-surface.module.css';
 
 import { useCallback, useEffect, useMemo, useState } from 'react';
 import { EmbeddedAppHeader } from '@/components/embedded-app';
@@ -37,12 +40,6 @@ const CLIENT_EPHEMERAL_DEMO = process.env.NEXT_PUBLIC_SEO_ENGINE_DEMO === 'true'
 
 type MainTab = 'arkiv' | 'optimering' | 'artikel';
 
-const segBtn = (active: boolean) =>
-  `rounded-lg px-3 py-1.5 text-[12px] font-medium tracking-wide transition-all duration-200 active:scale-[0.97] touch-target ${
-    active
-      ? 'bg-white/12 text-white shadow-sm border border-white/10'
-      : 'text-white/45 hover:text-white/75'
-  }`;
 
 type Seed = {
   title?: string;
@@ -709,29 +706,9 @@ export default function SeoEngineClient({
   }>;
 
   return (
-    <div className="flex flex-col h-full min-h-0 text-white bg-transparent font-poppins">
-      <EmbeddedAppHeader embedded={embedded} title="SEO & Google" onClose={onClose} />
-      <div className="flex-1 min-h-0 overflow-y-auto nice-scrollbar p-3 lg:p-4 space-y-4">
-        <div className="flex flex-wrap items-center gap-1.5">
-          <button type="button" className={segBtn(mainTab === 'arkiv')} onClick={() => setMainTab('arkiv')}>
-            Arkiv
-          </button>
-          <button
-            type="button"
-            className={segBtn(mainTab === 'optimering')}
-            onClick={() => setMainTab('optimering')}
-          >
-            Optimering
-          </button>
-          <button
-            type="button"
-            className={segBtn(mainTab === 'artikel')}
-            onClick={() => setMainTab('artikel')}
-          >
-            Artikel
-          </button>
-        </div>
-
+    <div className={`${toolStyles.surface} flex flex-col h-full min-h-0 text-white bg-transparent `}>
+      <EmbeddedAppHeader embedded={embedded} title="SEO & Google" onClose={onClose} trailing={<ToolTabs value={mainTab} options={[{id:'arkiv',label:'Arkiv'},{id:'optimering',label:'Optimering'},{id:'artikel',label:'Artikel'}]} onChange={setMainTab} label="SEOvisning" />} />
+      <div className="flex-1 min-h-0 overflow-y-auto nice-scrollbar p-2 lg:p-3 space-y-3">
         {(CLIENT_EPHEMERAL_DEMO || ephemeralMode) && (
           <div className="rounded-xl border border-amber-400/30 bg-white/[0.04] px-3 py-2.5 space-y-1">
             <p className="text-[12px] text-white/85 flex items-center gap-1.5">
@@ -772,7 +749,7 @@ export default function SeoEngineClient({
             {showAdvancedInput ? 'Skjul avanceret input' : 'Avanceret input'}
           </button>
           {showAdvancedInput && (
-            <div className="grid grid-cols-1 md:grid-cols-2 gap-2 rounded-xl border border-white/10 p-3 bg-white/[0.02]">
+            <div className="grid grid-cols-1 md:grid-cols-2 gap-2 rounded-xl border border-white/10 p-3 bg-[#1c1c1e]">
               <input className={fieldClass} placeholder="Undertitel" value={subtitle} onChange={(e) => setSubtitle(e.target.value)} />
               <input className={fieldClass} placeholder="Intro" value={intro} onChange={(e) => setIntro(e.target.value)} />
               <input className={fieldClass} placeholder="Forfatter" value={author} onChange={(e) => setAuthor(e.target.value)} />
@@ -846,7 +823,7 @@ export default function SeoEngineClient({
         {copyNotice && <p className="text-[11px] text-white/50">{copyNotice}</p>}
 
         {analyze && (
-          <section className="rounded-xl border border-white/12 bg-white/[0.03] p-3 space-y-2">
+          <section className="rounded-xl border border-white/12 bg-[#1c1c1e] p-3 space-y-2">
             <div className="flex items-center gap-2 text-[12px] text-white/70 flex-wrap">
               <span className="inline-flex items-center gap-1.5 px-2 py-0.5 rounded-md border border-white/15 bg-white/[0.06]">
                 <BandDot band={analyze.confidenceBand?.band} />
@@ -953,7 +930,7 @@ export default function SeoEngineClient({
         {strategy && (
           <section className="space-y-3">
             {validation && (
-              <div className="rounded-xl border border-white/12 bg-white/[0.03] p-3 space-y-2">
+              <div className="rounded-xl border border-white/12 bg-[#1c1c1e] p-3 space-y-2">
                 <p className="text-[12px] font-medium text-white/70">Validering</p>
                 <IssueList title="Fejl" items={validation.errors || []} tone="err" />
                 <IssueList title="Advarsler" items={validation.warnings || []} tone="warn" />
@@ -967,7 +944,7 @@ export default function SeoEngineClient({
             )}
 
             {(checklist.length > 0 || risks.length > 0) && (
-              <div className="rounded-xl border border-white/12 bg-white/[0.03] p-3 space-y-2">
+              <div className="rounded-xl border border-white/12 bg-[#1c1c1e] p-3 space-y-2">
                 {checklist.length > 0 && (
                   <div className="space-y-1">
                     <p className="text-[12px] font-medium text-white/70">Checklist</p>
@@ -1065,7 +1042,7 @@ export default function SeoEngineClient({
             )}
 
             {viewingAlt && (
-              <div className="rounded-xl border border-amber-400/25 bg-white/[0.03] p-3 space-y-2">
+              <div className="rounded-xl border border-amber-400/25 bg-[#1c1c1e] p-3 space-y-2">
                 <p className="text-[11px] text-amber-300/90">
                   Visning af alternativ — kun læsning. Gem overskriver ikke recommended, før du
                   eksplicit adopterer retningen.
@@ -1087,7 +1064,7 @@ export default function SeoEngineClient({
                 if (!st) return null;
                 const pub = publishability[fieldPath];
                 return (
-                  <div key={fieldPath} className="rounded-xl border border-white/10 bg-white/[0.02] p-3 space-y-2">
+                  <div key={fieldPath} className="rounded-xl border border-white/10 bg-[#1c1c1e] p-3 space-y-2">
                     <div className="flex flex-wrap items-center gap-2">
                       <p className="text-[12px] font-medium text-white/80">{fieldPath}</p>
                       {pub === 'generated_not_published' && (

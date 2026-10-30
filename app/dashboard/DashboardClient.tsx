@@ -1,5 +1,7 @@
 'use client';
 
+import toolStyles from '@/components/tool-surface.module.css';
+
 import { useCallback, useEffect, useMemo, useState } from 'react';
 import AuthModal from '@/components/AuthModal';
 import { EmbeddedAppHeader } from '@/components/embedded-app';
@@ -21,7 +23,7 @@ function fmt(n: number): string {
 
 function StatCard({ label, value, hint }: { label: string; value: string; hint?: string }) {
   return (
-    <div className="rounded-xl border border-white/12 bg-white/[0.03] p-3.5 lg:p-4">
+    <div className="rounded-xl border border-white/12 bg-[#1c1c1e] p-3.5 lg:p-4">
       <p className="text-[10px] uppercase tracking-[0.14em] text-white/40">{label}</p>
       <p className="mt-1.5 text-[22px] font-medium tabular-nums text-white lg:text-[24px]">{value}</p>
       {hint ? <p className="mt-1 text-[11px] text-white/35">{hint}</p> : null}
@@ -111,7 +113,7 @@ export default function DashboardClient({ embedded = false, onClose }: Dashboard
   if (!user) {
     if (embedded) return null;
     return (
-      <div className="min-h-[100dvh] bg-[#0a0a0a] font-poppins text-white">
+      <div className={`${toolStyles.surface} min-h-[100dvh] bg-[#0a0a0a]  text-white`}>
         <AuthModal />
       </div>
     );
@@ -126,7 +128,7 @@ export default function DashboardClient({ embedded = false, onClose }: Dashboard
         id="dashboard-period"
         value={period}
         onChange={(e) => setPeriod(e.target.value as DashboardPeriod)}
-        className={`${fieldClass} min-w-[140px] sm:min-w-[180px]`}
+        className={`${fieldClass} w-[120px] min-w-0 sm:w-[150px]`}
       >
         {DASHBOARD_PERIODS.map((p) => (
           <option key={p.id} value={p.id}>
@@ -138,20 +140,19 @@ export default function DashboardClient({ embedded = false, onClose }: Dashboard
         type="button"
         onClick={() => void load()}
         disabled={loading}
-        className="touch-target rounded-xl border border-white/12 px-3 py-2 text-[13px] text-white/75 hover:bg-white/[0.05] disabled:opacity-40"
+        className={toolStyles.iconButton} aria-label="Opdater trafik" title="Opdater trafik"
       >
-        {loading ? 'Henter…' : 'Opdatér'}
+        <svg aria-hidden="true" width="19" height="19" viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="1.8"><path d="M20 7v5h-5M4 17v-5h5"/><path d="M6.1 6.1a8 8 0 0 1 13.4 3M4.5 14.9a8 8 0 0 0 13.4 3"/></svg>
       </button>
     </>
   );
 
   return (
     <div
-      className={
-        embedded
-          ? 'flex h-full min-h-0 flex-col bg-transparent font-poppins text-white'
-          : 'min-h-[100dvh] bg-[#0a0a0a] font-poppins text-white'
-      }
+      className={`${toolStyles.surface} ${embedded
+          ? 'flex h-full min-h-0 flex-col bg-transparent  text-white'
+          : 'min-h-[100dvh] bg-[#0a0a0a]  text-white'
+      }`}
     >
       <EmbeddedAppHeader
         embedded={embedded}
@@ -165,7 +166,7 @@ export default function DashboardClient({ embedded = false, onClose }: Dashboard
         className={
           embedded
             ? 'nice-scrollbar min-h-0 flex-1 overflow-y-auto px-3 py-3 lg:px-4 lg:py-4'
-            : 'mx-auto max-w-7xl px-4 py-4 lg:px-5 lg:py-6'
+            : 'mx-auto max-w-7xl px-4 py-4 lg:px-3 lg:py-3'
         }
       >
         {error ? (
@@ -178,7 +179,7 @@ export default function DashboardClient({ embedded = false, onClose }: Dashboard
           <aside className="order-2 min-w-0 lg:order-2 lg:col-start-2 lg:row-start-1">
             <section
               className={`rounded-xl border border-white/12 p-4 backdrop-blur-xl lg:sticky ${
-                embedded ? 'bg-white/[0.03] lg:top-3' : 'bg-black/55 lg:top-24'
+                embedded ? 'bg-[#1c1c1e] lg:top-3' : 'bg-black/55 lg:top-24'
               }`}
             >
               <h2 className="text-[14px] font-medium text-white/85">Forfatter-leaderboard</h2>
@@ -260,15 +261,15 @@ export default function DashboardClient({ embedded = false, onClose }: Dashboard
               />
             </div>
 
-            <div className="rounded-xl border border-white/[0.06] bg-white/[0.02] px-3.5 py-3">
+            <div className="rounded-xl border border-white/[0.06] bg-[#1c1c1e] px-3.5 py-3">
               <p className="text-[10px] uppercase tracking-[0.14em] text-white/35">App downloads</p>
               <p className="mt-1 text-[15px] font-medium text-white/75">Kommer snart</p>
               <p className="mt-0.5 text-[11px] text-white/35">iOS — måles når appen er i App Store</p>
             </div>
 
             <section
-              className={`rounded-xl border border-white/12 p-4 backdrop-blur-xl lg:p-5 ${
-                embedded ? 'bg-white/[0.03]' : 'bg-black/55'
+              className={`rounded-xl border border-white/12 p-4 backdrop-blur-xl lg:p-3 ${
+                embedded ? 'bg-[#1c1c1e]' : 'bg-black/55'
               }`}
             >
               <div className="mb-3 flex flex-wrap items-end justify-between gap-2">
@@ -283,15 +284,15 @@ export default function DashboardClient({ embedded = false, onClose }: Dashboard
             </section>
 
             <section
-              className={`rounded-xl border border-white/12 p-4 backdrop-blur-xl lg:p-5 ${
-                embedded ? 'bg-white/[0.03]' : 'bg-black/55'
+              className={`rounded-xl border border-white/12 p-4 backdrop-blur-xl lg:p-3 ${
+                embedded ? 'bg-[#1c1c1e]' : 'bg-black/55'
               }`}
             >
               <h2 className="text-[14px] font-medium text-white/85">Mest læste artikler</h2>
               <p className="mt-0.5 text-[11px] text-white/40">Sidevisninger fra GA4</p>
               <ul className="mt-3 divide-y divide-white/[0.06]">
                 {(data?.topArticles || []).length === 0 ? (
-                  <li className="py-6 text-center text-[12px] text-white/40">
+                  <li className="py-3 text-center text-[12px] text-white/40">
                     {loading ? 'Henter artikler…' : 'Ingen artikeldata'}
                   </li>
                 ) : (
@@ -314,7 +315,7 @@ export default function DashboardClient({ embedded = false, onClose }: Dashboard
             <div className="grid grid-cols-1 gap-4 md:grid-cols-2">
               <section
                 className={`rounded-xl border border-white/12 p-4 backdrop-blur-xl ${
-                  embedded ? 'bg-white/[0.03]' : 'bg-black/55'
+                  embedded ? 'bg-[#1c1c1e]' : 'bg-black/55'
                 }`}
               >
                 <h2 className="text-[14px] font-medium text-white/85">Trafikkilder</h2>
@@ -330,7 +331,7 @@ export default function DashboardClient({ embedded = false, onClose }: Dashboard
 
               <section
                 className={`rounded-xl border border-white/12 p-4 backdrop-blur-xl ${
-                  embedded ? 'bg-white/[0.03]' : 'bg-black/55'
+                  embedded ? 'bg-[#1c1c1e]' : 'bg-black/55'
                 }`}
               >
                 <h2 className="text-[14px] font-medium text-white/85">Google &amp; organisk</h2>
@@ -364,7 +365,7 @@ export default function DashboardClient({ embedded = false, onClose }: Dashboard
               </section>
             </div>
 
-            <section className="rounded-xl border border-white/[0.06] bg-white/[0.02] p-4">
+            <section className="rounded-xl border border-white/[0.06] bg-[#1c1c1e] p-4">
               <h2 className="text-[12px] font-medium text-white/55">Anbefalinger til næste version</h2>
               <ul className="mt-2 list-disc space-y-1.5 pl-4 text-[11px] text-white/40">
                 {(data?.recommendations || []).map((r) => (

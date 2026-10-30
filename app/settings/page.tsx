@@ -1,9 +1,11 @@
 'use client';
+import ToolTabs from '@/components/embedded-app/ToolTabs';
 
 import { useEffect, useState } from 'react';
 import Link from 'next/link';
 import { useAuth } from '../../lib/auth-context';
-import CompactHeader from '../../components/CompactHeader';
+import { EmbeddedAppHeader } from '@/components/embedded-app';
+import toolStyles from '@/components/tool-surface.module.css';
 import ImageOptimizationSection from '../../components/settings/ImageOptimizationSection';
 import ArticleTranslationSection from '../../components/settings/ArticleTranslationSection';
 import SeoEngineSection from '../../components/settings/SeoEngineSection';
@@ -209,42 +211,14 @@ export default function SettingsPage() {
   };
 
   return (
-    <div className="relative z-10 max-w-7xl mx-auto px-6 pb-12">
-      <CompactHeader 
-        title="Indstillinger"
-        subtitle="System- og integrationsindstillinger"
-      />
-
-      {/* Top organiser like old Profile */}
-      <div className="max-w-4xl">
-        <div className="mb-6">
-          <div className="flex space-x-1 bg-white/80 dark:bg-slate-900/80 backdrop-blur-2xl rounded-2xl p-1 border border-white/20 dark:border-slate-700/50 shadow-2xl ring-1 ring-white/10 dark:ring-slate-700/20">
-            {[
-              { id: 'webflow', label: 'Webflow', icon: '🌐' },
-              { id: 'optimise', label: 'Optimise', icon: '⚡' },
-              { id: 'social', label: 'Social', icon: '📸' },
-              { id: 'profile', label: 'Profile', icon: '👤' },
-              { id: 'notifications', label: 'Notifications', icon: '🔔' },
-              { id: 'security', label: 'Security', icon: '🔒' },
-            ].map((tab: any) => (
-              <button
-                key={tab.id}
-                onClick={() => setActiveTab(tab.id)}
-                className={`flex-1 flex items-center justify-center gap-2 px-4 py-3 rounded-xl text-sm font-medium transition-all duration-200 ${
-                  activeTab === tab.id
-                    ? 'bg-white dark:bg-pure-black text-slate-800 dark:text-slate-100 shadow-lg ring-1 ring-white/20 dark:ring-slate-700/50'
-                    : 'text-slate-600 dark:text-slate-300 hover:bg-white/50 dark:hover:bg-slate-700/50'
-                }`}
-              >
-                <span>{tab.icon}</span>
-                <span>{tab.label}</span>
-              </button>
-            ))}
-          </div>
-        </div>
-
+    <div className={`${toolStyles.legacy} relative z-10 min-h-dvh bg-black text-white`}>
+      <EmbeddedAppHeader embedded={false} title="Indstillinger" trailing={<ToolTabs value={activeTab} options={[
+        {id:'webflow',label:'Webflow'},{id:'optimise',label:'Optimering'},{id:'social',label:'Sociale medier'},
+        {id:'profile',label:'Profil'},{id:'notifications',label:'Notifikationer'},{id:'security',label:'Sikkerhed'},
+      ]} onChange={setActiveTab} label="Indstillingsside" />} />
+      <div className="mx-auto max-w-6xl p-2 sm:p-3">
         {activeTab === 'webflow' && (
-        <div className="bg-white dark:bg-slate-800 border border-slate-200 dark:border-slate-700 rounded-xl p-5">
+        <div className="bg-white dark:bg-slate-800 border border-slate-200 dark:border-slate-700 rounded-xl p-3">
           <div className="flex items-center justify-between mb-4">
             <h2 className="text-lg font-medium">Webflow forbindelse</h2>
             {loading ? (
@@ -258,6 +232,8 @@ export default function SettingsPage() {
             )}
           </div>
 
+          {!status?.connected && status?.error && <p role="alert" className="mb-3 text-sm text-rose-300">{status.error}</p>}
+          <details className={toolStyles.help}><summary>Forbindelse og feltopsætning</summary>
           {!loading && status && (
             <div className="grid grid-cols-1 md:grid-cols-2 gap-4">
               <div className="space-y-3">
@@ -284,7 +260,7 @@ export default function SettingsPage() {
             </div>
           )}
 
-          <div className="mt-6 flex items-center gap-3">
+          <div className="mt-3 flex flex-wrap items-center gap-2">
             <button
               onClick={save}
               disabled={saving}
@@ -336,9 +312,9 @@ export default function SettingsPage() {
           )}
 
           {/* Webflow Field Mapping */}
-          <div className="mt-8">
-            <h3 className="text-base font-semibold mb-3">Article fields (fra Webflow)</h3>
-            <div className="overflow-hidden border border-slate-200 dark:border-slate-700 rounded-xl">
+          <div className="mt-3">
+            <h3 className="text-base font-semibold mb-3">Artikelfelter</h3>
+            <div className="overflow-x-auto border border-slate-200 dark:border-slate-700 rounded-xl">
               <table className="min-w-full text-sm">
                 <thead className="bg-slate-50 dark:bg-slate-900">
                   <tr className="text-left text-slate-600 dark:text-slate-300">
@@ -368,9 +344,9 @@ export default function SettingsPage() {
           </div>
 
           {/* Editable Mapping */}
-          <div className="mt-8">
-            <h3 className="text-base font-semibold mb-3">Field Mapping (our keys → Webflow slugs)</h3>
-            <div className="overflow-hidden border border-slate-200 dark:border-slate-700 rounded-xl">
+          <div className="mt-3">
+            <h3 className="text-base font-semibold mb-3">Felttilknytning</h3>
+            <div className="overflow-x-auto border border-slate-200 dark:border-slate-700 rounded-xl">
               <table className="min-w-full text-sm">
                 <thead className="bg-slate-50 dark:bg-slate-900">
                   <tr className="text-left text-slate-600 dark:text-slate-300">
@@ -421,11 +397,12 @@ export default function SettingsPage() {
               <button onClick={()=>setMapping(m=>({ entries:[...m.entries,{ internal:'', webflowSlug: wfFields[0]?.slug||'', transform:'identity'}]}))} className="px-4 py-2 bg-slate-200 dark:bg-slate-700 dark:text-white rounded">+ Tilføj række</button>
             </div>
           </div>
+          </details>
         </div>
         )}
 
         {activeTab === 'optimise' && (
-          <div className="bg-[#171717] rounded-2xl border border-white/15 p-4 font-poppins space-y-6">
+          <div className="bg-[#171717] rounded-2xl border border-white/15 p-4 font-poppins space-y-3">
             <p className="text-[10px] uppercase tracking-[0.2em] text-white/30 font-medium px-0.5">
               Optimering
             </p>
@@ -436,7 +413,7 @@ export default function SettingsPage() {
         )}
 
         {activeTab === 'social' && (
-        <div className="bg-white/80 dark:bg-slate-900/80 backdrop-blur-2xl rounded-2xl border border-white/20 dark:border-slate-700/50 shadow-2xl ring-1 ring-white/10 dark:ring-slate-700/20 p-8">
+        <div className="bg-white/80 dark:bg-slate-900/80 backdrop-blur-2xl rounded-2xl border border-white/20 dark:border-slate-700/50 shadow-2xl ring-1 ring-white/10 dark:ring-slate-700/20 p-3">
           <SocialTokenPanel />
         </div>
         )}
@@ -444,8 +421,8 @@ export default function SettingsPage() {
         {activeTab === 'profile' && (
         <>
         {/* Profil & konto (samme visuelle stil som profil) */}
-        <div className="mt-8 bg-white/80 dark:bg-slate-900/80 backdrop-blur-2xl rounded-2xl border border-white/20 dark:border-slate-700/50 shadow-2xl ring-1 ring-white/10 dark:ring-slate-700/20 p-8">
-          <div className="flex items-center justify-between mb-6">
+        <div className="mt-3 bg-white/80 dark:bg-slate-900/80 backdrop-blur-2xl rounded-2xl border border-white/20 dark:border-slate-700/50 shadow-2xl ring-1 ring-white/10 dark:ring-slate-700/20 p-3">
+          <div className="flex items-center justify-between mb-3">
             <h2 className="text-xl font-semibold text-slate-800 dark:text-slate-100">Konto & profil</h2>
             <button
               onClick={() => setIsEditingProfile(!isEditingProfile)}
@@ -455,7 +432,7 @@ export default function SettingsPage() {
             </button>
           </div>
 
-          <div className="flex items-center gap-6 mb-6">
+          <div className="flex items-center gap-3 mb-3">
             <div className="w-16 h-16 bg-gradient-to-br from-blue-500 to-purple-600 rounded-2xl flex items-center justify-center text-white text-xl font-bold">
               {profileData.displayName?.charAt(0) || 'U'}
             </div>
@@ -466,7 +443,7 @@ export default function SettingsPage() {
             </div>
           </div>
 
-          <div className="grid grid-cols-1 md:grid-cols-2 gap-6">
+          <div className="grid grid-cols-1 md:grid-cols-2 gap-3">
             <div>
               <label className="block text-sm font-medium text-slate-700 dark:text-slate-300 mb-2">Navn</label>
               <input
@@ -522,8 +499,8 @@ export default function SettingsPage() {
         {activeTab === 'notifications' && (
         <>
         {/* Notifications */}
-        <div className="mt-8 bg-white/80 dark:bg-slate-900/80 backdrop-blur-2xl rounded-2xl border border-white/20 dark:border-slate-700/50 shadow-2xl ring-1 ring-white/10 dark:ring-slate-700/20 p-8">
-          <h2 className="text-xl font-semibold text-slate-800 dark:text-slate-100 mb-6">Notification Preferences</h2>
+        <div className="mt-3 bg-white/80 dark:bg-slate-900/80 backdrop-blur-2xl rounded-2xl border border-white/20 dark:border-slate-700/50 shadow-2xl ring-1 ring-white/10 dark:ring-slate-700/20 p-3">
+          <h2 className="text-xl font-semibold text-slate-800 dark:text-slate-100 mb-3">Notifikationer</h2>
           {['Email Notifications','Push Notifications','Weekly Notifications'].map((title, i) => (
             <div key={i} className="flex items-center justify-between p-4 bg-white/50 dark:bg-pure-black/50 backdrop-blur-sm rounded-xl border border-white/30 dark:border-slate-600/30 mb-3">
               <div>
@@ -542,8 +519,8 @@ export default function SettingsPage() {
         {activeTab === 'security' && (
         <>
         {/* Security */}
-        <div className="mt-8 bg-white/80 dark:bg-slate-900/80 backdrop-blur-2xl rounded-2xl border border-white/20 dark:border-slate-700/50 shadow-2xl ring-1 ring-white/10 dark:ring-slate-700/20 p-8">
-          <h2 className="text-xl font-semibold text-slate-800 dark:text-slate-100 mb-6">Security Settings</h2>
+        <div className="mt-3 bg-white/80 dark:bg-slate-900/80 backdrop-blur-2xl rounded-2xl border border-white/20 dark:border-slate-700/50 shadow-2xl ring-1 ring-white/10 dark:ring-slate-700/20 p-3">
+          <h2 className="text-xl font-semibold text-slate-800 dark:text-slate-100 mb-3">Sikkerhed</h2>
           <div className="space-y-4">
             <div className="flex items-center justify-between p-4 bg-white/50 dark:bg-pure-black/50 backdrop-blur-sm rounded-xl border border-white/30 dark:border-slate-600/30">
               <div>

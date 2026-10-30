@@ -1,5 +1,7 @@
 'use client';
 
+import toolStyles from '@/components/tool-surface.module.css';
+
 import { useCallback, useEffect, useMemo, useRef, useState } from 'react';
 import { EmbeddedAppHeader } from '@/components/embedded-app';
 import { useAuth } from '@/lib/auth-context';
@@ -151,15 +153,14 @@ export default function PushDeskClient({ embedded = false, onClose }: PushDeskCl
 
   return (
     <div
-      className={
-        embedded
-          ? 'flex h-full min-h-0 flex-col bg-transparent font-poppins text-white'
-          : 'min-h-[100dvh] flex flex-col font-poppins bg-[#0a0a0a] text-white'
-      }
+      className={`${toolStyles.surface} ${embedded
+          ? 'flex h-full min-h-0 flex-col bg-transparent  text-white'
+          : 'min-h-[100dvh] flex flex-col  bg-[#0a0a0a] text-white'
+      }`}
     >
       <EmbeddedAppHeader embedded={embedded} title="Pushbeskeder" onClose={onClose} showBackLink={!embedded} />
 
-      <main className="flex-1 min-h-0 overflow-y-auto nice-scrollbar p-4 lg:p-5 space-y-4">
+      <main className="flex-1 min-h-0 overflow-y-auto nice-scrollbar p-4 lg:p-3 space-y-4">
         <section className="space-y-3">
           <label className="block space-y-1.5">
             <span className="text-[10px] uppercase tracking-[0.18em] text-white/35">Overskrift</span>
@@ -242,7 +243,7 @@ export default function PushDeskClient({ embedded = false, onClose }: PushDeskCl
                   className={`flex items-center gap-3 w-full px-3.5 py-2.5 rounded-xl border transition-all duration-200 active:scale-[0.98] text-left ${
                     destination === d.id
                       ? 'border-white/15 bg-white/[0.05]'
-                      : 'border-white/[0.06] hover:bg-white/[0.03]'
+                      : 'border-white/[0.06] hover:bg-[#1c1c1e]'
                   }`}
                 >
                   <div className="flex-1 min-w-0">
@@ -322,7 +323,7 @@ export default function PushDeskClient({ embedded = false, onClose }: PushDeskCl
               {history.map((item) => (
                 <li
                   key={item.id}
-                  className="rounded-lg border border-white/[0.06] bg-white/[0.02] px-3 py-2.5"
+                  className="rounded-lg border border-white/[0.06] bg-[#1c1c1e] px-3 py-2.5"
                 >
                   <p className="text-[13px] font-medium text-white/85">{item.title}</p>
                   <p className="mt-0.5 text-[10px] text-white/35">

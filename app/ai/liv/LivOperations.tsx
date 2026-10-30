@@ -36,7 +36,7 @@ export default function LivOperations() {
   const budget = snapshot?.budget.available ? snapshot.budget.data : null;
   const alert = snapshot?.alerts?.available ? snapshot.alerts.data : null;
   const alertLabels: Record<string, string> = { not_recorded: 'Ingen alarm registreret i dag', failure_accepted: 'Fejlmail accepteret af mailudbyderen', resolved_accepted: 'Løsningsmail accepteret af mailudbyderen', unconfirmed: 'Mailafsendelse endnu ikke bekræftet', reconciliation_required: 'Mailafsendelse kræver afklaring', unknown: 'Ukendt alarmstatus' };
-  return <section className="space-y-3 rounded-xl border border-white/15 p-5" aria-label="Driftsstatus">
+  return <section className="space-y-3 rounded-xl border border-white/15 p-3" aria-label="Driftsstatus">
     <div className="flex items-center justify-between gap-3"><h3 className="font-medium">Driftsstatus</h3><button type="button" disabled={loading} onClick={() => setRevision(n => n + 1)} className="min-h-11 px-2 text-sm underline disabled:opacity-40">Opdater</button></div>
     <p className="text-xs text-white/55">Kun aflæsning. Starter ikke AI, udgivelser eller mails.</p>
     {loading && <p role="status">Henter status…</p>}

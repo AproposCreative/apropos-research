@@ -1,14 +1,16 @@
 'use client';
+import toolStyles from '@/components/tool-surface.module.css';
 import { useState } from 'react';
 import { useAuth } from '../../lib/auth-context';
-import CompactHeader from '../../components/CompactHeader';
+import ToolTabs from '@/components/embedded-app/ToolTabs';
+import CompactHeader from '../../components/embedded-app/ToolPageHeader';
 
 export default function ProfilePage() {
   const { user, logout } = useAuth();
   const [activeTab, setActiveTab] = useState('profile');
   const [isEditing, setIsEditing] = useState(false);
   const [profileData, setProfileData] = useState({
-    displayName: user?.displayName || 'Frederik Emil Kragh',
+    displayName: user?.displayName || 'Frederik Kragh',
     email: user?.email || 'frederik.emil.kragh@gmail.com',
     bio: 'Content creator and journalist',
     location: 'Copenhagen, Denmark',
@@ -27,48 +29,20 @@ export default function ProfilePage() {
   };
 
   const tabs = [
-    { id: 'profile', label: 'Profile', icon: '👤' },
-    { id: 'settings', label: 'Settings', icon: '⚙️' },
-    { id: 'notifications', label: 'Notifications', icon: '🔔' },
-    { id: 'security', label: 'Security', icon: '🔒' }
+    { id: 'profile', label: 'Profil' },
+    { id: 'settings', label: 'Indstillinger' },
+    { id: 'notifications', label: 'Notifikationer' },
+    { id: 'security', label: 'Sikkerhed' }
   ];
 
   return (
-    <div className="max-w-4xl mx-auto p-6 space-y-6">
-      <CompactHeader 
-        title="Profile"
-        subtitle="Administrer din konto og indstillinger"
-      />
-      {/* Header */}
-      <div className="mb-8">
-        <h1 className="text-3xl font-bold text-slate-800 dark:text-slate-100 mb-2">Profile Settings</h1>
-        <p className="text-slate-600 dark:text-slate-400">Manage your account settings and preferences</p>
-      </div>
-
-      {/* Tabs */}
-      <div className="mb-8">
-        <div className="flex space-x-1 bg-white/80 dark:bg-slate-900/80 backdrop-blur-2xl rounded-2xl p-1 border border-white/20 dark:border-slate-700/50 shadow-2xl ring-1 ring-white/10 dark:ring-slate-700/20">
-          {tabs.map((tab) => (
-            <button
-              key={tab.id}
-              onClick={() => setActiveTab(tab.id)}
-              className={`flex-1 flex items-center justify-center gap-2 px-4 py-3 rounded-xl text-sm font-medium transition-all duration-200 ${
-                activeTab === tab.id
-                  ? 'bg-white dark:bg-pure-black text-slate-800 dark:text-slate-100 shadow-lg ring-1 ring-white/20 dark:ring-slate-700/50'
-                  : 'text-slate-600 dark:text-slate-300 hover:bg-white/50 dark:hover:bg-slate-700/50'
-              }`}
-            >
-              <span>{tab.icon}</span>
-              <span>{tab.label}</span>
-            </button>
-          ))}
-        </div>
-      </div>
+    <div className={`${toolStyles.legacy} max-w-6xl mx-auto p-2 sm:p-3 space-y-3`}>
+      <CompactHeader title="Profil" actions={<ToolTabs value={activeTab} options={tabs} onChange={setActiveTab} label="Profilvisning" />} />
 
       {/* Content */}
       <div className="bg-white/80 dark:bg-slate-900/80 backdrop-blur-2xl rounded-2xl border border-white/20 dark:border-slate-700/50 shadow-2xl ring-1 ring-white/10 dark:ring-slate-700/20 p-8">
         {activeTab === 'profile' && (
-          <div className="space-y-6">
+          <div className="space-y-3">
             <div className="flex items-center justify-between">
               <h2 className="text-xl font-semibold text-slate-800 dark:text-slate-100">Profile Information</h2>
               <button
@@ -80,7 +54,7 @@ export default function ProfilePage() {
             </div>
 
             {/* Avatar */}
-            <div className="flex items-center gap-6">
+            <div className="flex items-center gap-3">
               <div className="w-20 h-20 bg-gradient-to-br from-blue-500 to-purple-600 rounded-2xl flex items-center justify-center text-white text-2xl font-bold">
                 {profileData.displayName.charAt(0)}
               </div>
@@ -92,7 +66,7 @@ export default function ProfilePage() {
             </div>
 
             {/* Form */}
-            <div className="grid grid-cols-1 md:grid-cols-2 gap-6">
+            <div className="grid grid-cols-1 md:grid-cols-2 gap-3">
               <div>
                 <label className="block text-sm font-medium text-slate-700 dark:text-slate-300 mb-2">Display Name</label>
                 <input
@@ -139,13 +113,13 @@ export default function ProfilePage() {
               <div className="flex gap-3">
                 <button
                   onClick={handleSave}
-                  className="px-6 py-3 bg-slate-600 dark:bg-slate-500 text-white rounded-xl font-medium hover:bg-slate-700 dark:hover:bg-slate-400 transition-colors"
+                  className="px-3 py-3 bg-slate-600 dark:bg-slate-500 text-white rounded-xl font-medium hover:bg-slate-700 dark:hover:bg-slate-400 transition-colors"
                 >
                   Save Changes
                 </button>
                 <button
                   onClick={() => setIsEditing(false)}
-                  className="px-6 py-3 bg-white/50 dark:bg-pure-black/50 backdrop-blur-sm text-slate-700 dark:text-slate-300 rounded-xl font-medium hover:bg-white/70 dark:hover:bg-slate-700/70 transition-all duration-200 border border-white/30 dark:border-slate-600/30"
+                  className="px-3 py-3 bg-white/50 dark:bg-pure-black/50 backdrop-blur-sm text-slate-700 dark:text-slate-300 rounded-xl font-medium hover:bg-white/70 dark:hover:bg-slate-700/70 transition-all duration-200 border border-white/30 dark:border-slate-600/30"
                 >
                   Cancel
                 </button>
@@ -155,7 +129,7 @@ export default function ProfilePage() {
         )}
 
         {activeTab === 'settings' && (
-          <div className="space-y-6">
+          <div className="space-y-3">
             <h2 className="text-xl font-semibold text-slate-800 dark:text-slate-100">App Settings</h2>
             
             <div className="space-y-4">
@@ -184,7 +158,7 @@ export default function ProfilePage() {
         )}
 
         {activeTab === 'notifications' && (
-          <div className="space-y-6">
+          <div className="space-y-3">
             <h2 className="text-xl font-semibold text-slate-800 dark:text-slate-100">Notification Preferences</h2>
             
             <div className="space-y-4">
@@ -218,7 +192,7 @@ export default function ProfilePage() {
         )}
 
         {activeTab === 'security' && (
-          <div className="space-y-6">
+          <div className="space-y-3">
             <h2 className="text-xl font-semibold text-slate-800 dark:text-slate-100">Security Settings</h2>
             
             <div className="space-y-4">

@@ -1,7 +1,9 @@
 'use client';
 
+import toolStyles from '@/components/tool-surface.module.css';
+
 import { useCallback, useEffect, useRef, useState } from 'react';
-import Link from 'next/link';
+import { EmbeddedAppHeader } from '@/components/embedded-app';
 import {
   ReactFlow,
   Background,
@@ -344,27 +346,8 @@ function OwnedPromptArchitect({ user }: { user: User }) {
   const drawerOpen = inspectId !== null && inspectContent !== null;
 
   return (
-    <div className="flex flex-col h-[100dvh] bg-[#080808] text-white font-poppins">
-      {/* Top bar — AI Writer style */}
-      <header className="flex items-center justify-between gap-3 px-5 py-3 border-b border-white/[0.06] bg-[#0c0c0c] shrink-0">
-        <div className="min-w-0">
-          <h1 className="text-[15px] font-semibold tracking-tight">Prompt Architect</h1>
-          <p className="text-[11px] text-white/40 mt-0.5">
-            Ét modul pr. kort · hover åbner fuld tekst til højre · «Til» styrer næste besked til AI Chat
-          </p>
-        </div>
-        <div className="flex items-center gap-3 text-xs shrink-0">
-          <span className="text-white/45 tabular-nums hidden sm:inline">
-            Systemprompt: <span className="text-white/85 font-medium">{effectiveLen.toLocaleString('da-DK')}</span> tegn
-          </span>
-          <Link
-            href="/ai"
-            className="px-3 py-1.5 rounded-lg border border-white/15 text-white/75 hover:bg-white/5 transition-colors"
-          >
-            ← AI Writer
-          </Link>
-        </div>
-      </header>
+    <div className={`${toolStyles.surface} flex flex-col h-[100dvh] bg-[#080808] text-white `}>
+      <EmbeddedAppHeader embedded={false} title="Prompt Architect" subtitle="Vælg et modul for at se hele prompten. Slå modulet til eller fra for næste besked." trailing={<span className="text-xs text-white/50 tabular-nums">{effectiveLen.toLocaleString('da-DK')} tegn</span>} />
 
       {/* Main area: canvas + inspector drawer */}
       <div className="flex-1 min-h-0 flex relative">
@@ -467,7 +450,7 @@ function OwnedPromptArchitect({ user }: { user: User }) {
       </div>
 
       {/* Footer */}
-      <footer className="px-5 py-2 border-t border-white/[0.06] text-[11px] text-white/35 shrink-0 bg-[#0a0a0a]">
+      <footer className="px-3 py-2 border-t border-white/[0.06] text-[11px] text-white/35 shrink-0 bg-[#0a0a0a]">
         Toggles gemmes i denne browser og bruges ved næste besked til AI Chat.
       </footer>
     </div>

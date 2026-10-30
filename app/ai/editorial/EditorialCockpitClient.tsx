@@ -1,4 +1,7 @@
 'use client';
+import ToolTabs from '@/components/embedded-app/ToolTabs';
+
+import toolStyles from '@/components/tool-surface.module.css';
 
 import { useCallback, useEffect, useMemo, useRef, useState } from 'react';
 import { EmbeddedAppHeader, EmbeddedSectionLabel } from '@/components/embedded-app';
@@ -276,10 +279,6 @@ export default function EditorialCockpitClient({
     return () => window.removeEventListener(EDITORIAL_SIGNAL_PUBLISHED_EVENT, handlePublished);
   }, []);
 
-  const tabClass = (tab: DeskTab) =>
-    `rounded-lg px-2.5 py-1 text-[11px] font-medium tracking-wide transition-all duration-200 active:scale-[0.97] ${
-      activeTab === tab ? 'bg-white/12 text-white shadow-sm border border-white/10' : 'text-white/45 hover:text-white/75'
-    }`;
 
   const buildApprovedBrief = (signal: EditorialSignal) => {
     if (selectedResearchResult?.brief?.text) return selectedResearchResult.brief.text;
@@ -395,29 +394,17 @@ export default function EditorialCockpitClient({
   };
 
   return (
-    <div className="h-full w-full flex flex-col font-poppins rounded-xl bg-black/40 md:bg-black backdrop-blur-xl md:backdrop-blur-0 border border-white/15 overflow-hidden md:outline md:outline-[1.5px] md:outline-offset-[-1.5px] md:outline-zinc-800">
+    <div className={`${toolStyles.surface} h-full w-full flex flex-col  rounded-xl bg-black/40 md:bg-black backdrop-blur-xl md:backdrop-blur-0 border border-white/15 overflow-hidden md:outline md:outline-[1.5px] md:outline-offset-[-1.5px] md:outline-zinc-800`}>
       <EmbeddedAppHeader
         embedded={embedded}
         title="AI-redaktionschef"
         subtitle="Et test-cockpit for redaktionelle signaler, vinkler, brief og workflow før AI Writer eller CMS."
         onClose={onClose}
-        trailing={
-          <div className="flex items-center gap-1 rounded-xl border border-white/10 bg-white/[0.03] p-1">
-            <button type="button" className={tabClass('radar')} onClick={() => setActiveTab('radar')}>
-              Radar
-            </button>
-            <button type="button" className={tabClass('brief')} onClick={() => setActiveTab('brief')}>
-              Brief
-            </button>
-            <button type="button" className={tabClass('workflow')} onClick={() => setActiveTab('workflow')}>
-              Flow
-            </button>
-          </div>
-        }
+        trailing={<ToolTabs value={activeTab} options={[{id:'radar',label:'Radar'},{id:'brief',label:'Brief'},{id:'workflow',label:'Flow'}]} onChange={setActiveTab} label="Redaktionsvisning" />}
       />
 
       <div className="flex-1 min-h-0 overflow-y-auto nice-scrollbar p-3 lg:p-4 space-y-4">
-        <section className="rounded-2xl border border-white/15 bg-white/[0.03] p-4">
+        <section className="rounded-2xl border border-white/15 bg-[#1c1c1e] p-4">
           <div className="flex flex-col gap-3 md:flex-row md:items-start md:justify-between">
             <div className="min-w-0">
               <p className="text-[10px] uppercase tracking-[0.18em] text-white/35">Dagens redaktionelle anbefaling</p>
@@ -452,7 +439,7 @@ export default function EditorialCockpitClient({
                 </button>
               </div>
               {signalsError && (
-                <p className="rounded-lg border border-white/12 bg-white/[0.03] px-3 py-2 text-[12px] text-red-400/95">{signalsError}</p>
+                <p className="rounded-lg border border-white/12 bg-[#1c1c1e] px-3 py-2 text-[12px] text-red-400/95">{signalsError}</p>
               )}
               {visibleSignals.map((signal) => {
                 const isSelected = signal.id === selected.id;
@@ -465,7 +452,7 @@ export default function EditorialCockpitClient({
                       setActiveTab('brief');
                     }}
                     className={`w-full rounded-xl border px-3.5 py-3 text-left transition-all duration-200 active:scale-[0.98] ${
-                      isSelected ? 'border-white/20 bg-white/[0.06]' : 'border-white/[0.06] bg-white/[0.02] hover:bg-white/[0.04]'
+                      isSelected ? 'border-white/20 bg-white/[0.06]' : 'border-white/[0.06] bg-[#1c1c1e] hover:bg-white/[0.04]'
                     }`}
                   >
                     <div className="flex items-start justify-between gap-3">
@@ -484,13 +471,13 @@ export default function EditorialCockpitClient({
                 );
               })}
               {visibleSignals.length === 0 && (
-                <div className="rounded-xl border border-white/[0.06] bg-white/[0.02] px-3.5 py-3 text-[12px] text-white/45">
+                <div className="rounded-xl border border-white/[0.06] bg-[#1c1c1e] px-3.5 py-3 text-[12px] text-white/45">
                   Alle aktuelle signaler er markeret som udgivet.
                 </div>
               )}
             </section>
 
-            <section className="rounded-2xl border border-white/10 bg-white/[0.02] p-4 space-y-4">
+            <section className="rounded-2xl border border-white/10 bg-[#1c1c1e] p-4 space-y-4">
               <EmbeddedSectionLabel step={2}>Redaktionel score</EmbeddedSectionLabel>
               <ScoreBar label="Aktualitet" value={selected.urgency} />
               <ScoreBar label="Originalitet" value={selected.originality} />
@@ -505,7 +492,7 @@ export default function EditorialCockpitClient({
         )}
 
         {activeTab === 'brief' && (
-          <section className="rounded-2xl border border-white/10 bg-white/[0.02] p-4 space-y-4">
+          <section className="rounded-2xl border border-white/10 bg-[#1c1c1e] p-4 space-y-4">
             <EmbeddedSectionLabel step={1}>AI-brief til redaktionen</EmbeddedSectionLabel>
             <div className="rounded-xl border border-white/[0.06] bg-black/25 p-3">
               <p className="text-[11px] uppercase tracking-[0.14em] text-white/35">Artikeltype og længde</p>
@@ -520,7 +507,7 @@ export default function EditorialCockpitClient({
                       className={`min-h-11 rounded-lg border px-3 py-2 text-left text-[12px] transition-all duration-200 active:scale-[0.98] ${
                         active
                           ? 'border-white/40 bg-white/10 text-white shadow-[0_0_32px_-8px_rgba(255,255,255,0.18)]'
-                          : 'border-white/10 bg-white/[0.03] text-white/60 hover:border-white/20 hover:bg-white/[0.06]'
+                          : 'border-white/10 bg-[#1c1c1e] text-white/60 hover:border-white/20 hover:bg-white/[0.06]'
                       }`}
                     >
                       <span className="block font-medium">{option.label}</span>
@@ -531,7 +518,7 @@ export default function EditorialCockpitClient({
               </div>
             </div>
             <div className="grid gap-3 md:grid-cols-2">
-              <div className="rounded-xl border border-white/[0.06] bg-white/[0.03] p-3">
+              <div className="rounded-xl border border-white/[0.06] bg-[#1c1c1e] p-3">
                 <p className="text-[11px] uppercase tracking-[0.14em] text-white/35">Vinkel</p>
                 <p className="mt-2 text-[13px] leading-relaxed text-white/75">{selected.angle}</p>
               </div>
@@ -542,7 +529,7 @@ export default function EditorialCockpitClient({
                 className={`rounded-xl border p-3 text-left transition-all duration-200 active:scale-[0.98] ${
                   researchBusy || selectedResearch.length > 0
                     ? 'border-white/40 bg-white/10 text-white shadow-[0_0_32px_-8px_rgba(255,255,255,0.18)]'
-                    : 'border-white/[0.06] bg-white/[0.03] hover:bg-white/[0.05] text-white/75'
+                    : 'border-white/[0.06] bg-[#1c1c1e] hover:bg-white/[0.05] text-white/75'
                 } disabled:opacity-70`}
               >
                 <p className="text-[11px] uppercase tracking-[0.14em] text-white/35">Engine status</p>
@@ -589,7 +576,7 @@ export default function EditorialCockpitClient({
               </div>
               <div className="mt-3 grid gap-2 sm:grid-cols-2">
                 {qualityGate.checks.map((check) => (
-                  <div key={check.label} className="flex items-center gap-2 rounded-lg border border-white/[0.06] bg-white/[0.03] px-3 py-2">
+                  <div key={check.label} className="flex items-center gap-2 rounded-lg border border-white/[0.06] bg-[#1c1c1e] px-3 py-2">
                     <span className={`size-1.5 rounded-full ${check.ok ? 'bg-emerald-400' : 'bg-amber-400'}`} />
                     <span className="text-[12px] text-white/65">{check.label}</span>
                   </div>
@@ -622,10 +609,10 @@ export default function EditorialCockpitClient({
         )}
 
         {activeTab === 'workflow' && (
-          <section className="rounded-2xl border border-white/10 bg-white/[0.02] p-4 space-y-3">
+          <section className="rounded-2xl border border-white/10 bg-[#1c1c1e] p-4 space-y-3">
             <EmbeddedSectionLabel step={1}>Produkt-workflow</EmbeddedSectionLabel>
             {workflowSteps.map((step, index) => (
-              <div key={step.title} className="flex gap-3 rounded-xl border border-white/[0.06] bg-white/[0.03] p-3">
+              <div key={step.title} className="flex gap-3 rounded-xl border border-white/[0.06] bg-[#1c1c1e] p-3">
                 <div className="flex size-7 shrink-0 items-center justify-center rounded-lg bg-white/[0.06] text-[11px] text-white/55">
                   {index + 1}
                 </div>

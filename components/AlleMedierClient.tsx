@@ -1,4 +1,5 @@
 'use client';
+import toolStyles from '@/components/tool-surface.module.css';
 import { useMedia } from '../lib/media-context';
 import { useState, useEffect } from 'react';
 import dynamicImport from 'next/dynamic';
@@ -6,7 +7,7 @@ import { sortList } from '../lib/search';
 import SorterPager from './SorterPager';
 import SearchInput from './SearchInput';
 import { ShimmerGrid } from './Shimmer';
-import CompactHeader from './CompactHeader';
+import CompactHeader from './embedded-app/ToolPageHeader';
 import { selectedSourceId, resolveSourceFilter } from '@/lib/media-selection';
 
 const YouTubeGrid = dynamicImport(() => import('./YouTubeGrid'), {
@@ -229,7 +230,7 @@ export default function AlleMedierClient({ initialData, searchParams }: AlleMedi
   }).filter(([,v])=>!!v) as any);
 
   return (
-    <div className="relative z-10 max-w-7xl mx-auto px-6 pb-12">
+    <div className={`${toolStyles.legacy} relative z-10 max-w-7xl mx-auto p-2 sm:p-3`}>
         <CompactHeader 
           title={headerTitle}
           subtitle={source 

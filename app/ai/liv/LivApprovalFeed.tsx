@@ -1,4 +1,5 @@
 'use client';
+import ToolHelp from '@/components/embedded-app/ToolHelp';
 
 import { useCallback, useEffect, useRef, useState } from 'react';
 import Image from 'next/image';
@@ -50,7 +51,7 @@ export function LivApprovalCard({ story, disabled, saving, onDecide, canDecide =
           <div className="flex h-full items-center justify-center text-sm text-white/50">Billede ikke tilgængeligt</div>}
         <span className="absolute left-4 top-4 max-w-[calc(100%-2rem)] rounded-full bg-[#000000]/85 px-3 py-1.5 text-xs font-medium text-white">{story.formatLabel || 'Artikel'} · {story.category}</span>
       </div>
-      <div className="space-y-3 px-5 pb-4 pt-5">
+      <div className="space-y-3 px-3 pb-4 pt-5">
         <div className="flex flex-wrap items-center justify-between gap-2 text-xs text-white/60">
           <span>{story.kind === 'reserve' ? (blocked ? 'Reserve · publicering blokeret' : 'Reserve · klar til næste ledige udgivelse') : `Planlagt ${dateLabel(story.scheduledDay)}`}</span>
           <span className={story.decision === 'approved' ? 'text-emerald-300' : story.decision === 'rejected' ? 'text-rose-300' : ''}>{status}</span>
@@ -64,12 +65,12 @@ export function LivApprovalCard({ story, disabled, saving, onDecide, canDecide =
         <span className="inline-block text-sm text-white/80 underline underline-offset-4">{expanded ? 'Læs mindre ↑' : 'Læs mere ↓'}</span>
       </div>
     </button>
-    <div id={detailsId} hidden={!expanded} className="space-y-4 border-t border-white/10 px-5 py-5">
+    <div id={detailsId} hidden={!expanded} className="space-y-4 border-t border-white/10 px-3 py-5">
       <p className="text-xs uppercase tracking-wider text-white/50">Livs artikel</p>
       {story.paragraphs.map((paragraph, i) => <p key={i} className="break-words text-sm leading-7 text-white/80">{paragraph}</p>)}
       {story.credit && <p className="text-xs text-white/50">Billede: {story.credit}</p>}
     </div>
-    {canDecide && <><div className="space-y-2 px-5 pb-4">
+    {canDecide && <><div className="space-y-2 px-3 pb-4">
       <label htmlFor={`${detailsId}-feedback`} className="block text-sm text-white/80">Din redaktionelle kommentar (valgfri)</label>
       <textarea id={`${detailsId}-feedback`} value={feedback} maxLength={500} rows={3}
         disabled={disabled || locked || saving} onChange={event => setFeedback(event.target.value)}
@@ -79,7 +80,7 @@ export function LivApprovalCard({ story, disabled, saving, onDecide, canDecide =
         {feedback.length}/500 tegn · Gemmes med Godkend eller Afvis. Kommentaren er privat og bruges som redaktionelt input til kommende tekster, ikke som fakta. Den ændrer ikke denne artikel.
       </p>
     </div>
-    <div className="grid grid-cols-2 gap-3 px-5 pb-5" role="group" aria-label={`Vælg: ${story.title}`}>
+    <div className="grid grid-cols-2 gap-3 px-3 pb-5" role="group" aria-label={`Vælg: ${story.title}`}>
       <button type="button" disabled={disabled || locked || saving} aria-pressed={story.decision === 'approved'}
         onClick={() => onDecide('approved', changedFeedback)} className={`${actionClass} ${story.decision === 'approved' ? 'bg-emerald-200 text-emerald-950' : 'bg-white text-[#000000] hover:bg-white/85'}`}>Godkend</button>
       <button type="button" disabled={disabled || locked || saving} aria-pressed={story.decision === 'rejected'}
@@ -90,7 +91,7 @@ export function LivApprovalCard({ story, disabled, saving, onDecide, canDecide =
       <><LivPresentationEditor itemId={story.itemId} disabled={disabled || saving} onSaved={onEdited} />
         <LivCoverEditor itemId={story.itemId} disabled={disabled || saving} onSaved={onEdited} />
         <LivShorteningEditor itemId={story.itemId} disabled={disabled || saving} onSaved={onEdited} /></>}
-    {saving && <p className="px-5 pb-4 text-xs text-white/60" role="status">Gemmer dit valg…</p>}
+    {saving && <p className="px-3 pb-4 text-xs text-white/60" role="status">Gemmer dit valg…</p>}
   </article>;
 }
 
@@ -181,40 +182,39 @@ export default function LivApprovalFeed() {
   const savedWork = feed?.work?.items.filter(item => !item.cmsItemId || !readyCmsIds.has(item.cmsItemId)) || [];
   const publicationDays = feed?.week?.filter(day => day.status !== 'off_day') || [];
   return <div data-liv-story-scroll style={{ paddingTop: 'var(--liv-tabs-height, 0px)' }} className="min-h-0 flex-1 overflow-y-auto overscroll-contain">
-    <LivContentColumn className="space-y-5 py-6">
+    <LivContentColumn className="space-y-5 py-3">
       <header className="space-y-3">
         <div className="flex items-center justify-between gap-3"><h2 className="text-xl font-medium">Artikler i arbejde</h2>
           <button className="min-h-11 px-2 text-sm text-white/70 underline underline-offset-4 disabled:opacity-40" disabled={loading || !!saving} onClick={() => void refresh()}>Opdater</button></div>
-        <p className="text-sm leading-relaxed text-white/65">Anmeldelser og kulturguider om koncerter, serier, film, bøger, museer og kulturoplevelser. Researchanmeldelser bygger på flere læste anmeldelser og markeres som AI.</p>
-        <p className="text-xs leading-relaxed text-white/45">Kladder er ikke automatisk godkendt eller planlagt til udgivelse.</p>
+        <ToolHelp title="Om redaktionen"><p>Anmeldelser og kulturguider om koncerter, serier, film, bøger, museer og kulturoplevelser. Researchanmeldelser bygger på flere læste anmeldelser og markeres som AI.</p><p>Kladder er ikke automatisk godkendt eller planlagt til udgivelse.</p></ToolHelp>
         {feed?.work && <p className="text-xs text-white/55">{feed.stories.length} i udgivelseskøen · {savedWork.length} gemte kladder</p>}
       </header>
       {notice && <p role="status" className="rounded-xl border border-emerald-300/20 bg-emerald-300/5 p-4 text-sm text-emerald-200">{notice}</p>}
       {error && <p role="alert" className="rounded-xl border border-amber-200/20 p-4 text-sm text-amber-200">{error}</p>}
       {feed?.queueUnavailable && <p role="alert" className="rounded-xl border border-amber-200/25 p-4 text-sm text-amber-200">Udgivelseskøen kunne ikke kontrolleres. Gemte kladder vises, men de er ikke klar til godkendelse her.</p>}
-      {loading && !feed && <p role="status" className="p-5 text-sm text-white/60">Henter Livs historier…</p>}
+      {loading && !feed && <p role="status" className="p-3 text-sm text-white/60">Henter Livs historier…</p>}
       {feed?.stories.map(story => <LivApprovalCard key={`${story.itemId}:${story.revision}`} story={story} canDecide={capabilities.owner} disabled={loading || !!saving || !!error}
         saving={saving === story.itemId} onEdited={() => void refresh()} onDecide={(decision, feedback) => void decide(story, decision, feedback)} />)}
       {feed?.work === null && <p role="alert" className="rounded-xl border border-amber-200/25 p-4 text-sm text-amber-200">Gemte Liv-kladder kunne ikke hentes. Listen er ufuldstændig; prøv Opdater.</p>}
       {feed?.work && !feed.work.complete && <p role="alert" className="rounded-xl border border-amber-200/25 p-4 text-sm text-amber-200">Ikke alle kilder kunne gennemgås fuldt ud. Listen kan mangle kladder.</p>}
       {feed?.work && savedWork.length > 0 &&
-        <section aria-label="Gemte Liv-kladder" className="rounded-2xl border border-white/15 px-5 py-2">
+        <section aria-label="Gemte Liv-kladder" className="rounded-2xl border border-white/15 px-3 py-2">
           {savedWork.map(item => <LivSavedWorkCard key={`${item.source}:${item.id}`} item={item} />)}
         </section>}
       {feed && !feed.stories.length && feed.work?.items.length === 0 &&
-        <p className="rounded-2xl border border-white/15 p-5 text-sm text-white/60">Ingen aktive anmeldelser eller kulturguider i de gennemgåede kilder. Planer uden artikeltekst vises ikke her.</p>}
+        <p className="rounded-2xl border border-white/15 p-3 text-sm text-white/60">Ingen aktive anmeldelser eller kulturguider i de gennemgåede kilder. Planer uden artikeltekst vises ikke her.</p>}
       {capabilities.owner && <section aria-labelledby="liv-ideas-heading" className="space-y-3 border-t border-white/15 pt-6">
         <div className="flex flex-wrap items-baseline justify-between gap-2"><h2 id="liv-ideas-heading" className="text-lg font-medium">Idéer til senere</h2>
           {feed?.ideas && <span className="text-xs text-white/50">{feed.ideas.items.length} gemte idéer</span>}</div>
-        <p className="text-sm leading-relaxed text-white/60">Forslag fra gemte idébriefs. De er ikke researchet færdigt, skrevet eller godkendt til udgivelse. Daglige statusmails med et emne opretter ikke en artikel.</p>
+        <ToolHelp title="Om idéerne">Forslag fra gemte idébriefs. De er ikke researchet færdigt, skrevet eller godkendt til udgivelse. Daglige statusmails med et emne opretter ikke en artikel.</ToolHelp>
         {feed?.ideas === null && <p role="alert" className="text-sm text-amber-200">Idéarkivet kunne ikke hentes. Overblikket er ufuldstændigt.</p>}
         {feed?.ideas && !feed.ideas.complete && <p role="alert" className="text-sm text-amber-200">Der findes flere gemte idéer end de 30 viste. Åbn redaktionens idéarkiv for resten.</p>}
-        {feed?.ideas && (feed.ideas.items.length ? <ul className="rounded-2xl border border-white/15 px-5 py-2">
+        {feed?.ideas && (feed.ideas.items.length ? <ul className="rounded-2xl border border-white/15 px-3 py-2">
           {feed.ideas.items.map(item => <LivIdeaRow key={item.id} item={item} />)}
         </ul> : <p className="text-sm text-white/50">Ingen særskilte idéer gemt i de gennemgåede briefs.</p>)}
       </section>}
       {capabilities.owner && (!!feed?.work?.retained?.length || !!feed?.ideas?.retained?.length) &&
-        <details className="rounded-2xl border border-white/15 p-5">
+        <details className="rounded-2xl border border-white/15 p-3">
           <summary className="cursor-pointer text-sm text-white/75">Tidligere forslag · kræver ny vinkel ({(feed?.work?.retained?.length || 0) + (feed?.ideas?.retained?.length || 0)})</summary>
           <p className="py-3 text-sm leading-relaxed text-white/55">Bevaret med tekst, billeder og kilder. Disse features, kommentarer og nyhedsforslag indgår ikke i den aktive kø. De skal omarbejdes til en anmeldelse eller konkret kulturguide før udgivelse.</p>
           {feed?.work?.retained?.map(item => <LivSavedWorkCard key={item.id} item={item} />)}
@@ -224,7 +224,7 @@ export default function LivApprovalFeed() {
         <h2 id="liv-plan-heading" className="text-lg font-medium">Udgivelsesplan</h2>
         <p className="text-sm leading-relaxed text-white/60">Kun planlagte udgivelsesdage vises her. Et emne er ikke en færdig artikel.</p>
         {feed && !feed.week && <p role="alert" className="text-sm text-amber-200">Planen kunne ikke verificeres lige nu.</p>}
-        {publicationDays.length > 0 && <ul className="divide-y divide-white/10 rounded-2xl border border-white/15 px-5">
+        {publicationDays.length > 0 && <ul className="divide-y divide-white/10 rounded-2xl border border-white/15 px-3">
           {publicationDays.map(day => <li key={day.day} className="flex flex-wrap items-baseline justify-between gap-x-3 gap-y-1 py-3 text-sm">
             <time dateTime={day.day} className="text-white/80">{dateLabel(day.day)}</time>
             <span className={day.status === 'blocked' ? 'text-amber-200' : 'text-white/55'}>{planLabels[day.status]}</span>

@@ -1,5 +1,7 @@
 'use client';
 
+import toolStyles from '@/components/tool-surface.module.css';
+
 import { useCallback, useEffect, useMemo, useRef, useState } from 'react';
 import { EmbeddedAppHeader } from '@/components/embedded-app';
 import { useAuth } from '@/lib/auth-context';
@@ -306,19 +308,18 @@ export default function PodcastClient({ embedded = false, onClose }: PodcastClie
 
   return (
     <div
-      className={
-        embedded
-          ? 'flex h-full min-h-0 flex-col bg-transparent font-poppins text-white'
-          : 'min-h-[100dvh] bg-[#0a0a0a] font-poppins text-white'
-      }
+      className={`${toolStyles.surface} ${embedded
+          ? 'flex h-full min-h-0 flex-col bg-transparent  text-white'
+          : 'min-h-[100dvh] bg-[#0a0a0a]  text-white'
+      }`}
     >
       <EmbeddedAppHeader embedded={embedded} title="Podcast" onClose={onClose} />
 
       <main
         className={
           embedded
-            ? 'nice-scrollbar min-h-0 flex-1 overflow-y-auto px-3 py-4 lg:px-5'
-            : 'mx-auto max-w-xl px-4 py-6'
+            ? 'nice-scrollbar min-h-0 flex-1 overflow-y-auto px-3 py-4 lg:px-3'
+            : 'mx-auto max-w-xl px-4 py-3'
         }
       >
         <input
@@ -341,10 +342,10 @@ export default function PodcastClient({ embedded = false, onClose }: PodcastClie
             e.stopPropagation();
             acceptFile(e.dataTransfer.files?.[0] || null);
           }}
-          className={`flex w-full flex-col items-center justify-center gap-3 rounded-xl border-2 border-dashed px-6 py-14 transition-all duration-200 active:scale-[0.99] ${
+          className={`flex w-full flex-col items-center justify-center gap-3 rounded-xl border-2 border-dashed px-3 py-8 transition-all duration-200 active:scale-[0.99] ${
             file
               ? 'border-emerald-400/60 bg-white/[0.04]'
-              : 'border-white/15 bg-white/[0.02] hover:border-white/25 hover:bg-white/[0.04]'
+              : 'border-white/15 bg-[#1c1c1e] hover:border-white/25 hover:bg-white/[0.04]'
           }`}
         >
           <div className="flex size-12 items-center justify-center rounded-xl border border-white/12 bg-white/[0.06] text-white/50">
@@ -409,7 +410,7 @@ export default function PodcastClient({ embedded = false, onClose }: PodcastClie
         ) : null}
 
         {(activeUiStep || pipelineError) ? (
-          <section className="mt-5 rounded-xl border border-white/12 bg-white/[0.03] p-4">
+          <section className="mt-5 rounded-xl border border-white/12 bg-[#1c1c1e] p-4">
             <ul className="space-y-2.5">
               {UI_STEPS.map((s, i) => (
                 <li key={s.id} className="flex items-center gap-2.5 text-[13px]">
@@ -449,7 +450,7 @@ export default function PodcastClient({ embedded = false, onClose }: PodcastClie
               episodes.map((ep, index) => (
                 <li
                   key={ep.articleSlug || ep.id || `${ep.articleUrl}-${index}`}
-                  className="rounded-lg border border-white/[0.06] bg-white/[0.02] px-3 py-2.5"
+                  className="rounded-lg border border-white/[0.06] bg-[#1c1c1e] px-3 py-2.5"
                 >
                   <a
                     href={ep.articleUrl}

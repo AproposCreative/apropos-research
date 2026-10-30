@@ -1,4 +1,7 @@
 'use client';
+import ToolTabs from '@/components/embedded-app/ToolTabs';
+
+import toolStyles from '@/components/tool-surface.module.css';
 
 /**
  * AI-posting (Liv Brandt) — embedded klient i web-apps menuen.
@@ -206,10 +209,6 @@ function formatRelativeDate(iso: string | undefined): string | null {
   }
 }
 
-const segBtn = (active: boolean) =>
-  `rounded-lg px-2.5 py-1 text-[11px] font-medium tracking-wide transition-all duration-200 active:scale-[0.97] ${
-    active ? 'bg-white/12 text-white shadow-sm border border-white/10' : 'text-white/45 hover:text-white/75'
-  }`;
 
 const primaryBtn =
   'w-full px-4 py-3 rounded-xl text-[14px] font-medium text-white transition-all duration-200 border border-white/10 bg-white/5 hover:border-white/20 hover:bg-white/10 hover:shadow-[0_0_32px_-8px_rgba(255,255,255,0.18)] disabled:opacity-40 active:scale-[0.99]';
@@ -242,7 +241,7 @@ const pillLink =
   'px-3 py-1.5 rounded-lg border border-white/12 text-sm text-white/65 hover:bg-white/[0.06] hover:text-white/90 transition-all duration-200 active:scale-[0.98]';
 
 const quickPillBtn =
-  'px-2.5 py-1.5 rounded-lg border border-white/12 bg-white/[0.03] text-[11px] text-white/75 hover:bg-white/[0.08] hover:border-white/20 hover:text-white transition-all duration-200 active:scale-[0.98]';
+  'px-2.5 py-1.5 rounded-lg border border-white/12 bg-[#1c1c1e] text-[11px] text-white/75 hover:bg-white/[0.08] hover:border-white/20 hover:text-white transition-all duration-200 active:scale-[0.98]';
 
 const LIV_EXCLUDED_STORAGE_KEY = 'liv-posting-excluded-titles';
 
@@ -698,7 +697,7 @@ export default function LivPostingClient({ embedded = false, onClose, initialTab
 
   if (!user) {
     return (
-      <div className={`flex flex-col items-center justify-center text-center p-8 text-white/70 font-poppins ${embedded ? 'h-full' : 'min-h-[100dvh]'}`}>
+      <div className={`flex flex-col items-center justify-center text-center p-8 text-white/70 ${toolStyles.surface} ${embedded ? 'h-full' : 'min-h-[100dvh]'}`}>
         <p className="text-[14px] text-white/75">Log ind for at se AI-posting</p>
         <Link href="/auth/sign-in" className={`mt-4 ${pillLink}`}>Log ind</Link>
       </div>
@@ -706,69 +705,17 @@ export default function LivPostingClient({ embedded = false, onClose, initialTab
   }
 
   return (
-    <div className={embedded
-      ? 'flex flex-col h-full min-h-0 text-white bg-transparent font-poppins'
-      : 'min-h-[100dvh] flex flex-col text-white bg-[#0a0a0a] font-poppins'}
+    <div className={`${toolStyles.surface} ${embedded
+      ? 'flex flex-col h-full min-h-0 text-white bg-transparent '
+      : 'min-h-[100dvh] flex flex-col text-white bg-[#0a0a0a] '}`}
     >
       <EmbeddedAppHeader
         embedded={embedded}
         title="Liv · AI-posting"
         subtitle="Forhåndsvisning her sender ikke til Webflow. Emne, udkast og redaktion følger den samme logik som morgen-cron; kladde vs. live efter kørsel ses under Drift."
         onClose={onClose}
-        trailing={
-          <div
-            className="hidden md:flex rounded-lg border border-white/12 p-0.5 gap-0.5 bg-black/30 backdrop-blur-sm"
-            role="tablist"
-            aria-label="AI-posting faner"
-          >
-            <button
-              type="button"
-              role="tab"
-              aria-selected={activeTab === 'topic'}
-              id="liv-tab-topic"
-              onClick={() => setActiveTab('topic')}
-              className={segBtn(activeTab === 'topic')}
-            >
-              Dagens emne
-            </button>
-            <button
-              type="button"
-              role="tab"
-              aria-selected={activeTab === 'history'}
-              id="liv-tab-history"
-              onClick={() => setActiveTab('history')}
-              className={segBtn(activeTab === 'history')}
-            >
-              Historik
-            </button>
-          </div>
-        }
+        trailing={<ToolTabs value={activeTab} options={[{id:'topic',label:'Dagens emne'},{id:'history',label:'Historik'}]} onChange={setActiveTab} label="AI-posting faner" />}
       />
-
-      <div
-        className="md:hidden flex gap-0.5 p-2 border-b border-white/10 bg-black/25 backdrop-blur-md"
-        role="tablist"
-        aria-label="AI-posting faner"
-      >
-        <button
-          type="button"
-          role="tab"
-          aria-selected={activeTab === 'topic'}
-          onClick={() => setActiveTab('topic')}
-          className={`flex-1 ${segBtn(activeTab === 'topic')}`}
-        >
-          Dagens emne
-        </button>
-        <button
-          type="button"
-          role="tab"
-          aria-selected={activeTab === 'history'}
-          onClick={() => setActiveTab('history')}
-          className={`flex-1 ${segBtn(activeTab === 'history')}`}
-        >
-          Historik
-        </button>
-      </div>
 
       {/* ── Content ── */}
       <div className="flex-1 min-h-0 overflow-y-auto">
@@ -910,7 +857,7 @@ export default function LivPostingClient({ embedded = false, onClose, initialTab
               <div>
                 <p className="text-[10px] uppercase tracking-wider text-white/40 mb-2 px-0.5">Automatisk emne · samme logik som daglig cron</p>
               {/* Dagens emne — kort */}
-              <section className="rounded-xl border border-white/[0.08] bg-white/[0.02] overflow-hidden">
+              <section className="rounded-xl border border-white/[0.08] bg-[#1c1c1e] overflow-hidden">
                 <div className="flex flex-col sm:flex-row">
                   <div className="sm:w-32 sm:h-auto h-24 bg-[#141414] border-b sm:border-b-0 sm:border-r border-white/[0.08] flex items-center justify-center relative overflow-hidden flex-shrink-0">
                     {previewImageUrl ? (
@@ -930,12 +877,12 @@ export default function LivPostingClient({ embedded = false, onClose, initialTab
                         <span className="size-1.5 rounded-full bg-white/40" /> Næste auto-publish
                       </span>
                       {topic ? (
-                        <span className="inline-flex items-center px-2 py-0.5 rounded-md border border-white/[0.08] bg-white/[0.03] text-[10px] uppercase tracking-wider text-white/55">
+                        <span className="inline-flex items-center px-2 py-0.5 rounded-md border border-white/[0.08] bg-[#1c1c1e] text-[10px] uppercase tracking-wider text-white/55">
                           Score {topic.score}
                         </span>
                       ) : null}
                       {topic?.category ? (
-                        <span className="inline-flex items-center px-2 py-0.5 rounded-md border border-white/[0.08] bg-white/[0.03] text-[10px] uppercase tracking-wider text-white/55">
+                        <span className="inline-flex items-center px-2 py-0.5 rounded-md border border-white/[0.08] bg-[#1c1c1e] text-[10px] uppercase tracking-wider text-white/55">
                           {topic.category}
                         </span>
                       ) : null}
@@ -1208,7 +1155,7 @@ export default function LivPostingClient({ embedded = false, onClose, initialTab
                 {planError && <p className="text-[12px] text-red-400/95">{planError}</p>}
 
                 {plan && (
-                  <div className="rounded-lg border border-white/[0.08] bg-black/20 px-3 py-2.5">
+                  <div className="rounded-lg border border-white/[0.08] bg-[#1c1c1e] px-3 py-2.5">
                     <p className="text-[11px] text-white/70">
                       Aktiv plan: <span className="text-white/90">{plan.dayKey}</span> · {plan.status}
                     </p>
@@ -1233,7 +1180,7 @@ export default function LivPostingClient({ embedded = false, onClose, initialTab
               )}
 
               {Array.isArray(preview?.gateResults) && preview.gateResults.length > 0 && (
-                <section className="rounded-xl border border-white/[0.08] bg-white/[0.02] px-4 py-3 space-y-2">
+                <section className="rounded-xl border border-white/[0.08] bg-[#1c1c1e] px-4 py-3 space-y-2">
                   <div className="flex items-center justify-between gap-2">
                     <p className="text-[10px] uppercase tracking-wider text-white/45">Safety Gates</p>
                     <span
@@ -1258,7 +1205,7 @@ export default function LivPostingClient({ embedded = false, onClose, initialTab
                       return (
                       <div
                         key={`${g.name}-${g.detail || ''}`}
-                        className="rounded-lg border border-white/[0.08] bg-black/20 px-2.5 py-2"
+                        className="rounded-lg border border-white/[0.08] bg-[#1c1c1e] px-2.5 py-2"
                       >
                         <p className="text-[11px] text-white/85">
                           {g.name}:{' '}
@@ -1274,7 +1221,7 @@ export default function LivPostingClient({ embedded = false, onClose, initialTab
               )}
 
               {preview?.previewExpandedDirective && (
-                <section className="rounded-xl border border-white/[0.08] bg-white/[0.02] px-4 py-3">
+                <section className="rounded-xl border border-white/[0.08] bg-[#1c1c1e] px-4 py-3">
                   <p className="text-[10px] uppercase tracking-wider text-white/45 mb-1.5">AI-udvidet retning</p>
                   <p className="text-[12px] text-white/75 whitespace-pre-wrap leading-relaxed">
                     {preview.previewExpandedDirective}
@@ -1284,19 +1231,19 @@ export default function LivPostingClient({ embedded = false, onClose, initialTab
 
               {/* Forhåndsvisning */}
               {generateLoading && !article && (
-                <section className="rounded-xl border border-white/[0.08] bg-white/[0.02] px-4 py-4">
+                <section className="rounded-xl border border-white/[0.08] bg-[#1c1c1e] px-4 py-4">
                   <p className="text-[12px] text-white/55">Liv skriver udkast — typisk 20-60 sekunder…</p>
                 </section>
               )}
 
               {article && (
-                <section className="rounded-xl border border-white/[0.08] bg-white/[0.02] overflow-hidden">
+                <section className="rounded-xl border border-white/[0.08] bg-[#1c1c1e] overflow-hidden">
                   <header className="flex items-center justify-between gap-3 px-4 py-2.5 border-b border-white/[0.06]">
                     <div className="flex items-center gap-1.5">
                       <span className="inline-flex items-center gap-1.5 px-2 py-0.5 rounded-md border border-white/15 bg-white/[0.06] text-[10px] uppercase tracking-wider text-white/70">
                         <span className="size-1.5 rounded-full bg-emerald-400" /> Forhåndsvisning
                       </span>
-                      <span className="inline-flex items-center px-2 py-0.5 rounded-md border border-white/[0.08] bg-white/[0.03] text-[10px] uppercase tracking-wider text-white/55">
+                      <span className="inline-flex items-center px-2 py-0.5 rounded-md border border-white/[0.08] bg-[#1c1c1e] text-[10px] uppercase tracking-wider text-white/55">
                         {article.section}
                       </span>
                       <span className="text-[11px] text-white/45">{article.wordCount} ord</span>
@@ -1456,7 +1403,7 @@ export default function LivPostingClient({ embedded = false, onClose, initialTab
 
           {/* ═══ HISTORY TAB ═══ */}
           {activeTab === 'history' && (
-            <section className="rounded-xl border border-white/[0.08] bg-white/[0.02] overflow-hidden">
+            <section className="rounded-xl border border-white/[0.08] bg-[#1c1c1e] overflow-hidden">
               <header className="flex items-center justify-between gap-3 px-4 py-2.5 border-b border-white/[0.06]">
                 <div className="min-w-0">
                   <p className="text-[12px] font-medium text-white/80">Seneste historik (kørsler + CMS)</p>
@@ -1494,7 +1441,7 @@ export default function LivPostingClient({ embedded = false, onClose, initialTab
                       return (
                         <li
                           key={h.id}
-                          className="flex items-start gap-3 px-3 py-2 rounded-lg border border-white/[0.06] hover:bg-white/[0.03] transition-colors"
+                          className="flex items-start gap-3 px-3 py-2 rounded-lg border border-white/[0.06] hover:bg-[#1c1c1e] transition-colors"
                         >
                           <span className="inline-flex items-center gap-1.5 px-2 py-0.5 rounded-md border border-white/15 bg-white/[0.06] text-[10px] uppercase tracking-wider text-white/70 whitespace-nowrap mt-0.5">
                             <span className={`size-1.5 rounded-full ${TONE_DOT[meta.tone]}`} /> {meta.label}

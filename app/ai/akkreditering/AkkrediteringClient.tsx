@@ -1,4 +1,7 @@
 'use client';
+import ToolTabs from '@/components/embedded-app/ToolTabs';
+
+import toolStyles from '@/components/tool-surface.module.css';
 
 import { useCallback, useEffect, useMemo, useState } from 'react';
 import { useSearchParams } from 'next/navigation';
@@ -109,7 +112,7 @@ function AutomationToggle({
         className={`touch-target inline-flex items-center gap-2.5 pl-2.5 pr-3 py-1.5 rounded-xl border transition-all duration-200 active:scale-[0.98] ${
           enabled
             ? 'border-white/20 bg-white/10 text-white'
-            : 'border-white/12 bg-white/[0.03] text-white/55'
+            : 'border-white/12 bg-[#1c1c1e] text-white/55'
         }`}
       >
         <span
@@ -389,24 +392,16 @@ export default function AkkrediteringClient({ embedded = false, onClose }: Props
   if (setupImap) tabs.push({ id: 'settings', label: 'Opsætning' });
 
   return (
-    <div className="flex flex-col h-full min-h-0 text-white bg-transparent font-poppins">
+    <div className={`${toolStyles.surface} flex flex-col h-full min-h-0 text-white bg-transparent `}>
       <EmbeddedAppHeader
         embedded={embedded}
         title="Akkreditering"
         subtitle="Liv holder styr på dialogen fra start til slut"
         onClose={onClose}
-        trailing={
-          <div className="flex flex-wrap items-center gap-1">
-            {tabs.map((t) => (
-              <button key={t.id} type="button" className={segBtn(tab === t.id)} onClick={() => setTab(t.id)}>
-                {t.label}
-              </button>
-            ))}
-          </div>
-        }
+        trailing={<ToolTabs value={tab} options={tabs} onChange={setTab} label="Akkrediteringvisning" />}
       />
 
-      <div className="shrink-0 border-b border-white/10 px-3 lg:px-4 py-3 bg-black/20 space-y-2">
+      <div className="shrink-0 border-b border-white/10 px-3 lg:px-4 py-3 bg-[#1c1c1e] space-y-2">
         <AutomationToggle
           enabled={automationOn}
           busy={busy}
@@ -440,7 +435,7 @@ export default function AkkrediteringClient({ embedded = false, onClose }: Props
         {(message || error) && (
           <div
             className={`rounded-xl border px-3.5 py-2.5 text-[13px] ${
-              error ? 'border-white/20 text-red-400/95 bg-white/[0.03]' : 'border-white/12 text-white/75 bg-white/[0.03]'
+              error ? 'border-white/20 text-red-400/95 bg-[#1c1c1e]' : 'border-white/12 text-white/75 bg-[#1c1c1e]'
             }`}
           >
             {error || message}
@@ -478,7 +473,7 @@ export default function AkkrediteringClient({ embedded = false, onClose }: Props
 
             {/* Desktop table */}
             <div className="hidden lg:block rounded-xl border border-white/12 overflow-hidden">
-              <div className="grid grid-cols-12 gap-2 px-3 py-2 text-[10px] uppercase tracking-wider text-white/35 border-b border-white/10 bg-white/[0.02]">
+              <div className="grid grid-cols-12 gap-2 px-3 py-2 text-[10px] uppercase tracking-wider text-white/35 border-b border-white/10 bg-[#1c1c1e]">
                 <span className="col-span-3">Koncert</span>
                 <span className="col-span-2">Ansøger / adgang</span>
                 <span className="col-span-2">Kontakt</span>
@@ -492,7 +487,7 @@ export default function AkkrediteringClient({ embedded = false, onClose }: Props
                   type="button"
                   onClick={() => setSelectedId(t.id)}
                   className={`grid grid-cols-12 gap-2 w-full text-left px-3 py-3 border-b border-white/[0.06] transition-colors ${
-                    selected?.id === t.id ? 'bg-white/[0.05]' : 'hover:bg-white/[0.03]'
+                    selected?.id === t.id ? 'bg-white/[0.05]' : 'hover:bg-[#1c1c1e]'
                   } ${t.overviewStatus === 'granted' ? 'bg-emerald-400/[0.04]' : ''}`}
                 >
                   <div className="col-span-3 min-w-0">
@@ -582,7 +577,7 @@ export default function AkkrediteringClient({ embedded = false, onClose }: Props
                       ? 'border-emerald-400/25 bg-emerald-400/[0.05]'
                       : selected?.id === t.id
                         ? 'border-white/15 bg-white/[0.05]'
-                        : 'border-white/[0.08] bg-white/[0.02]'
+                        : 'border-white/[0.08] bg-[#1c1c1e]'
                   }`}
                   onClick={() => setSelectedId(t.id)}
                 >
@@ -632,7 +627,7 @@ export default function AkkrediteringClient({ embedded = false, onClose }: Props
             </div>
 
             {selected && (
-              <div className="rounded-xl border border-white/12 bg-white/[0.03] p-3.5 space-y-2">
+              <div className="rounded-xl border border-white/12 bg-[#1c1c1e] p-3.5 space-y-2">
                 <div className="flex flex-wrap items-center justify-between gap-2">
                   <h3 className="text-[14px] font-medium text-white">
                     {selected.id} · {selected.artist}
@@ -671,7 +666,7 @@ export default function AkkrediteringClient({ embedded = false, onClose }: Props
         )}
 
         {tab === 'intake' && (
-          <div className="w-full rounded-xl border border-white/12 bg-black/70 p-3.5 backdrop-blur-2xl md:p-5">
+          <div className="w-full rounded-xl border border-white/12 bg-black/70 p-3.5 backdrop-blur-2xl md:p-3">
             <div className="mb-5">
               <div className="flex items-center justify-between text-[10px] uppercase tracking-[0.16em] text-white/40">
                 <span>Ny akkreditering</span>
@@ -750,7 +745,7 @@ export default function AkkrediteringClient({ embedded = false, onClose }: Props
 
             {intakeStep === 1 && eventPreview && (
               <div className="space-y-5">
-                <div className="rounded-xl border border-white/10 bg-white/[0.03] p-3.5">
+                <div className="rounded-xl border border-white/10 bg-[#1c1c1e] p-3.5">
                   <p className="text-[15px] font-medium text-white">{artist || eventPreview.artist}</p>
                   <p className="mt-1 text-[12px] text-white/45">
                     {[venue || eventPreview.venue, eventDate || eventPreview.eventDate]
@@ -790,7 +785,7 @@ export default function AkkrediteringClient({ embedded = false, onClose }: Props
                         className={`min-w-11 rounded-lg border px-3 py-2 text-[12px] ${
                           ticketQty === String(quantity)
                             ? 'border-white/35 bg-white/10 text-white'
-                            : 'border-white/10 bg-white/[0.03] text-white/55'
+                            : 'border-white/10 bg-[#1c1c1e] text-white/55'
                         }`}
                       >
                         {quantity}
@@ -814,7 +809,7 @@ export default function AkkrediteringClient({ embedded = false, onClose }: Props
                         className={`rounded-lg border px-3 py-2 text-[12px] ${
                           accessType === option.id
                             ? 'border-white/35 bg-white/10 text-white'
-                            : 'border-white/10 bg-white/[0.03] text-white/55'
+                            : 'border-white/10 bg-[#1c1c1e] text-white/55'
                         }`}
                       >
                         {option.label}
@@ -847,7 +842,7 @@ export default function AkkrediteringClient({ embedded = false, onClose }: Props
                   {showMoreDetails ? 'Skjul rettelser' : 'Ret artist eller venue'}
                 </button>
                 {showMoreDetails && (
-                  <div className="grid grid-cols-1 gap-2 rounded-xl border border-white/[0.08] bg-white/[0.02] p-3 sm:grid-cols-2">
+                  <div className="grid grid-cols-1 gap-2 rounded-xl border border-white/[0.08] bg-[#1c1c1e] p-3 sm:grid-cols-2">
                     <input className={fieldClass} placeholder="Artist" value={artist} onChange={(e) => setArtist(e.target.value)} />
                     <input className={fieldClass} placeholder="Venue" value={venue} onChange={(e) => setVenue(e.target.value)} />
                   </div>
@@ -877,7 +872,7 @@ export default function AkkrediteringClient({ embedded = false, onClose }: Props
                     I kan rette detaljerne i chatten, før sagen startes.
                   </p>
                 </div>
-                <div className="grid gap-2 rounded-xl border border-white/10 bg-white/[0.03] p-3.5 text-[12px] text-white/70 sm:grid-cols-2">
+                <div className="grid gap-2 rounded-xl border border-white/10 bg-[#1c1c1e] p-3.5 text-[12px] text-white/70 sm:grid-cols-2">
                   <p><span className="text-white/35">Event</span><br />{artist}</p>
                   <p><span className="text-white/35">Dato</span><br />{eventDate}</p>
                   <p><span className="text-white/35">Skribent</span><br />{recipientName}</p>
@@ -995,7 +990,7 @@ export default function AkkrediteringClient({ embedded = false, onClose }: Props
               </button>
             </div>
             {showLivHelp && livProfile && (
-              <div className="shrink-0 max-h-[40%] overflow-y-auto nice-scrollbar border-b border-white/10 px-3 py-3 space-y-2 bg-white/[0.02]">
+              <div className="shrink-0 max-h-[40%] overflow-y-auto nice-scrollbar border-b border-white/10 px-3 py-3 space-y-2 bg-[#1c1c1e]">
                 <p className="text-[12px] text-white/75 leading-relaxed">{livProfile.bio?.summary}</p>
                 <p className="text-[10px] text-white/40">{livProfile.bio?.education}</p>
                 <p className="text-[10px] text-amber-300/80">{livProfile.bio?.antifabrication}</p>
@@ -1236,7 +1231,7 @@ export default function AkkrediteringClient({ embedded = false, onClose }: Props
         {tab === 'settings' && (
           <div className="space-y-3">
             {connStatus && (
-              <div className="rounded-xl border border-white/15 bg-white/[0.03] p-3.5 space-y-2">
+              <div className="rounded-xl border border-white/15 bg-[#1c1c1e] p-3.5 space-y-2">
                 <p className="text-[12px] font-medium text-white/80">Mail-identitet (ingen secrets)</p>
                 {(['mailTransport', 'smtp', 'livFrom', 'replyTo', 'mailIdentity', 'resend'] as const).map((key) => {
                   const row = connStatus[key];
@@ -1265,7 +1260,7 @@ export default function AkkrediteringClient({ embedded = false, onClose }: Props
                 })}
               </div>
             )}
-            <div className="rounded-xl border border-white/15 bg-white/[0.03] p-3.5 space-y-3">
+            <div className="rounded-xl border border-white/15 bg-[#1c1c1e] p-3.5 space-y-3">
               <p className="text-[12px] font-medium text-white/80">Kontakt-hukommelse (Firestore)</p>
               <p className="text-[11px] text-white/45">
                 Synkroniserer read-only fanen Mailbox contact archive til durable hukommelse.
@@ -1331,7 +1326,7 @@ export default function AkkrediteringClient({ embedded = false, onClose }: Props
                 </pre>
               )}
             </div>
-            <div className="rounded-xl border border-white/15 bg-white/[0.03] p-3.5 space-y-3">
+            <div className="rounded-xl border border-white/15 bg-[#1c1c1e] p-3.5 space-y-3">
               <p className="text-[12px] font-medium text-white/80">
                 one.com IMAP {setupImap ? '(setup path)' : ''}
               </p>

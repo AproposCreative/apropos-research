@@ -1,5 +1,7 @@
 'use client';
 
+import toolStyles from '@/components/tool-surface.module.css';
+
 import { lazy, Suspense, useCallback, useEffect, useState } from 'react';
 import { useAuth } from '@/lib/auth-context';
 import type { DeskStory } from '@/lib/editorial/desk-types';
@@ -12,7 +14,7 @@ import LivContentColumn from './LivContentColumn';
 import LivBudgetSettings from './LivBudgetSettings';
 import SharedMediaSources from './SharedMediaSources';
 import LivOperations from './LivOperations';
-import LivStoryNavigation from './LivStoryNavigation';
+import { EmbeddedAppHeader } from '@/components/embedded-app';
 import LivTips from './LivTips';
 import LivObservations from './LivObservations';
 
@@ -51,27 +53,22 @@ export default function LivDeskClient({ onClose, onOpenWriter }: { onClose: () =
   const current = stories.find(s => s.id === selected);
   const button = 'min-h-11 rounded-lg border border-white/20 px-3 py-2 text-sm hover:bg-white/10 focus-visible:outline focus-visible:outline-2 focus-visible:outline-white disabled:opacity-40';
   const mainView = view === 'upcoming' || view === 'published';
-  return <section className="flex h-full min-h-0 min-w-0 w-full flex-col text-white font-poppins">
-    <header className="relative z-30 shrink-0 border-b border-white/10 bg-[#080808]">
-      <LivContentColumn className="flex items-center justify-between gap-2 py-4">
-      <div className="min-w-0"><h1 className="text-lg font-medium">Liv · Redaktion</h1><p className="mt-1 text-xs text-white/50">Én historie ad gangen.</p></div>
-      <div className="flex shrink-0 gap-1">
-        {capabilities.owner && <button className={`${button} min-w-11 border-transparent`} onClick={() => setView('settings')} aria-label="Indstillinger og værktøjer" aria-pressed={!mainView}>
-          <svg aria-hidden="true" width="20" height="20" viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="1.5"><path d="m9 3-.7 2.2-2 .9L4 5.6 2 9l1.6 1.7v2.6L2 15l2 3.4 2.3-.5 2 .9L9 21h4l.7-2.2 2-.9 2.3.5 2-3.4-1.6-1.7v-2.6L20 9l-2-3.4-2.3.5-2-.9L13 3Z"/><circle cx="11" cy="12" r="3"/></svg>
-        </button>}
-        <button className={`${button} min-w-11 border-transparent`} onClick={onClose} aria-label="Luk Liv Redaktion">✕</button>
-      </div>
-      </LivContentColumn>
-    </header>
-    {mainView ? <LivStoryNavigation key={view} view={view} onChange={setView}>
-      {view === 'upcoming' ? <LivApprovalFeed /> : <LivPublicationHistory />}
-    </LivStoryNavigation> : <div className="shrink-0 border-b border-white/10"><LivContentColumn className="py-2"><button className={`${button} border-transparent`} onClick={() => setView(view === 'settings' ? 'upcoming' : 'settings')}>← {view === 'settings' ? 'Til historierne' : 'Til indstillinger'}</button></LivContentColumn></div>}
-    {view === 'settings' && <div className="min-h-0 flex-1 overflow-y-auto"><LivContentColumn className="space-y-5 py-6">
+  return <section className={`${toolStyles.surface} flex h-full min-h-0 min-w-0 w-full flex-col text-white `}>
+    {view !== 'manual' && <EmbeddedAppHeader embedded title="Liv · Redaktion" onClose={onClose} trailing={<div className="flex items-center gap-1">
+      {mainView ? <div className={toolStyles.segmented} aria-label="Redaktionens faner">
+        {([{id: 'upcoming', label: 'Kommende'}, {id: 'published', label: 'Udgivet'}] as const).map(tab => <button type="button" key={tab.id} onClick={() => setView(tab.id)} aria-current={view === tab.id ? 'page' : undefined} className={view === tab.id ? 'bg-white/15 text-white' : 'text-white/55'}>{tab.label}</button>)}
+      </div> : <button type="button" className={button} onClick={() => setView(view === 'settings' ? 'upcoming' : 'settings')}>← {view === 'settings' ? 'Historier' : 'Indstillinger'}</button>}
+      {capabilities.owner && <button type="button" className={toolStyles.iconButton} onClick={() => setView('settings')} aria-label="Indstillinger og værktøjer" aria-pressed={!mainView}>
+        <svg aria-hidden="true" width="20" height="20" viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="1.5"><path d="m9 3-.7 2.2-2 .9L4 5.6 2 9l1.6 1.7v2.6L2 15l2 3.4 2.3-.5 2 .9L9 21h4l.7-2.2 2-.9 2.3.5 2-3.4-1.6-1.7v-2.6L20 9l-2-3.4-2.3.5-2-.9L13 3Z"/><circle cx="11" cy="12" r="3"/></svg>
+      </button>}
+    </div>} />}
+    {mainView && <div className="relative flex min-h-0 flex-1 flex-col overflow-hidden">{view === 'upcoming' ? <LivApprovalFeed /> : <LivPublicationHistory />}</div>}
+    {view === 'settings' && <div className="min-h-0 flex-1 overflow-y-auto"><LivContentColumn className="space-y-5 py-3">
       <h2 className="text-xl font-medium">Indstillinger og værktøjer</h2>
-      <p className="text-sm leading-relaxed text-white/60">Til det redaktionelle arbejde bag historierne. Dine valg ligger under Kommende. Liv udkommer hver anden dag.</p>
+
       <div className="divide-y divide-white/10 rounded-xl border border-white/15">
-        <button onClick={() => setView('research')} className="block w-full space-y-2 p-5 text-left hover:bg-white/5 focus-visible:outline focus-visible:outline-white"><span className="block font-medium">Research og kilder →</span><span className="block text-sm text-white/55">Idéer, kildegrundlag og udkast. Åbn en historie i Writer.</span></button>
-        <button onClick={() => setView('manual')} className="block w-full space-y-2 p-5 text-left hover:bg-white/5 focus-visible:outline focus-visible:outline-white"><span className="block font-medium">Avanceret drift →</span><span className="block text-sm text-white/55">Udgivelsesstatus, fejllog og manuel planlægning.</span></button>
+        <button onClick={() => setView('research')} className="block w-full space-y-2 p-3 text-left hover:bg-white/5 focus-visible:outline focus-visible:outline-white"><span className="block font-medium">Research og kilder →</span><span className="block text-sm text-white/55">Idéer, kildegrundlag og udkast. Åbn en historie i Writer.</span></button>
+        <button onClick={() => setView('manual')} className="block w-full space-y-2 p-3 text-left hover:bg-white/5 focus-visible:outline focus-visible:outline-white"><span className="block font-medium">Avanceret drift →</span><span className="block text-sm text-white/55">Udgivelsesstatus, fejllog og manuel planlægning.</span></button>
       </div>
       <LivOperations />
       <LivTips />
@@ -79,8 +76,8 @@ export default function LivDeskClient({ onClose, onOpenWriter }: { onClose: () =
       <LivBudgetSettings />
       <SharedMediaSources />
     </LivContentColumn></div>}
-    {view === 'manual' && <div className="min-h-0 flex-1"><Suspense fallback={<p role="status" className="p-5 text-sm text-white/60">Henter drift…</p>}><LivPostingClient embedded initialTab="history" /></Suspense></div>}
-    {view === 'research' && <div className="min-h-0 flex-1 overflow-y-auto"><LivContentColumn className="space-y-5 py-6">
+    {view === 'manual' && <div className="min-h-0 flex-1"><Suspense fallback={<p role="status" className="p-3 text-sm text-white/60">Henter drift…</p>}><LivPostingClient embedded initialTab="history" onClose={() => setView('settings')} /></Suspense></div>}
+    {view === 'research' && <div className="min-h-0 flex-1 overflow-y-auto"><LivContentColumn className="space-y-5 py-3">
       <h2 className="text-xl font-medium">Research og kilder</h2>
       {error && <p role="alert" className="text-sm text-amber-200">{error}</p>}
       <p className="text-sm text-white/60">{loaded ? `${stories.length} idéer · ${stories.filter(s => s.status === 'draft').length} udkast · ${stories.filter(s => s.status === 'failed').length} kræver handling` : 'Henter redaktionens udkast…'}</p>

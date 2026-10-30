@@ -1,8 +1,8 @@
 'use client';
 import { useEffect, useState } from 'react';
 import Image from 'next/image';
-import Link from 'next/link';
-import { X } from 'lucide-react';
+import { EmbeddedAppHeader } from '@/components/embedded-app';
+import toolStyles from '@/components/tool-surface.module.css';
 import { useAuth } from '@/lib/auth-context';
 import ConnectionLogin from './login';
 import ConnectionSetup from './setup';
@@ -46,13 +46,10 @@ export default function ChatGPTConnection({ requestId, publicationId, shortening
     finally { setBusy(false); }
   }
   const current = context?.current;
-  return <main className="min-h-dvh bg-[#000] px-4 py-5 text-white sm:p-8">
+  return <main className={`${toolStyles.surface} min-h-dvh bg-black px-2 py-2 text-white sm:p-3`}>
     <section className={`mx-auto overflow-hidden ${submissionId || review ? 'max-w-4xl bg-black' : 'max-w-2xl rounded-2xl border border-white/15 bg-[#080808]'}`}>
-      <header className="flex items-center justify-between border-b border-white/15 px-5 py-4">
-        <h1 className="text-xl font-medium">{mailId ? 'Apropos · Privat mailpreview' : submissionId || review ? 'Apropos · Redaktionelt preview' : publicationId ? 'Bekræft udgivelse' : shorteningId ? 'Godkend forkortelse' : 'Apropos i ChatGPT'}</h1>
-        <Link href="/ai" className={`${button} !p-3`} aria-label="Tilbage til Apropos"><X size={22} /></Link>
-      </header>
-      <div className={`space-y-6 ${submissionId || review ? 'px-1 py-6 sm:px-5' : 'p-5 sm:p-7'}`}>
+      <EmbeddedAppHeader embedded={false} title={mailId ? 'Privat mailpreview' : submissionId || review ? 'Redaktionelt preview' : publicationId ? 'Bekræft udgivelse' : shorteningId ? 'Godkend forkortelse' : 'Apropos i ChatGPT'} />
+      <div className={`space-y-3 ${submissionId || review ? 'px-1 py-3 sm:px-3' : 'p-3'}`}>
         {loading ? <p role="status">Kontrollerer din adgang …</p> : !user ? <ConnectionLogin signIn={signIn} signInWithGoogle={signInWithGoogle} accessError={accessError} />
         : mailId ? <MailReview key={mailId} draftId={mailId} /> : !capabilities.owner && (publicationId || shorteningId) ? <p>Denne ældre redaktionelle handling kræver ejeradgang. Du kan klargøre og udgive dine egne artikler fra chatten.</p> : done ? <p role="status">{done}</p> : publicationId ? <>
           {!context ? <p>Henter preview …</p> : <>

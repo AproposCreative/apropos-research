@@ -1,4 +1,5 @@
 "use client";
+import toolStyles from '@/components/tool-surface.module.css';
 import { useEffect, useState } from 'react';
 import { useAuth } from '@/lib/auth-context';
 import { storage } from '@/lib/firebase';
@@ -37,7 +38,7 @@ export default function StorageAdminPage() {
 	};
 
 	return (
-		<div className="p-6 text-white">
+		<div className={`${toolStyles.surface} p-2 sm:p-3 text-white`}>
 			<h1 className="text-xl font-medium mb-4">Firebase Storage Uploader</h1>
 			<div className="mb-4 text-sm text-white/70">Standardsti: apropos-config/prompts/apropos_writer.prompt eller apropos-config/embeddings/articles-embeddings.json</div>
 			<div className="space-y-3 max-w-xl">

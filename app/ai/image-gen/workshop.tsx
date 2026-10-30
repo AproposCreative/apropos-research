@@ -2,6 +2,7 @@
 import { useCallback, useEffect, useRef, useState } from 'react';
 import Link from 'next/link';
 import Image from 'next/image';
+import { EmbeddedAppHeader } from '@/components/embedded-app';
 import type { User } from 'firebase/auth';
 import { useAuth } from '@/lib/auth-context';
 import type { ImageGenArticle, ImageGenMotif, ImageGenVisualResearch } from '@/lib/image-gen/article';
@@ -11,6 +12,7 @@ import type { ImageGenPressCandidate } from '@/lib/image-gen/press';
 import type { ImageGenSelection } from '@/lib/image-gen/draft';
 import StyleSettings from './style-settings';
 import styles from './workshop.module.css';
+import toolStyles from '@/components/tool-surface.module.css';
 
 type ArticleRow = { id: string; title: string; cover: string | null; isDraft: boolean };
 type Snapshot = { article: ImageGenArticle; cover: { url?: string } | null; isDraft: boolean; existingImages?: { url: string; alt: string; caption: string }[] };
@@ -21,8 +23,8 @@ const statusName: Record<string, string> = { running: 'Arbejder · du kan lukke 
 
 export default function ImageGenWorkshop({ embedded = false, onClose }: { embedded?: boolean; onClose?: () => void }) {
   const { user, loading, capabilities } = useAuth();
-  if (loading) return <main className={embedded ? styles.embeddedShell : styles.shell}>Indlæser …</main>;
-  if (!user) return <main className={embedded ? styles.embeddedShell : styles.shell}><Link href="/ai">Log ind på Apropos AI</Link></main>;
+  if (loading) return <main className={`${toolStyles.surface} ${embedded ? styles.embeddedShell : styles.shell}`}>Indlæser …</main>;
+  if (!user) return <main className={`${toolStyles.surface} ${embedded ? styles.embeddedShell : styles.shell}`}><Link href="/ai">Log ind på Apropos AI</Link></main>;
   // Switching account unmounts all private working state and object URLs.
   return <Workshop key={user.uid} user={user} owner={capabilities?.owner === true} embedded={embedded} onClose={onClose} />;
 }
@@ -148,11 +150,8 @@ function Workshop({ user, owner, embedded, onClose }: { user: User; owner: boole
   const updateSelection = (id: string, patch: Partial<ImageGenSelection>) => {
     setPreviewId(null); setSelected(previous => previous.map(s => s.jobId === id ? { ...s, ...patch } : s));
   };
-  return <main className={embedded ? styles.embeddedShell : styles.shell}>
-    <header className={embedded ? styles.embeddedHeader : styles.header}><div><h1>Image-gen</h1><p>Apropos’ fælles billedværksted</p></div><div className={styles.headerActions}>
-      {owner && <button className={styles.gear} type="button" onClick={() => setSettingsOpen(previous => !previous)} aria-label="Budget og indstillinger" aria-expanded={settingsOpen} title="Budget og indstillinger">⚙</button>}
-      {onClose ? <button className={styles.close} type="button" onClick={onClose} aria-label="Luk Image-gen">×</button> : <Link href="/ai" aria-label="Tilbage til forsiden">Luk ×</Link>}
-    </div></header>
+  return <main className={`${toolStyles.surface} ${embedded ? styles.embeddedShell : styles.shell}`}>
+    <EmbeddedAppHeader embedded={embedded} title="Image-gen" onClose={onClose} trailing={owner ? <button className={styles.gear} type="button" onClick={() => setSettingsOpen(previous => !previous)} aria-label="Budget og indstillinger" aria-expanded={settingsOpen} title="Budget og indstillinger">⚙</button> : undefined} />
     <div className={styles.content}>
       <small className={styles.savedStatus} role="status">{workspaceSaved}</small>
       {error && <p role="alert" className={styles.error}>{error}</p>}
@@ -165,7 +164,7 @@ function Workshop({ user, owner, embedded, onClose }: { user: User; owner: boole
         const result = await request('run', pending); setPending(null); setJobs(p => [result.job, ...p.filter(j => j.id !== result.job.id)]);
       })}>Kontrollér samme bestilling</button></details>}
       {!snapshot ? <>
-        <h2>Vælg en artikel</h2><p>Vælg en Webflow-artikel. Derefter hjælper Image-gen dig med ét billede ad gangen.</p>
+        <h2>Vælg en artikel</h2>
         <form className={styles.search} onSubmit={e => { e.preventDefault(); void act(() => search()); }}><input aria-label="Søg i Webflow-artikler" value={query} maxLength={150} onChange={e => setQuery(e.target.value)} placeholder="Søg efter titel …"/><button disabled={busy}>Søg</button></form>
         <div className={styles.list}>{rows.map(row => <button className={styles.article} disabled={busy} key={row.id} onClick={() => void act(() => open(row.id))}>
           {row.cover ? <Image unoptimized width={480} height={280} src={row.cover} alt=""/> : <div className={styles.noImage}>Intet cover</div>}

@@ -7,7 +7,7 @@ export default function WebAppsPanel({ isOpen, onClose, onSelectApp, onOpenShelf
 }) {
   if (!isOpen) return null;
   return <section className={styles.panel}>
-    <header className={styles.header}><h2>Værktøjer</h2><button type="button" onClick={onClose}>Luk</button></header>
+    <header className={styles.header}><h2>Værktøjer</h2><button type="button" onClick={onClose} aria-label="Luk værktøjer"><span aria-hidden="true">×</span></button></header>
     <div className={styles.scroll}><ToolList onSelectApp={onSelectApp} onOpenShelf={onOpenShelf} onClose={onClose} /></div>
   </section>;
 }

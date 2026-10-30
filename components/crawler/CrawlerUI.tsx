@@ -1,4 +1,6 @@
 'use client';
+import toolStyles from '@/components/tool-surface.module.css';
+import { EmbeddedAppHeader } from '@/components/embedded-app';
 
 import { useState, useEffect, useCallback, useRef } from 'react';
 import { URLInput } from './URLInput';
@@ -205,16 +207,12 @@ export function CrawlerUI() {
   const canDownload = status?.status === 'completed' && (status.pagesCrawled || 0) > 0;
 
   return (
-    <div className="min-h-screen bg-black text-gray-100">
-      <div className="max-w-[1920px] mx-auto px-6 py-8">
-        {/* Header */}
-        <div className="mb-8">
-          <h1 className="text-3xl font-light mb-2">Website Text Crawler</h1>
-          <p className="text-gray-400 text-sm">Extract readable text from any website</p>
-        </div>
+    <div className={`${toolStyles.legacy} min-h-screen bg-black text-white`}>
+      <div className="max-w-[1920px] mx-auto px-3 py-3">
+        <EmbeddedAppHeader embedded={false} title="Webresearch" subtitle="Hent læsbar tekst fra en webside." />
 
         {/* Input Section */}
-        <div className="mb-8 space-y-4">
+        <div className="mb-3 space-y-4">
           <URLInput
             value={url}
             onChange={setUrl}
@@ -263,7 +261,7 @@ export function CrawlerUI() {
 
         {/* Main Content Area */}
         {status && (
-          <div className="grid grid-cols-1 lg:grid-cols-2 gap-6">
+          <div className="grid grid-cols-1 lg:grid-cols-2 gap-3">
             {/* URL List */}
             <div className="bg-gray-950/50 border border-gray-800/50 rounded-lg p-4">
               <h2 className="text-sm font-medium mb-4 text-gray-300">
