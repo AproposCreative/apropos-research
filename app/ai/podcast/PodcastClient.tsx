@@ -8,6 +8,7 @@ import { useAuth } from '@/lib/auth-context';
 import { uploadAudioToFirebaseStorage } from '@/lib/podcast/resumable-client';
 import { looksLikeArticleUrl } from '@/lib/podcast/slug-from-url';
 import type { PodcastJobStep, PodcastManifestEpisode } from '@/lib/podcast/types';
+import PodcastOperationsPanel from './PodcastOperationsPanel';
 
 const primaryBtn =
   'w-full px-4 py-3 rounded-xl text-[14px] font-medium text-white transition-all duration-200 border border-white/10 bg-white/5 hover:border-white/20 hover:bg-white/10 hover:shadow-[0_0_32px_-8px_rgba(255,255,255,0.18)] disabled:opacity-40 active:scale-[0.99]';
@@ -238,7 +239,7 @@ export default function PodcastClient({ embedded = false, onClose }: PodcastClie
       }
     }
 
-    throw new Error('Behandling tog for lang tid — prøv igen');
+    throw new Error('Behandlingen svarer ikke endnu. Kontrollér status før du starter noget igen.');
   };
 
   const handlePublish = async () => {
@@ -322,6 +323,9 @@ export default function PodcastClient({ embedded = false, onClose }: PodcastClie
             : 'mx-auto max-w-xl px-4 py-3'
         }
       >
+        <PodcastOperationsPanel authHeaders={authHeaders} />
+        <details>
+        <summary className="cursor-pointer py-3 text-[13px] text-white/60">Upload lydfil</summary>
         <input
           ref={fileInputRef}
           type="file"
@@ -474,6 +478,7 @@ export default function PodcastClient({ embedded = false, onClose }: PodcastClie
             )}
           </ul>
         </section>
+        </details>
       </main>
     </div>
   );

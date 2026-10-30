@@ -4,6 +4,7 @@ import { podcastCorsHeaders, podcastPublicOptions } from '@/lib/podcast/public-c
 import { buildPodcastRssXml } from '@/lib/podcast/rss';
 import { podcastRssFeedUrl, podcastShowCoverUrl } from '@/lib/podcast/show-config';
 import { readPodcastFeedMetadata } from '@/lib/podcast/feed-metadata';
+import { readPodcastDeliveryFacts } from '@/lib/podcast/delivery-facts';
 
 export const runtime = 'nodejs';
 
@@ -16,10 +17,14 @@ export async function GET(req: NextRequest) {
     const origin = req.nextUrl.origin;
     const manifest = await readPodcastManifest();
     let metadataAvailable = true;
-    const metadata = await readPodcastFeedMetadata(manifest).catch(() => { metadataAvailable = false; return {}; });
+    const [metadata, facts] = await Promise.all([
+      readPodcastFeedMetadata(manifest).catch(() => { metadataAvailable = false; return {}; }),
+      readPodcastDeliveryFacts(manifest).catch(() => { metadataAvailable = false; return {}; }),
+    ]);
     const xml = buildPodcastRssXml({
       manifest,
       metadata,
+      facts,
       feedUrl: podcastRssFeedUrl(origin),
       showCoverUrl: podcastShowCoverUrl(origin),
     });

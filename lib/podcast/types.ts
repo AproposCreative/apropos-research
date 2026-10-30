@@ -27,6 +27,8 @@ export type PodcastManifestEpisode = {
   imageURL?: string;
   guid?: string;
   kind?: 'ai' | 'human';
+  /** Explicit language when supplied by the producer; never inferred from "-en-". */
+  language?: string;
 };
 
 export type PodcastManifest = {

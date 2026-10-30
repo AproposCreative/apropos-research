@@ -6,11 +6,13 @@ import { PODCAST_ARTWORK_STYLE } from './artwork-style';
 
 export type PublishedPodcastArticle = {
   id: string; slug: string; title: string; description: string; coverUrl: string; credit: string;
+  lastPublishedAt?: string;
 };
 export type PodcastFeedMetadata = PublishedPodcastArticle & {
   guid: string; articleIdentity: string; sourceHash: string; imageURL: string;
   artworkSha256: string; artworkBytes: number; updatedAt: string;
   artworkStyle?: string;
+  identitySource?: 'narration_queue'; sourceQueueId?: string;
 };
 export type PodcastFeedMetadataMap = Record<string, PodcastFeedMetadata>;
 
@@ -37,7 +39,7 @@ export function publishedPodcastArticle(item: Record<string, unknown>): Publishe
   // Caller must use Webflow's /items/live endpoint. Never derive from staged items.
   if (item.isArchived === true || item.isDraft === true) return null;
   const fields = item.fieldData as Record<string, unknown> | undefined;
-  if (!fields || typeof fields.slug !== 'string' || typeof fields.name !== 'string') return null;
+  if (!fields || typeof fields.slug !== 'string' || typeof fields.name !== 'string' || typeof item.id !== 'string' || !item.id.trim()) return null;
   // Same preference as PodcastRepository.enriched in the app: mobile first.
   const coverUrl = ['mobile-image', 'thumb'].map(key => {
     const image = fields[key] as { url?: unknown } | string | undefined;
@@ -47,7 +49,8 @@ export function publishedPodcastArticle(item: Record<string, unknown>): Publishe
   if (!slug || !title) return null;
   const description = ['meta-description', 'intro', 'subtitle', 'summary', 'excerpt']
     .map(key => podcastPlainText(fields[key])).find(Boolean) || '';
-  return { id: String(item.id || ''), slug, title, description, coverUrl: coverUrl.trim(), credit: podcastPlainText(fields['foto-credit'], 300) };
+  return { id: String(item.id || ''), slug, title, description, coverUrl: coverUrl.trim(), credit: podcastPlainText(fields['foto-credit'], 300),
+    ...(typeof item.lastPublished === 'string' && Number.isFinite(Date.parse(item.lastPublished)) ? { lastPublishedAt: item.lastPublished } : {}) };
 }
 
 export function matchPodcastArticle(slug: string, articles: PublishedPodcastArticle[], originalTitle?: string, boundCmsId?: string): PublishedPodcastArticle | null {
@@ -71,7 +74,8 @@ export function matchPodcastArticle(slug: string, articles: PublishedPodcastArti
 }
 
 export function podcastSourceHash(article: PublishedPodcastArticle): string {
-  return podcastMetadataKey(JSON.stringify({ version: 2, artworkStyle: PODCAST_ARTWORK_STYLE, ...article }));
+  const { id, slug, title, description, coverUrl, credit } = article;
+  return podcastMetadataKey(JSON.stringify({ version: 2, artworkStyle: PODCAST_ARTWORK_STYLE, id, slug, title, description, coverUrl, credit }));
 }
 
 /** Presentation only. GUID, locale selection, audio, author and original dates cannot change. */

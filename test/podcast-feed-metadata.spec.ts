@@ -195,4 +195,27 @@ describe('metadata synchronization', () => {
     expect((await syncPodcastFeedMetadata(manifest)).updated).toEqual([episode.guid]);
     expect(mocks.records.has('podcastFeedOperations/metadata-sync')).toBe(false);
   });
+  it('recovers a renamed legacy episode from its original completed producer queue without title guessing', async () => {
+    const legacy = { ...episode, articleSlug: 'legacy-translated-slug', title: 'A previous title' };
+    mocks.records.set('narration_queue/legacy-translated-slug', { status: 'done', slug: legacy.articleSlug, articleId: article.id });
+    const result = await syncPodcastFeedMetadata({ ...manifest, episodes: [legacy] });
+    expect(result.updated).toEqual([episode.guid]); expect(result.unmatched).toEqual([]);
+    const saved = (await readPodcastFeedMetadata(manifest))[episode.guid!];
+    expect(saved).toMatchObject({ id: article.id, articleIdentity: 'legacy-translated-slug', identitySource: 'narration_queue', sourceQueueId: legacy.articleSlug });
+    expect(legacy.title).toBe('A previous title'); expect(legacy.audioURL).toBe(episode.audioURL);
+  });
+  it.each([
+    { status: 'error', slug: 'legacy-translated-slug', articleId: article.id },
+    { status: 'done', slug: 'another-slug', articleId: article.id },
+    { status: 'done', slug: 'legacy-translated-slug', articleId: 'deleted-id' },
+  ])('rejects an unproven legacy queue binding: %j', async queue => {
+    mocks.records.set('narration_queue/legacy-translated-slug', queue);
+    const result = await syncPodcastFeedMetadata({ ...manifest, episodes: [{ ...episode, articleSlug: 'legacy-translated-slug', title: 'A previous title' }] });
+    expect(result.unmatched).toEqual([episode.guid]); expect(mocks.store).not.toHaveBeenCalled();
+  });
+  it('gives unattempted episodes a turn before a previously failing episode in a bounded repair', async () => {
+    const second = { ...episode, id: 'new', guid: 'new' };
+    const result = await syncPodcastFeedMetadata({ ...manifest, episodes: [episode, second] }, 1, { articles: [article], deferGuids: [episode.guid!] });
+    expect(result.updated).toEqual(['new']); expect(result.remaining).toBe(1); expect(mocks.fetch).not.toHaveBeenCalled();
+  });
 });

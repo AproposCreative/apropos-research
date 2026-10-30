@@ -44,7 +44,7 @@ export async function fetchPublishedPodcastArticles(): Promise<PublishedPodcastA
 }
 
 /** Bounded, resumable, metadata-only synchronization. Never writes manifest, CMS or audio. */
-export async function syncPodcastFeedMetadata(manifest: PodcastManifest, limit = 20) {
+export async function syncPodcastFeedMetadata(manifest: PodcastManifest, limit = 20, options?: { articles?: PublishedPodcastArticle[]; deferGuids?: string[] }) {
   const db = database(), lock = db.collection('podcastFeedOperations').doc('metadata-sync'), lease = randomUUID();
   const acquired = await db.runTransaction(async tx => {
     const old = (await tx.get(lock)).data();
@@ -54,17 +54,30 @@ export async function syncPodcastFeedMetadata(manifest: PodcastManifest, limit =
   if (!acquired) return { busy: true, updated: [], failed: [], unmatched: [], remaining: null };
   try {
     // Do not discard last good records when Webflow or a new cover is unavailable.
-    const [articles, previous] = await Promise.all([fetchPublishedPodcastArticles(), readPodcastFeedMetadata(manifest)]);
+    const [articles, previous] = await Promise.all([options?.articles || fetchPublishedPodcastArticles(), readPodcastFeedMetadata(manifest)]);
     const unmatched: string[] = [], updated: string[] = [], failed: Array<{ guid: string; reason: string }> = [];
-    const candidates = selectPodcastRssEpisodes(manifest.episodes).flatMap(episode => {
+    const episodes = selectPodcastRssEpisodes(manifest.episodes);
+    const missing = episodes.filter(episode => !matchPodcastArticle(episode.articleSlug, articles, episode.title, previous[podcastEpisodeGuid(episode)]?.id) && !episode.articleSlug.includes('/'));
+    const queueDocs = missing.length ? await db.getAll(...missing.map(episode => db.collection('narration_queue').doc(episode.articleSlug))) : [];
+    const queueBindings = new Map<string, string>();
+    queueDocs.forEach((doc, i) => {
+      const queue = doc.data(), ep = missing[i];
+      // Retained producer input is authoritative for legacy translated slugs.
+      // Never infer identity from a similar title or fabricate a CMS ID.
+      if (queue?.status === 'done' && queue.slug === ep.articleSlug && typeof queue.articleId === 'string' &&
+        articles.some(article => article.id === queue.articleId)) queueBindings.set(podcastEpisodeGuid(ep), queue.articleId);
+    });
+    const candidates = episodes.flatMap(episode => {
       const guid = podcastEpisodeGuid(episode), prior = previous[guid];
       const boundCmsId = prior?.articleIdentity === slugToManifestId(episode.articleSlug) ? prior.id : undefined;
-      const article = matchPodcastArticle(episode.articleSlug, articles, episode.title, boundCmsId);
+      const binding = boundCmsId || queueBindings.get(guid);
+      const article = matchPodcastArticle(episode.articleSlug, articles, episode.title, binding);
       if (!article) { unmatched.push(guid); return []; }
       const sourceHash = podcastSourceHash(article);
       return previous[guid]?.sourceHash === sourceHash && previous[guid]?.artworkStyle === PODCAST_ARTWORK_STYLE ? [] : [{ episode, guid, article, sourceHash }];
     });
-    const batch = candidates.slice(0, Math.min(20, Math.max(1, limit)));
+    const defer = new Set(options?.deferGuids || []);
+    const batch = candidates.sort((a, b) => Number(defer.has(a.guid)) - Number(defer.has(b.guid))).slice(0, Math.min(20, Math.max(1, limit)));
     // Small concurrency bounds memory, bandwidth and the server request duration.
     for (let i = 0; i < batch.length; i += 2) await Promise.all(batch.slice(i, i + 2).map(async ({ episode, guid, article, sourceHash }) => {
       try {
@@ -75,6 +88,9 @@ export async function syncPodcastFeedMetadata(manifest: PodcastManifest, limit =
         } : await storePodcastArtwork(article.coverUrl);
         const metadata: PodcastFeedMetadata = { ...article, ...artwork, artworkStyle: PODCAST_ARTWORK_STYLE, guid, sourceHash,
           articleIdentity: slugToManifestId(episode.articleSlug), updatedAt: new Date().toISOString() };
+        if (queueBindings.has(guid) || prior?.identitySource === 'narration_queue') {
+          metadata.identitySource = 'narration_queue'; metadata.sourceQueueId = prior?.sourceQueueId || episode.articleSlug;
+        }
         await db.runTransaction(async tx => {
           const current = (await tx.get(lock)).data();
           if (current?.lease !== lease || Number(current.leaseUntil) <= Date.now()) throw Error('podcast_metadata_lease_expired');

@@ -13,11 +13,15 @@ export function isEnglishPodcastEpisode(input: {
   articleSlug?: string;
   title?: string;
   description?: string;
+  language?: string;
 }): boolean {
+  const language = input.language?.trim().toLowerCase();
+  if (language === 'da' || language?.startsWith('da-')) return false;
+  if (language === 'en' || language?.startsWith('en-')) return true;
   const slug = String(input.articleSlug || '')
     .trim()
     .toLowerCase();
-  if (slug.endsWith('-en') || slug.includes('-en-') || slug.startsWith('en/')) {
+  if (slug.endsWith('-en') || slug.startsWith('en/')) {
     return true;
   }
 
@@ -25,15 +29,16 @@ export function isEnglishPodcastEpisode(input: {
   // Do not treat transliterations like "oe"/"aa" as Danish — "oehavet" is øhavet.
   if (
     /-(community|maritime|folk-high-school|vibes?)(-|$)/.test(slug) ||
-    /-(and|with|for)-/.test(slug)
+    /-(and|with)-/.test(slug)
   ) {
     return true;
   }
 
+  // "en" and "for" are ordinary Danish words, including Syd for Solen.
+  // Keep explicit translation markers; never use these two words as markers.
   const sample = [input.title, input.description].filter(Boolean).join(' ').slice(0, 5000);
-  if (!sample) return false;
+  if (!sample || DANISH_HINT_RE.test(sample)) return false;
 
-  const hasDanish = DANISH_HINT_RE.test(sample);
   const hasEnglish = ENGLISH_HINT_RE.test(sample);
-  return hasEnglish && !hasDanish;
+  return hasEnglish;
 }

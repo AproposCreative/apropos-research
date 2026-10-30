@@ -14,6 +14,7 @@ import { buildPodcastRssXml } from '@/lib/podcast/rss';
 import { podcastRssFeedUrl, podcastShowCoverUrl } from '@/lib/podcast/show-config';
 import type { PodcastManifest, PodcastManifestEpisode } from '@/lib/podcast/types';
 import { readPodcastFeedMetadata } from './feed-metadata';
+import { readPodcastDeliveryFacts } from './delivery-facts';
 
 const DEFAULT_MANIFEST_TOKEN = '2e7823c1-fc8f-4a77-bfe2-667acbb3ad40';
 
@@ -121,6 +122,7 @@ export async function writeFeedMirror(manifest: PodcastManifest): Promise<void> 
   const xml = buildPodcastRssXml({
     manifest,
     metadata: await readPodcastFeedMetadata(manifest),
+    facts: await readPodcastDeliveryFacts(manifest),
     feedUrl: podcastRssFeedUrl(),
     showCoverUrl: podcastShowCoverUrl(),
   });

@@ -5,6 +5,7 @@ vi.mock('@/lib/editorial-access', () => ({ editorialRequestAccess: mock.access }
 vi.mock('@/lib/podcast/feed-refresh', () => ({ refreshPodcastFeed: mock.refresh }));
 vi.mock('@/lib/podcast/manifest', () => ({ readPodcastManifest: mock.manifest }));
 vi.mock('@/lib/podcast/feed-metadata', () => ({ readPodcastFeedMetadata: mock.metadata }));
+vi.mock('@/lib/podcast/delivery-facts', () => ({ readPodcastDeliveryFacts: async () => ({}) }));
 import { POST } from '../app/api/podcast/metadata/sync/route';
 import { GET as cron } from '../app/api/cron/podcast-metadata/route';
 import { GET as rss } from '../app/api/podcast/rss/route';

@@ -74,6 +74,8 @@ export function normalizeManifestEpisode(raw: Record<string, unknown>): PodcastM
   episode.guid = guid;
 
   if (kind) episode.kind = kind;
+  const language = optionalString(raw.language) || optionalString(raw.locale);
+  if (language && /^(da|en)(?:-[a-z]{2})?$/i.test(language)) episode.language = language.toLowerCase();
 
   return episode;
 }

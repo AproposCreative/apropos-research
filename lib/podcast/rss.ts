@@ -4,6 +4,7 @@ import { formatItunesDuration } from '@/lib/podcast/probe-duration';
 import { articleUrlFromSlug } from '@/lib/podcast/manifest-format';
 import { podcastEpisodeGuid, selectPodcastRssEpisodes } from '@/lib/podcast/rss-episodes';
 import { applyPodcastFeedMetadata, type PodcastFeedMetadataMap } from './feed-metadata-format';
+import { applyPodcastDeliveryFact, type PodcastFactMap } from './delivery-format';
 
 function escapeXml(value: string): string {
   return value
@@ -75,12 +76,13 @@ export function buildPodcastRssXml(input: {
   feedUrl: string;
   showCoverUrl?: string;
   metadata?: PodcastFeedMetadataMap;
+  facts?: PodcastFactMap;
 }): string {
   const showCover = input.showCoverUrl || podcastShowCoverUrl();
-  const lastBuild = [input.manifest.updatedAt, ...Object.values(input.metadata || {}).map(m => m.updatedAt)]
+  const lastBuild = [input.manifest.updatedAt, ...Object.values(input.metadata || {}).map(m => m.updatedAt), ...Object.values(input.facts || {}).map(f => f.durationCheckedAt || '')]
     .filter(Boolean).sort().at(-1) || new Date().toISOString();
   const episodes = selectPodcastRssEpisodes(input.manifest.episodes);
-  const items = episodes.map((ep) => buildItemXml(applyPodcastFeedMetadata(ep, input.metadata?.[podcastEpisodeGuid(ep)]), showCover)).join('\n');
+  const items = episodes.map((ep) => buildItemXml(applyPodcastFeedMetadata(applyPodcastDeliveryFact(ep, input.facts?.[podcastEpisodeGuid(ep)]), input.metadata?.[podcastEpisodeGuid(ep)]), showCover)).join('\n');
 
   return `<?xml version="1.0" encoding="UTF-8"?>
 <rss version="2.0"
