@@ -1,6 +1,9 @@
 import { beforeEach, describe, expect, it, vi } from 'vitest';
 import sharp from 'sharp';
 import { XMLParser } from 'fast-xml-parser';
+import { readFile } from 'node:fs/promises';
+import { createHash } from 'node:crypto';
+import { PODCAST_ARTWORK_STYLE, PODCAST_LOGO_SHA256 } from '../lib/podcast/artwork-style';
 import { applyPodcastFeedMetadata, matchPodcastArticle, podcastSourceHash, publishedPodcastArticle,
   type PodcastFeedMetadata } from '../lib/podcast/feed-metadata-format';
 import { buildPodcastRssXml } from '../lib/podcast/rss';
@@ -48,6 +51,12 @@ describe('published episode presentation', () => {
     expect(publishedPodcastArticle({ ...liveItem, isDraft: true })).toBeNull();
     expect(publishedPodcastArticle({ ...liveItem, isArchived: true })).toBeNull();
   });
+  it('prefers the app mobile artwork and falls back to the published thumb when missing', () => {
+    expect(publishedPodcastArticle({ ...liveItem, fieldData: { ...liveItem.fieldData,
+      'mobile-image': { url: 'https://cdn.example.test/mobile.webp' } } })!.coverUrl).toBe('https://cdn.example.test/mobile.webp');
+    expect(publishedPodcastArticle({ ...liveItem, fieldData: { ...liveItem.fieldData,
+      'mobile-image': { url: '' } } })!.coverUrl).toBe(article.coverUrl);
+  });
   it('prefers short published meta description, strips scripts and bounds long text', () => {
     const result = publishedPodcastArticle({ ...liveItem, fieldData: { ...liveItem.fieldData,
       'meta-description': '<script>secret()</script><p>' + 'Kultur og musik. '.repeat(100) + '</p>' } });
@@ -92,7 +101,7 @@ describe('published episode presentation', () => {
 });
 
 describe('safe podcast artwork', () => {
-  it('keeps the whole landscape image in a square RGB JPEG without cropping', async () => {
+  it('matches the app: full square photo, white bottom band and centered original black logo', async () => {
     const original = await sharp({ create: { width: 1200, height: 600, channels: 3, background: '#ff0000' } }).png().toBuffer();
     const bytes = await encodePodcastArtwork(original), decoded = sharp(bytes);
     const info = await decoded.metadata();
@@ -100,9 +109,23 @@ describe('safe podcast artwork', () => {
     expect(bytes.length).toBeLessThanOrEqual(PODCAST_ARTWORK_MAX_BYTES);
     const { data } = await decoded.raw().toBuffer({ resolveWithObject: true });
     const pixel = (x: number, y: number) => [...data.subarray((y * 1400 + x) * 3, (y * 1400 + x) * 3 + 3)];
-    expect(pixel(700, 20)[0]).toBeLessThan(30); // letterbox, no crop
-    expect(pixel(10, 700)[0]).toBeGreaterThan(240); // both image edges retained
+    expect(pixel(700, 20)[0]).toBeGreaterThan(240); // no black letterbox
+    expect(pixel(10, 700)[0]).toBeGreaterThan(240);
     expect(pixel(1390, 700)[0]).toBeGreaterThan(240);
+    expect(pixel(20, 1120)[1]).toBeLessThan(20); // photograph above the 19% band
+    expect(pixel(20, 1150)).toEqual([255, 255, 255]);
+    expect(pixel(20, 1390)).toEqual([255, 255, 255]);
+    let ink = 0;
+    for (let y = 1200; y < 1340; y++) for (let x = 520; x < 880; x++) if (pixel(x, y)[0] < 80) ink++;
+    expect(ink).toBeGreaterThan(1000); // real wordmark, not an empty white stripe
+    expect(createHash('sha256').update(await readFile('public/podcast/apropos-logo-black.svg')).digest('hex')).toBe(PODCAST_LOGO_SHA256);
+  });
+  it('uses the same app band and original logo when no source photo exists', async () => {
+    const bytes = await encodePodcastArtwork(null);
+    const { data, info } = await sharp(bytes).raw().toBuffer({ resolveWithObject: true });
+    expect(info).toMatchObject({ width: 1400, height: 1400, channels: 3 });
+    expect(data[0]).toBeLessThan(25);
+    expect([...data.subarray((1380 * 1400 + 10) * 3, (1380 * 1400 + 10) * 3 + 3)]).toEqual([255, 255, 255]);
   });
   it('rejects non-images without uploading anything', async () => {
     await expect(encodePodcastArtwork(Buffer.from('<html>error</html>'))).rejects.toThrow();
@@ -136,6 +159,16 @@ describe('metadata synchronization', () => {
     expect(mocks.store).toHaveBeenCalledTimes(1);
     expect((await readPodcastFeedMetadata(manifest))[episode.guid!].title).toBe('Den rettede anmeldelse');
     expect(JSON.stringify(manifest)).toBe(before);
+  });
+  it('replaces old artwork styles once, even when the source image URL is unchanged', async () => {
+    await syncPodcastFeedMetadata(manifest);
+    const entry = [...mocks.records.entries()].find(([key]) => key.startsWith('podcastFeedMetadata/'))!;
+    mocks.records.set(entry[0], { ...entry[1], artworkStyle: undefined });
+    expect((await syncPodcastFeedMetadata(manifest)).updated).toEqual([episode.guid]);
+    expect(mocks.store).toHaveBeenCalledTimes(2);
+    expect((await readPodcastFeedMetadata(manifest))[episode.guid!].artworkStyle).toBe(PODCAST_ARTWORK_STYLE);
+    expect((await syncPodcastFeedMetadata(manifest)).updated).toEqual([]);
+    expect(mocks.store).toHaveBeenCalledTimes(2);
   });
   it('keeps last good metadata on cover failure and safely resumes the same operation', async () => {
     await syncPodcastFeedMetadata(manifest);

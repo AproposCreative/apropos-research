@@ -55,4 +55,10 @@ describe('Spotify podcast feed', () => {
   it('keeps optional unknown duration absent rather than inventing one', () => {
     expect(items(feed([episode({ durationSeconds: undefined })]))[0]['itunes:duration']).toBeUndefined();
   });
+  it('uses app-branded episode fallback while preserving the separate show artwork', () => {
+    const xml = feed([episode({ imageURL: 'https://ai.aproposmagazine.com/podcast/show-cover.jpg' })]);
+    const parsed = new XMLParser({ ignoreAttributes: false }).parse(xml).rss.channel;
+    expect(parsed['itunes:image']['@_href']).toBe('https://example.test/cover.jpg');
+    expect(items(xml)[0]['itunes:image']['@_href']).toBe('https://example.test/podcast/episode-cover-ios-v1.jpg');
+  });
 });

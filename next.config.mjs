@@ -57,6 +57,8 @@ const nextConfig = {
       './data/editorial-evals/*.json', './data/apropos-style-samples.jsonl', './data/image-gen/references/*'],
     '/api/image-gen/run': ['./data/image-gen/references/*'],
     '/api/podcast/process': ['./node_modules/ffmpeg-static/**/*'],
+    '/api/podcast/metadata/sync': ['./public/podcast/apropos-logo-black.svg'],
+    '/api/cron/podcast-metadata': ['./public/podcast/apropos-logo-black.svg'],
   },
   async headers() {
     return [{ source: '/connect/chatgpt', headers: [

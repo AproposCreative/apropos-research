@@ -1,4 +1,4 @@
-import { PODCAST_SHOW, podcastShowCoverUrl } from '@/lib/podcast/show-config';
+import { PODCAST_SHOW, podcastShowCoverUrl, podcastEpisodeFallbackCoverUrl } from '@/lib/podcast/show-config';
 import type { PodcastManifest, PodcastManifestEpisode } from '@/lib/podcast/types';
 import { formatItunesDuration } from '@/lib/podcast/probe-duration';
 import { articleUrlFromSlug } from '@/lib/podcast/manifest-format';
@@ -40,7 +40,8 @@ function episodeDescription(ep: PodcastManifestEpisode): string {
 function buildItemXml(ep: PodcastManifestEpisode, showCover: string): string {
   const link = ep.articleUrl || articleUrlFromSlug(ep.articleSlug);
   const guid = podcastEpisodeGuid(ep);
-  const image = ep.imageURL || showCover;
+  const image = ep.imageURL && ep.imageURL !== showCover && ep.imageURL !== podcastShowCoverUrl()
+    ? ep.imageURL : podcastEpisodeFallbackCoverUrl(new URL(showCover).origin);
   const author = (ep.hosts || []).filter(Boolean).join(', ') || PODCAST_SHOW.author;
   const length = typeof ep.audioBytes === 'number' && ep.audioBytes > 0 ? String(ep.audioBytes) : '0';
   const duration =

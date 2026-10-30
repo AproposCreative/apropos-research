@@ -2,6 +2,7 @@ import { createHash } from 'node:crypto';
 import { articleUrlFromSlug, slugToManifestId } from './manifest-format';
 import { podcastEpisodeGuid } from './rss-episodes';
 import type { PodcastManifestEpisode } from './types';
+import { PODCAST_ARTWORK_STYLE } from './artwork-style';
 
 export type PublishedPodcastArticle = {
   id: string; slug: string; title: string; description: string; coverUrl: string; credit: string;
@@ -9,6 +10,7 @@ export type PublishedPodcastArticle = {
 export type PodcastFeedMetadata = PublishedPodcastArticle & {
   guid: string; articleIdentity: string; sourceHash: string; imageURL: string;
   artworkSha256: string; artworkBytes: number; updatedAt: string;
+  artworkStyle?: string;
 };
 export type PodcastFeedMetadataMap = Record<string, PodcastFeedMetadata>;
 
@@ -36,8 +38,11 @@ export function publishedPodcastArticle(item: Record<string, unknown>): Publishe
   if (item.isArchived === true || item.isDraft === true) return null;
   const fields = item.fieldData as Record<string, unknown> | undefined;
   if (!fields || typeof fields.slug !== 'string' || typeof fields.name !== 'string') return null;
-  const thumb = fields.thumb as { url?: unknown } | string | undefined;
-  const coverUrl = typeof thumb === 'string' ? thumb : typeof thumb?.url === 'string' ? thumb.url : '';
+  // Same preference as PodcastRepository.enriched in the app: mobile first.
+  const coverUrl = ['mobile-image', 'thumb'].map(key => {
+    const image = fields[key] as { url?: unknown } | string | undefined;
+    return typeof image === 'string' ? image.trim() : typeof image?.url === 'string' ? image.url.trim() : '';
+  }).find(url => /^https:\/\//i.test(url)) || '';
   const slug = fields.slug.trim(), title = podcastPlainText(fields.name, 500);
   if (!slug || !title) return null;
   const description = ['meta-description', 'intro', 'subtitle', 'summary', 'excerpt']
@@ -66,7 +71,7 @@ export function matchPodcastArticle(slug: string, articles: PublishedPodcastArti
 }
 
 export function podcastSourceHash(article: PublishedPodcastArticle): string {
-  return podcastMetadataKey(JSON.stringify({ version: 1, ...article }));
+  return podcastMetadataKey(JSON.stringify({ version: 2, artworkStyle: PODCAST_ARTWORK_STYLE, ...article }));
 }
 
 /** Presentation only. GUID, locale selection, audio, author and original dates cannot change. */

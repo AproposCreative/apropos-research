@@ -8,6 +8,7 @@ import { storePodcastArtwork } from './feed-artwork';
 import { matchPodcastArticle, podcastMetadataKey, podcastSourceHash, publishedPodcastArticle,
   type PodcastFeedMetadata, type PodcastFeedMetadataMap, type PublishedPodcastArticle } from './feed-metadata-format';
 import type { PodcastManifest } from './types';
+import { PODCAST_ARTWORK_STYLE } from './artwork-style';
 
 const COLLECTION = 'podcastFeedMetadata';
 function database() { const db = getAdminDb(); if (!db) throw Error('podcast_metadata_storage_unavailable'); return db; }
@@ -61,7 +62,7 @@ export async function syncPodcastFeedMetadata(manifest: PodcastManifest, limit =
       const article = matchPodcastArticle(episode.articleSlug, articles, episode.title, boundCmsId);
       if (!article) { unmatched.push(guid); return []; }
       const sourceHash = podcastSourceHash(article);
-      return previous[guid]?.sourceHash === sourceHash ? [] : [{ episode, guid, article, sourceHash }];
+      return previous[guid]?.sourceHash === sourceHash && previous[guid]?.artworkStyle === PODCAST_ARTWORK_STYLE ? [] : [{ episode, guid, article, sourceHash }];
     });
     const batch = candidates.slice(0, Math.min(20, Math.max(1, limit)));
     // Small concurrency bounds memory, bandwidth and the server request duration.
@@ -69,10 +70,10 @@ export async function syncPodcastFeedMetadata(manifest: PodcastManifest, limit =
       try {
         if (!article.coverUrl) throw Error('podcast_published_cover_missing');
         const prior = previous[guid];
-        const artwork = prior?.coverUrl === article.coverUrl ? {
+        const artwork = prior?.coverUrl === article.coverUrl && prior.artworkStyle === PODCAST_ARTWORK_STYLE ? {
           imageURL: prior.imageURL, artworkSha256: prior.artworkSha256, artworkBytes: prior.artworkBytes,
         } : await storePodcastArtwork(article.coverUrl);
-        const metadata: PodcastFeedMetadata = { ...article, ...artwork, guid, sourceHash,
+        const metadata: PodcastFeedMetadata = { ...article, ...artwork, artworkStyle: PODCAST_ARTWORK_STYLE, guid, sourceHash,
           articleIdentity: slugToManifestId(episode.articleSlug), updatedAt: new Date().toISOString() };
         await db.runTransaction(async tx => {
           const current = (await tx.get(lock)).data();

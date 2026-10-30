@@ -32,3 +32,9 @@ export function podcastRssFeedUrl(origin?: string): string {
   );
   return `${base}/api/podcast/rss`;
 }
+
+/** App-style episode fallback. The separate show/channel artwork stays intact. */
+export function podcastEpisodeFallbackCoverUrl(origin?: string): string {
+  const base = (origin || process.env.NEXT_PUBLIC_APP_URL || 'https://ai.aproposmagazine.com').replace(/\/$/, '');
+  return `${base}/podcast/episode-cover-ios-v1.jpg`;
+}
