@@ -40,4 +40,21 @@ Only the entry-point resolver, viewport selection and menu visibility change.
   publication or mail calls in the fixture. Screenshots and exact results are in
   `output/desktop-restore-20261030/`.
 
-Production release/readback will be appended after deployment.
+## Production readback
+
+Verified **2026-10-30T17:14:55.773Z**: release
+`cea833d75df1469e597c13529195da1dae986208`, READY deployment
+`dpl_Bqh81cLS7AVxrLaVpUjqhyB34KuP`, alias `ai.aproposmagazine.com`.
+Root `/ai` returns HTTP 200. The actual served Writer bundle contains the
+desktop `ai` fallback and full-menu flag; the shared bundle retains the original
+robot URL. Served Writer chunk SHA-256:
+`801fe453c512e6c66b3429f323831850f303134c76ea5ec7d7f6a09781c16c4a`.
+
+The existing podcast feed still returns HTTP 200, `X-Podcast-Metadata: synced`
+and all 130 episodes. Seven other protected Writer files match their pre-change
+hashes; the two intentional Writer changes are the startup wiring and resolver.
+No chat/wizard/editor rewrite, provider call, mail send, CMS write, budget change
+or stored-work migration. The permanent root-route regression rule is in AGENTS.
+
+Evidence: `output/desktop-restore-20261030/production-verification.json`,
+`ui-verification.json`, root/menu/mobile screenshots and the isolated fixture.
