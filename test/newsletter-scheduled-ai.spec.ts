@@ -93,6 +93,7 @@ describe('bounded weekly newsletter AI',()=>{
   it('rejects generic or malformed prose and policy resets',()=>{
     expect(()=>parseScheduledSummary(JSON.stringify({headline:'Seneste fra Apropos',intro}))).toThrow('invalid_output');
     expect(()=>parseScheduledSummary('not json')).toThrow('invalid_output');
+    expect(()=>parseScheduledSummary(JSON.stringify({headline:'Bøger og serier',intro:intro+' Ugens feature er hovedbillede.'}))).toThrow('internal_wording');
     expect(()=>validateNewsletterAiPolicy({...policy(),resetsAutomatically:true})).toThrow('policy_unavailable');
   });
 });

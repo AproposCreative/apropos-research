@@ -46,4 +46,51 @@ Targeted tests cover fixed caps, missing policy and provider hold, no-paid conte
 cache reuse, concurrent attempts, unchanged Writer/Liv accounting, quota error,
 timeout, unknown usage, changed source/withdrawal, invalid output, and cron
 dry-run/no-send/failure behavior, alongside existing feature/summary regressions.
-Production receipt and actual usage will be appended after controlled preparation.
+
+53 tests across the six focused newsletter/feature/summary/Liv pricing suites
+passed. Focused ESLint, security configuration and the application TypeScript
+check (excluding unrelated untracked output scripts, preserving the original
+tsconfig exclusions) passed. The repository-wide check includes an existing
+untracked output/ringo-bio-publish-20261028.ts Root.text error; this task did not
+modify that script. The exact production commit also built successfully.
+
+### First production preparation
+
+Commit 7d6b9833094598a8c79a580fb0419414abb97d8f was verified READY on the actual
+ai.aproposmagazine.com alias, deployment dpl_ASxGmPZfGvAHGP1zvmPLPyzbunwV.
+The dedicated policy was created once, without changing other policies/counters.
+At 2026-10-30T09:59:38.008Z the protected production cron dry-run confirmed:
+
+- week 2026-W44, introSource=ai, five exact live articles;
+- book 6ae1f9da0e01d3d2ff34859f first and as the rendered hero;
+- one actual GPT-5.4 mini call, 988 input / 263 output tokens;
+- provider request req_bf98bc6071b14c7689dab58a8278d324;
+- 1,925 USD micros (0.001925 USD) estimated standard-rate upper cost,
+  zero remaining reservation, one call of the fixed 10 USD allowance;
+- a subsequent cache-only production dry-run added zero paid calls;
+- the Friday 13:45 Europe/Copenhagen setting, book selection, shared paid
+  policy and Liv ledger/policy were unchanged; no weekly send had started.
+
+No provider credit was purchased or granted. A successful actual call is evidence
+that this call worked with the existing connection, not a provider balance audit.
+The estimate is not an invoice. Raw receipt:
+output/newsletter-check-2026-10-30/ai-summary-production-receipt.json.
+
+### Editorial review before the scheduled send
+
+The first provider result incorrectly framed the book as screen content, called
+the anniversary a farewell and exposed internal feature/hero language. It was
+reviewed against the saved live source excerpts and corrected in the existing
+week job without another provider call. Original provider output, request ID,
+token usage, source identity and cost remain preserved. The record identifies
+this as assistant-source-review, not a fabricated owner approval.
+
+The reviewed headline is “Boligjagt, hævntørst og rock med puls”. The two paragraphs
+lead with Laura Ringo's book, then connect The Terminal List, Lanterns, Placebo's
+30-year celebration and Deep Purple. The production cache-only preview confirms
+the reviewed text and book lead; calls remain one. Future prompts distinguish
+media/anniversaries and the parser rejects internal feature/hero wording.
+
+Evidence: output/newsletter-check-2026-10-30/ai-summary-reviewed-receipt.json
+and ai-friday-reviewed-preview.html. These preparation/readback checks do not
+claim delivery of the scheduled newsletter. No mail was sent by this task.

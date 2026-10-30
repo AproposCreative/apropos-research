@@ -42,6 +42,7 @@ export function buildScheduledSummaryRequest(week: WeekRange, articles: Newslett
         'intro: to sammenhængende afsnit på samlet 100–170 ord. Første artikel er redaktionens valgte feature og hovedbilledet: giv den første afsnit og nævn dens titel. Væv de øvrige artikler naturligt sammen i andet afsnit. Skriv varmt, konkret og let ironisk, så man får lyst til at læse videre. Ingen punktopremsning, ingen Kære læser, ingen emojis eller afsluttende spørgsmål.',
         'Stilreference, kun stil og IKKE fakta: Overskriften “Festivalstøv, popnostalgi og pixels” samler ugens spor. Første afsnit giver hovedhistorien en tydelig vinkel; andet forbinder resten af udvalget i flydende redaktionel prosa. Nævn ingen af stilreferencens emner, medmindre de faktisk findes i kilderne.',
         'Gentag ikke overskriften i introen. Brug ikke generisk velkomst eller Vi har samlet udvalgte artikler. Ingen udokumenterede superlativer eller påstande om at noget er gratis.',
+        'Skriv aldrig ugens feature eller hovedbillede i den udgående tekst; det er interne udvælgelsesbegreber. Overskriften må ikke placere bøger eller koncerter på skærmen. Skeln mellem medierne. Gengiv årstal, jubilæer og turnébeskrivelser præcist. Omskriv ikke et jubilæum til en afsked.',
         JSON.stringify(sources),
       ].join('\n') },
     ],
@@ -56,6 +57,7 @@ export function parseScheduledSummary(raw: string): Pick<Summary,'headline'|'int
   if (!headline || headline.length>140 || !intro || intro.length>2500 || words<60 || words>220 ||
     intro.split(/\n\s*\n/).filter(Boolean).length<2 || /^(seneste fra apropos|ugens udvalg)$/i.test(headline) ||
     /vi har samlet udvalgte artikler/i.test(intro) || /<[^>]*>|https?:\/\//i.test(headline+' '+intro)) fail('invalid_output');
+  if (/\bugens feature\b|\bhovedbillede\b/i.test(intro)) fail('internal_wording');
   return {headline,intro};
 }
 
