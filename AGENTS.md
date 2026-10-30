@@ -1,5 +1,14 @@
 # Apropos project working instructions
 
+## Desktop entry point (owner correction 2026-10-30)
+
+Desktop `/ai` opens AI Writer over the existing large robot background. The full
+tool catalogue belongs in the existing desktop menu, including accessible paused
+tools with their actual status. Never replace the desktop workspace with the
+mobile launcher. Preserve explicit tool deep links, the mobile launcher, stored
+Writer work and personal settings. Test `/ai` without `?view=ai`, not only the
+direct Writer link. Showing a tool does not authorize paid work or change access.
+
 ## Owner Google login (owner choice 2026-10-30)
 
 The owner explicitly approved `frederik.emil.kragh@gmail.com` and

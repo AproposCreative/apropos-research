@@ -109,7 +109,7 @@ export default function AIWriterClient() {
   const [settingsOpen, setSettingsOpen] = useState(false);
   const [isClosing, setIsClosing] = useState(false);
   const [requestedView, setActiveView] = useState<AIWriterView>(() =>
-    resolveViewFromSearchParams(searchParams)
+    resolveViewFromSearchParams(searchParams, typeof window !== 'undefined' && window.innerWidth >= 768 ? 'ai' : null)
   );
   const activeView = !capabilities.owner && ['seo', 'podcast', 'newsletter', 'liv-inbox', 'push', 'image-gen'].includes(requestedView || '') ? null : requestedView;
   const leftPanelOpen = shelfOpen || webAppsOpen;
@@ -266,7 +266,7 @@ export default function AIWriterClient() {
   }, []);
 
   useEffect(() => {
-    const next = resolveViewFromSearchParams(searchParams);
+    const next = resolveViewFromSearchParams(searchParams, isDesktop ? 'ai' : null);
     setActiveView((prev) => (prev === next ? prev : next));
     if (next === 'newsletter' || next === 'dashboard' || next === 'podcast' || next === 'push' || next === 'liv' || next === 'akkreditering' || next === 'liv-inbox' || next === 'image-gen') {
       setReviewOpen(false);
@@ -275,7 +275,7 @@ export default function AIWriterClient() {
       setWebAppsOpen(false);
       setShelfOpen(false);
     }
-  }, [searchParams]);
+  }, [searchParams, isDesktop]);
 
   const handleSelectWebApp = useCallback(
     (id: string) => {
@@ -1338,8 +1338,8 @@ export default function AIWriterClient() {
         {/* Transparent overlay during resize to prevent iframe from stealing mouse events */}
         {isResizing && <div className="absolute inset-0 z-[5]" />}
 
-        {/* Shared full-width tool list on mobile and desktop. */}
-        {user && activeView === null && !leftPanelOpen && !reviewOpen && !sourcesOpen && !settingsOpen && (
+        {/* Mobile starts in the launcher; desktop starts in Writer over the robot. */}
+        {user && !isDesktop && activeView === null && !leftPanelOpen && !reviewOpen && !sourcesOpen && !settingsOpen && (
           <MobileAppLauncher
             onSelectApp={handleSelectWebApp}
             onOpenShelf={() => setShelfOpen(true)}
@@ -1365,6 +1365,7 @@ export default function AIWriterClient() {
               <div className={`h-full flex flex-col transform ${embeddedPanelShell}`} style={{ transition: 'transform 320ms cubic-bezier(0.22, 1, 0.36, 1)', transform: leftPanelOpen ? 'translateX(0px)' : 'translateX(-8px)' }}>
                 {webAppsOpen && (
                   <WebAppsPanel
+                  showAllTools
                   isOpen={webAppsOpen}
                   onClose={() => setWebAppsOpen(false)}
                   onSelectApp={handleSelectWebApp}

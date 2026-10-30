@@ -100,7 +100,7 @@ export type AIWriterView =
 /** Resolve hvilken view URL'en peger på. */
 export function resolveViewFromSearchParams(sp: {
   get: (key: string) => string | null;
-}): AIWriterView {
+}, defaultView: 'ai' | null = null): AIWriterView {
   const view = sp.get('view');
   if (view === 'newsletter') return 'newsletter';
   if (view === 'design-editor') return 'design-editor';
@@ -122,5 +122,5 @@ export function resolveViewFromSearchParams(sp: {
   if (w === 'liv-desk') return 'liv';
   if (w === 'akkreditering') return 'akkreditering';
   if (w === 'liv-inbox') return 'liv-inbox';
-  return null;
+  return defaultView;
 }
