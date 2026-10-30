@@ -8,7 +8,7 @@ type Props = {
   embedded?: boolean; articlesOpen: boolean; onArticles: () => void;
   size: SocialCardSize; onSize: (size: SocialCardSize) => void;
   dark: boolean; onTheme: () => void; publishing: boolean; publishDisabled: boolean; onPublish: () => void;
-  exporting: boolean; onExport: () => void; onClose?: () => void;
+  exporting: boolean; exportDisabled?: boolean; onExport: () => void; onClose?: () => void;
 };
 
 export default function SocialEditorToolbar(props: Props) {
@@ -31,7 +31,7 @@ export default function SocialEditorToolbar(props: Props) {
         <svg aria-hidden="true" viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="1.8" strokeLinecap="round" strokeLinejoin="round"><circle cx="12" cy="12" r="9" /><path d="M12 17V7m-4 4 4-4 4 4" /></svg>
         <span className={styles.publishLabel}>{props.publishing ? '…' : 'Udgiv'}</span>
       </button>
-      <button type="button" onClick={props.onExport} disabled={props.exporting} className={styles.iconButton} aria-label={props.exporting ? 'Eksporterer…' : 'Eksporter PNG'} title="Download" aria-busy={props.exporting}>
+      <button type="button" onClick={props.onExport} disabled={props.exporting || props.exportDisabled} className={styles.iconButton} aria-label={props.exporting ? 'Eksporterer…' : 'Eksporter PNG'} title="Download" aria-busy={props.exporting}>
         <svg aria-hidden="true" viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="1.8" strokeLinecap="round" strokeLinejoin="round"><path d="M4 16v4h16v-4M12 3v12m-4-4 4 4 4-4" /></svg>
       </button>
     </div>

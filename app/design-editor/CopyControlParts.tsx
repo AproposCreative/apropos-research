@@ -2,6 +2,8 @@
 
 import { useLayoutEffect, useRef } from 'react';
 import styles from './SocialEditor.module.css';
+import type { TextSizeControl } from './useCardTextSize';
+import { MIN_TEXT_SIZE_PERCENT, MAX_TEXT_SIZE_PERCENT } from './cardTextSize';
 
 export function CopyTextarea({ label, value, onChange }: { label: string; value: string; onChange: (value: string) => void }) {
   const ref = useRef<HTMLTextAreaElement>(null);
@@ -51,4 +53,11 @@ export function CopySuggestions({ options, selected, onChoose, label }: {
       </button>)}
     </div>
   </details>;
+}
+
+export function CopyTextSize({ control, label }: { control: TextSizeControl; label: 'overskriften' | 'underteksten' }) {
+  return <>
+    <button type="button" className={styles.textButton} onClick={control.increase} disabled={control.percent >= MAX_TEXT_SIZE_PERCENT} aria-label={`Gør ${label} større`}>Større</button>
+    <button type="button" className={styles.textButton} onClick={control.decrease} disabled={control.percent <= MIN_TEXT_SIZE_PERCENT} aria-label={`Gør ${label} mindre`}>Mindre</button>
+  </>;
 }

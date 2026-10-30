@@ -8,6 +8,7 @@ import postcss from 'postcss';
 import tailwind from 'tailwindcss';
 import { chromium } from 'playwright';
 
+const outputDir = process.env.APROPOS_SOCIAL_UI_OUTPUT || 'output/social-compact-20261030';
 const title = 'TONY';
 const subtitle = 'A24 og Matt Johnson skildrer Anthony Bourdains formative sommer i Provincetown, hvor Dominic Sessa og Antonio Banderas bærer historien.';
 const first = 'En sommer i Provincetown former Bourdain.';
@@ -27,7 +28,14 @@ const css = (await postcss([tailwind({ content: raw.map(raw => ({ raw, extension
 const bundle = await build({ stdin: { resolveDir: process.cwd(), loader: 'tsx', contents: `
 import React,{StrictMode} from 'react';import {createRoot} from 'react-dom/client';
 import View from './app/design-editor/DesignEditorView';
-window.fixture={calls:[],errors:[],closed:false};
+import {exportCardToJpegBlob} from './app/design-editor/exportCardToPng';
+window.fixture={calls:[],errors:[],closed:false,frames:[]};
+const draws=new WeakMap();
+fixture.jpeg=async(data,size)=>{const blob=await exportCardToJpegBlob(data,size,0.92,{amiriFontFamily:${JSON.stringify(buildDir ? 'Amiri' : 'Georgia')}});return {type:blob.type,size:blob.size};};
+const fillText=CanvasRenderingContext2D.prototype.fillText;
+CanvasRenderingContext2D.prototype.fillText=function(text,...args){const lines=draws.get(this.canvas)||[];lines.push({text,font:this.font});draws.set(this.canvas,lines);return fillText.call(this,text,...args);};
+const toDataURL=HTMLCanvasElement.prototype.toDataURL;
+HTMLCanvasElement.prototype.toDataURL=function(...args){const src=toDataURL.apply(this,args);fixture.frames.push({src,width:this.width,height:this.height,draws:draws.get(this)||[]});if(fixture.frames.length>50)fixture.frames.shift();return src;};
 window.addEventListener('error',e=>fixture.errors.push(e.message));
 window.addEventListener('unhandledrejection',e=>fixture.errors.push(String(e.reason)));
 window.fetch=async(url,options={})=>{
@@ -70,7 +78,7 @@ await new Promise(resolve=>server.listen(0,'127.0.0.1',resolve));
 const origin='http://127.0.0.1:'+server.address().port;
 const browser=await chromium.launch({headless:true,channel:'chrome'});
 const reports=[];
-await mkdir('output/social-compact-20261030',{recursive:true});
+await mkdir(outputDir,{recursive:true});
 try {
  for (const embedded of [false,true]) for(const width of [320,390,430,768,1440]){
   const page=await browser.newPage({viewport:{width,height:900},acceptDownloads:true});
@@ -90,14 +98,14 @@ try {
   assert(Math.max(...toolbar.controls.map(c=>c.y))-Math.min(...toolbar.controls.map(c=>c.y))<2,JSON.stringify(toolbar));
   assert(toolbar.controls.every(c=>c.x>=toolbar.left&&c.x+c.w<=toolbar.right+1),JSON.stringify(toolbar));
   assert.equal(await page.locator('[data-copy-control][open]').count(),0);
-  await page.screenshot({path:`output/social-compact-20261030/${width}-${embedded?'embedded':'standalone'}-closed.png`});
+  await page.screenshot({path:`${outputDir}/${width}-${embedded?'embedded':'standalone'}-closed.png`});
   await page.locator('[data-copy-control=subtitle] > summary').click();
   const field=page.getByRole('textbox',{name:'Undertekst på billedet',exact:true});
   await page.waitForFunction(()=>document.querySelector('[data-copy-control=subtitle] textarea')?.value==='En sommer i Provincetown former Bourdain.');
   assert((await field.boundingBox()).height<80,'Short text must not have three empty rows');
   const suggestions=page.locator('[data-copy-control=subtitle] details').filter({has:page.locator('[aria-label="Forslag til undertekst"]')});
   assert.equal(await suggestions.getAttribute('open'),null);
-  await page.screenshot({path:`output/social-compact-20261030/${width}-${embedded?'embedded':'standalone'}-open.png`});
+  await page.screenshot({path:`${outputDir}/${width}-${embedded?'embedded':'standalone'}-open.png`});
   await suggestions.locator('summary').click();
   await page.getByRole('button',{name:'En sommer før berømmelsen.',exact:true}).click();
   assert.equal(await field.inputValue(),'En sommer før berømmelsen.');
@@ -110,20 +118,82 @@ try {
   await field.fill('Min egen korte tekst.');
   await page.locator('[data-copy-control=title] > summary').click();
   await page.getByRole('textbox',{name:'Overskrift på billedet',exact:true}).fill('Min overskrift');
+  const waitForTextSize = async (titlePx, subtitlePx) => {
+   await page.waitForFunction(({titlePx,subtitlePx})=>{
+    const src=document.querySelector('[data-social-preview] img')?.getAttribute('src');
+    const frame=fixture.frames.findLast(f=>f.src===src);if(!frame)return false;
+    const size=text=>Number(frame.draws.find(d=>d.text===text)?.font.match(/([0-9.]+)px/)?.[1]);
+    return size('Min overskrift')===titlePx&&size('Min egen korte tekst.')===subtitlePx;
+   },{titlePx,subtitlePx});
+  };
+  await waitForTextSize(80,48);
+  const aiCallsBeforeSize=await page.evaluate(()=>fixture.calls.filter(c=>c.method==='POST').length);
+  await page.getByRole('button',{name:'Gør overskriften større',exact:true}).click();
+  await waitForTextSize(88,48);
+  await page.getByRole('button',{name:'Gør underteksten mindre',exact:true}).click();
+  await waitForTextSize(88,43);
+  assert.equal(await field.inputValue(),'Min egen korte tekst.');
+  assert.equal(await page.evaluate(()=>fixture.calls.filter(c=>c.method==='POST').length),aiCallsBeforeSize,'Font sizing never calls AI');
+  const controls=await page.locator('[data-copy-control] button').evaluateAll(elements=>elements.filter(e=>e.getBoundingClientRect().width).map(e=>{const r=e.getBoundingClientRect();return{left:r.left,right:r.right,height:r.height};}));
+  assert(controls.every(r=>r.left>=0&&r.right<=width+1&&r.height>=44),'No clipped size actions');
+  await page.screenshot({path:`${outputDir}/${width}-${embedded?'embedded':'standalone'}-sizes.png`});
   const download=page.waitForEvent('download');await page.getByRole('button',{name:'Eksporter PNG',exact:true}).click();
-  const file=await download;await file.saveAs(`output/social-compact-20261030/${width}-${embedded?'embedded':'standalone'}.png`);
+  const file=await download;await file.saveAs(`${outputDir}/${width}-${embedded?'embedded':'standalone'}.png`);
+  const exportedSquare=await readFile(`${outputDir}/${width}-${embedded?'embedded':'standalone'}.png`);
+  const squarePreview=await page.locator('[data-social-preview] img').getAttribute('src');
+  assert(exportedSquare.equals(Buffer.from(squarePreview.split(',')[1],'base64')),'PNG is byte-identical to the preview');
   await page.getByRole('button',{name:'9:16',exact:true}).click();
   await page.locator('[data-copy-control=subtitle] > summary').click();assert.equal(await field.inputValue(),'Min egen korte tekst.');
   await page.locator('[data-copy-control=title] > summary').click();assert.equal(await page.getByRole('textbox',{name:'Overskrift på billedet',exact:true}).inputValue(),'Min overskrift');
+  await waitForTextSize(110,54);
   await page.getByRole('button',{name:'Skift til mørkt design',exact:true}).click();
   await page.getByRole('button',{name:'Skift til lyst design',exact:true}).waitFor();
+  await waitForTextSize(110,54);
   const downloadStory=page.waitForEvent('download');await page.getByRole('button',{name:'Eksporter PNG',exact:true}).click();
-  const story=await downloadStory;await story.saveAs(`output/social-compact-20261030/${width}-${embedded?'embedded':'standalone'}-story.png`);
+  const story=await downloadStory;await story.saveAs(`${outputDir}/${width}-${embedded?'embedded':'standalone'}-story.png`);
   await page.getByRole('button',{name:'1:1',exact:true}).click();
+  await waitForTextSize(88,43);
+  if(width===390&&embedded){
+   await page.locator('[data-copy-control=title] > summary').click();
+   await page.locator('[data-copy-control=subtitle] > summary').click();
+   for(let i=0;i<4;i++)await page.getByRole('button',{name:'Gør overskriften større',exact:true}).click();
+   await waitForTextSize(120,43);
+   assert(await page.getByRole('button',{name:'Gør overskriften større',exact:true}).isDisabled());
+   for(let i=0;i<8;i++)await page.getByRole('button',{name:'Gør overskriften mindre',exact:true}).click();
+   await waitForTextSize(56,43);
+   assert(await page.getByRole('button',{name:'Gør overskriften mindre',exact:true}).isDisabled());
+   await page.locator('[data-copy-control=title]').getByRole('button',{name:'Gendan original',exact:true}).click();
+   await page.waitForFunction(()=>{const src=document.querySelector('[data-social-preview] img')?.getAttribute('src');return fixture.frames.findLast(f=>f.src===src)?.draws.some(d=>d.text==='TONY'&&d.font.includes('80px'));});
+   await page.getByRole('textbox',{name:'Overskrift på billedet',exact:true}).fill('Min overskrift');
+   await page.getByRole('button',{name:'Gør overskriften større',exact:true}).click();
+   await waitForTextSize(88,43);
+   await page.getByRole('button',{name:'Artikler',exact:true}).click();
+   await page.getByRole('button',{name:'Anden artikel',exact:true}).click();
+   await page.waitForFunction(()=>{const src=document.querySelector('[data-social-preview] img')?.getAttribute('src');return fixture.frames.findLast(f=>f.src===src)?.draws.some(d=>d.text==='Anden artikel'&&d.font.includes('80px'));});
+   await page.getByRole('button',{name:'Artikler',exact:true}).click();
+   await page.getByRole('button',{name:'TONY',exact:true}).click();
+   await waitForTextSize(88,43);
+   await page.locator('[data-copy-control=title] > summary').click();
+   await page.locator('[data-copy-control=subtitle] > summary').click();
+   const jpeg=await page.evaluate(()=>fixture.jpeg({title:'Min overskrift',excerpt:'Min egen korte tekst.',titleSizePercent:110,subtitleSizePercent:90},'square'));
+   const jpegStory=await page.evaluate(()=>fixture.jpeg({title:'Min overskrift',excerpt:'Min egen korte tekst.',titleSizePercent:110,subtitleSizePercent:90},'story'));
+   assert(jpeg.type==='image/jpeg'&&jpeg.size>1000&&jpegStory.type==='image/jpeg'&&jpegStory.size>1000);
+   const wideTitle=await page.evaluate(family=>{const ctx=document.createElement('canvas').getContext('2d');ctx.font='400 80px '+family;let word='M';while(ctx.measureText(word+'M').width<=880)word+='M';return word+' '+word;},buildDir?'Amiri':'Georgia');
+   await page.getByRole('textbox',{name:'Overskrift på billedet',exact:true}).fill(wideTitle);
+   await field.fill('M'.repeat(35)+' '+'M'.repeat(35));
+   for(let i=0;i<4;i++)await page.getByRole('button',{name:'Gør overskriften større',exact:true}).click();
+   for(let i=0;i<6;i++)await page.getByRole('button',{name:'Gør underteksten større',exact:true}).click();
+   await page.locator('[data-layout-error]').waitFor();
+   assert(await page.getByRole('button',{name:'Eksporter PNG',exact:true}).isDisabled());
+   await page.locator('[data-copy-control=title]').getByRole('button',{name:'Gendan original',exact:true}).click();
+   await page.locator('[data-copy-control=subtitle]').getByRole('button',{name:'Gendan original',exact:true}).click();
+   await page.waitForFunction(()=>!document.querySelector('[data-layout-error]'));
+   reports.push({independentLimits:true,originalRestoresSize:true,perArticleSizes:true,jpegBothFormats:true,overflowBlockedAndRecoverable:true});
+  }
   const state=await page.evaluate(()=>({calls:fixture.calls,errors:fixture.errors,overflow:document.documentElement.scrollWidth>innerWidth}));
   assert.deepEqual(state.errors,[]);assert.equal(state.overflow,false);
   assert(state.calls.filter(c=>c.method==='POST').every(c=>c.url==='/api/design-editor/shorten-subtitle'));
-  reports.push({width,embedded,toolbarHeight:toolbar.height,singleToolbarRow:true,noClippedActions:true,manualEditsAcrossFormats:true,aiVariants:true,originalRestore:true,squareAndStoryDownloads:true,themeSwitch:true});
+  reports.push({width,embedded,toolbarHeight:toolbar.height,singleToolbarRow:true,noClippedActions:true,manualEditsAcrossFormats:true,aiVariants:true,originalRestore:true,squareAndStoryDownloads:true,themeSwitch:true,textSizeChanges:true,sizesSurviveFormatSwitch:true,previewMatchesPng:true,noAiForSizing:true});
   await page.close();
  }
  const confirm=await browser.newPage({viewport:{width:390,height:844}});
@@ -138,6 +208,6 @@ try {
  await confirm.locator('header').getByRole('button',{name:'Luk',exact:true}).click();
  assert.equal(await confirm.evaluate(()=>fixture.closed),true);
  reports.push({publishStillRequiresConfirmation:true,noSocialPublish:true,closeWorks:true});await confirm.close();
- await import('node:fs/promises').then(fs=>fs.writeFile('output/social-compact-20261030/report.json',JSON.stringify({fixture:true,paidCalls:0,remoteWrites:0,reports},null,2)));
+ await import('node:fs/promises').then(fs=>fs.writeFile(outputDir+'/report.json',JSON.stringify({fixture:true,paidCalls:0,remoteWrites:0,reports},null,2)));
  console.log(JSON.stringify({fixture:true,paidCalls:0,remoteWrites:0,reports},null,2));
 }finally{await browser.close();await new Promise(r=>server.close(r));}

@@ -1,4 +1,5 @@
 import { describe, expect, it } from 'vitest';
+import { sizeCardText } from '../app/design-editor/cardTextSize';
 import { fitCardText, wrapCardText } from '../app/design-editor/fitCardText';
 
 function context() {
@@ -36,5 +37,23 @@ describe('social card copy fitting', () => {
   it('does not remove grammatical endings or mutate source copy between formats', () => {
     const text = 'Det er det, vi lever for';
     for (const width of [880, 992, 880]) expect(fitCardText(context(), text, width, 2, 100, font).lines.join(' ')).toBe(text);
+  });
+});
+
+describe('manual card text size', () => {
+  it('preserves the automatic layout when no adjustment is selected', () => {
+    expect(sizeCardText(context(), title, 880, 2, 100, font)).toEqual(fitCardText(context(), title, 880, 2, 100, font));
+  });
+  it('actually enlarges an already fitted headline and retains all words on extra lines', () => {
+    const automatic = fitCardText(context(), title, 880, 2, 100, font);
+    const larger = sizeCardText(context(), title, 880, 2, 100, font, 130);
+    expect(larger.fontSize).toBeGreaterThan(automatic.fontSize);
+    expect(larger.lines.length).toBeGreaterThan(2);
+    expect(larger.lines.join(' ')).toBe(title);
+  });
+  it('reduces text size without changing the source text', () => {
+    const smaller = sizeCardText(context(), title, 880, 2, 100, font, 80);
+    expect(smaller.fontSize).toBeLessThan(fitCardText(context(), title, 880, 2, 100, font).fontSize);
+    expect(smaller.lines.join(' ')).toBe(title);
   });
 });

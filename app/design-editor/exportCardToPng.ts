@@ -1,4 +1,4 @@
-import { fitCardText } from './fitCardText';
+import { sizeCardText, textSizePercent } from './cardTextSize';
 import type { SocialCardData, SocialCardSize } from './SocialCardCanvas';
 import { DIMENSIONS } from './SocialCardCanvas';
 
@@ -303,7 +303,7 @@ async function renderCardToContext(
   y += Math.round(eyebrowLineHeight - categorySize);
   y += headerToTextGap;
   y += textBlockTopGap;
-  const titleFit = fitCardText(ctx, data.title || 'Overskrift', maxTextWidth, 2, titleSize, value => `400 ${value}px ${amiriFontFamily}`);
+  const titleFit = sizeCardText(ctx, data.title || 'Overskrift', maxTextWidth, 2, titleSize, value => `400 ${value}px ${amiriFontFamily}`, data.titleSizePercent);
   titleSize = titleFit.fontSize;
   y += Math.round(titleSize * 0.75);
 
@@ -321,7 +321,7 @@ async function renderCardToContext(
   if (data.excerpt) {
     // Story gets 16px more breathing room; following metadata/CTA/image move with it.
     y += isStory ? 6 : -10;
-    const excerptFit = fitCardText(ctx, data.excerpt, maxBylineWidth, isStory ? 3 : 2, excerptSize, value => `italic 400 ${value}px ${amiriFontFamily}`);
+    const excerptFit = sizeCardText(ctx, data.excerpt, maxBylineWidth, isStory ? 3 : 2, excerptSize, value => `italic 400 ${value}px ${amiriFontFamily}`, data.subtitleSizePercent);
     excerptSize = excerptFit.fontSize;
     ctx.font = `italic 400 ${excerptSize}px ${amiriFontFamily}`;
     ctx.fillStyle = dark ? foreground : isStory ? STORY_BYLINE_COLOR : BYLINE_COLOR;
@@ -384,9 +384,12 @@ async function renderCardToContext(
 
   // Box 3 starts after text and grows/shrinks naturally
   // Do not let the old minimum image clamp pull the CTA up into longer copy.
-  // Text fitting still limits the headline/subtitle to their existing budgets.
+  // Manual text sizes may add lines. Keep room for the image and CTA.
   const imageTop = Math.round(y);
   const imageH = height - imageTop;
+  if ((textSizePercent(data.titleSizePercent) !== 100 || textSizePercent(data.subtitleSizePercent) !== 100) && imageH < height * 0.2) {
+    throw new Error('Teksten fylder for meget. Vælg Mindre eller forkort teksten.');
+  }
 
   // ---- Box 3: image ----
   if (data.imageUrl) {

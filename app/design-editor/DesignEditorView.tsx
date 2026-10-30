@@ -7,6 +7,7 @@ import styles from './SocialEditor.module.css';
 import SocialCardCanvas, { type SocialCardData, type SocialCardSize, DIMENSIONS } from './SocialCardCanvas';
 import { exportCardToPng, exportCardToJpegBlob } from './exportCardToPng';
 import { useCardSubtitle } from './useCardSubtitle';
+import { useCardTextSize } from './useCardTextSize';
 import SubtitleControls from './SubtitleControls';
 import { useCardTitle } from './useCardTitle';
 import TitleControls from './TitleControls';
@@ -204,6 +205,8 @@ export default function DesignEditorView({ onBack, embedMode }: DesignEditorView
   const [size, setSize] = useState<SocialCardSize>('square');
   const cardTitle = useCardTitle(selected?.id ?? '', selected?.title ?? '', selected?.excerpt ?? '', size);
   const subtitle = useCardSubtitle(selected?.id ?? '', selected?.title ?? '', selected?.excerpt ?? '', size, amiri.style.fontFamily, selected?.socialSubtitles?.[size]);
+  const textSize = useCardTextSize(JSON.stringify([selected?.id, selected?.title, selected?.excerpt]));
+  const [previewError, setPreviewError] = useState<string | null>(null);
   const [exporting, setExporting] = useState(false);
   /** I AI Writer (embed) start med kanvas: undgå overlap med header. Desktop viser artikelpanel. */
   const [articlesOpen, setArticlesOpen] = useState(!embedMode);
@@ -514,6 +517,8 @@ export default function DesignEditorView({ onBack, embedMode }: DesignEditorView
 
     return {
       title: cardTitle.text,
+      titleSizePercent: textSize.title.percent,
+      subtitleSizePercent: textSize.subtitle.percent,
       excerpt: subtitle.text || undefined,
       theme,
       imageUrl: selected?.imageUrl ?? undefined,
@@ -527,7 +532,7 @@ export default function DesignEditorView({ onBack, embedMode }: DesignEditorView
         : (dedupedStoryBottomMetaLabels.length > 0 ? dedupedStoryBottomMetaLabels : undefined),
       rating: selected?.rating ?? undefined,
     };
-  }, [subtitle.text, cardTitle.text, selected?.excerpt, selected?.imageUrl, selected?.category, selected?.section, selected?.primaryTopic, selected?.topics, selected?.rating, selected?.authorId, eyebrowChips, authors, sections, topics, resolveName, size, storyMetaShuffleSeed, theme]);
+  }, [subtitle.text, cardTitle.text, textSize.title.percent, textSize.subtitle.percent, selected?.excerpt, selected?.imageUrl, selected?.category, selected?.section, selected?.primaryTopic, selected?.topics, selected?.rating, selected?.authorId, eyebrowChips, authors, sections, topics, resolveName, size, storyMetaShuffleSeed, theme]);
 
   const filteredArticles = useMemo(() => {
     const q = articleSearch.trim().toLowerCase();
@@ -556,9 +561,13 @@ export default function DesignEditorView({ onBack, embedMode }: DesignEditorView
   // Preview must use the exact same rendering pipeline as export (WYSIWYG)
   useEffect(() => {
     let cancelled = false;
+    setPreviewError(null);
     exportCardToPng(cardData, size, { amiriFontFamily: amiri.style.fontFamily })
       .then((url) => { if (!cancelled) setRenderedCardDataUrl(url); })
-      .catch(() => { if (!cancelled) setRenderedCardDataUrl(null); });
+      .catch(error => { if (!cancelled) {
+        setRenderedCardDataUrl(null);
+        setPreviewError(error instanceof Error ? error.message : 'Forhåndsvisningen kunne ikke dannes.');
+      } });
     return () => { cancelled = true; };
   }, [size, cardData]);
 
@@ -747,8 +756,8 @@ export default function DesignEditorView({ onBack, embedMode }: DesignEditorView
         >
           <div className={styles.workspaceContent}>
             {selected && <div className={styles.copyGroup}>
-              <TitleControls key={cardTitle.key} title={cardTitle} />
-              {selected.excerpt && <SubtitleControls key={subtitle.key} subtitle={subtitle} />}
+              <TitleControls key={cardTitle.key} title={cardTitle} sizing={textSize.title} />
+              {selected.excerpt && <SubtitleControls key={subtitle.key} subtitle={subtitle} sizing={textSize.subtitle} />}
             </div>}
             {eyebrowChips.length > 0 && size !== 'story' && (
               <div className={`${styles.metaControls} no-scrollbar`}>
@@ -798,7 +807,10 @@ export default function DesignEditorView({ onBack, embedMode }: DesignEditorView
               </div>
             )}
 
+            {previewError && <p role="alert" className={styles.copyError} data-layout-error>{previewError}</p>}
             <div
+              hidden={!!previewError}
+              data-social-preview
               className="relative overflow-hidden"
               style={{
                 width: renderedCanvasWidth,
@@ -857,8 +869,8 @@ export default function DesignEditorView({ onBack, embedMode }: DesignEditorView
     onArticles={() => setArticlesOpen(value => !value)} size={size}
     onSize={next => { if (size !== next) { subtitle.carryToNextFormat(); setSize(next); } }}
     dark={theme === 'dark'} onTheme={() => setTheme(value => value === 'light' ? 'dark' : 'light')}
-    publishing={postingToInstagram} publishDisabled={postingToInstagram || instagramConfigured === false} onPublish={requestPostToInstagram}
-    exporting={exporting} onExport={handleExportPng} onClose={onBack} />;
+    publishing={postingToInstagram} publishDisabled={postingToInstagram || instagramConfigured === false || !!previewError} onPublish={requestPostToInstagram}
+    exporting={exporting} exportDisabled={!!previewError} onExport={handleExportPng} onClose={onBack} />;
 
   return (
     <div ref={rootRef} className={`${rootClass} ${styles.root}`}>

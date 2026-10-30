@@ -10,6 +10,8 @@ export interface SocialCardData {
   theme?: 'light' | 'dark';
   title: string;
   excerpt?: string;
+  titleSizePercent?: number;
+  subtitleSizePercent?: number;
   imageUrl?: string | null;
   /** e.g. "Koncert", "Anmeldelse" – shown as "Koncert | Anmeldelse" or single */
   category?: string;
