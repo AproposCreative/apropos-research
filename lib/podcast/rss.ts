@@ -2,7 +2,7 @@ import { PODCAST_SHOW, podcastShowCoverUrl } from '@/lib/podcast/show-config';
 import type { PodcastManifest, PodcastManifestEpisode } from '@/lib/podcast/types';
 import { formatItunesDuration } from '@/lib/podcast/probe-duration';
 import { articleUrlFromSlug } from '@/lib/podcast/manifest-format';
-import { isEnglishPodcastEpisode } from '@/lib/podcast/episode-locale';
+import { podcastEpisodeGuid, selectPodcastRssEpisodes } from '@/lib/podcast/rss-episodes';
 
 function escapeXml(value: string): string {
   return value
@@ -38,7 +38,7 @@ function episodeDescription(ep: PodcastManifestEpisode): string {
 
 function buildItemXml(ep: PodcastManifestEpisode, showCover: string): string {
   const link = ep.articleUrl || articleUrlFromSlug(ep.articleSlug);
-  const guid = ep.guid || ep.id || ep.articleSlug;
+  const guid = podcastEpisodeGuid(ep);
   const image = ep.imageURL || showCover;
   const author = (ep.hosts || []).filter(Boolean).join(', ') || PODCAST_SHOW.author;
   const length = typeof ep.audioBytes === 'number' && ep.audioBytes > 0 ? String(ep.audioBytes) : '0';
@@ -75,14 +75,7 @@ export function buildPodcastRssXml(input: {
 }): string {
   const showCover = input.showCoverUrl || podcastShowCoverUrl();
   const lastBuild = input.manifest.updatedAt || new Date().toISOString();
-  const episodes = input.manifest.episodes.filter(
-    (ep) =>
-      !isEnglishPodcastEpisode({
-        articleSlug: ep.articleSlug,
-        title: ep.title,
-        description: ep.description,
-      })
-  );
+  const episodes = selectPodcastRssEpisodes(input.manifest.episodes);
   const items = episodes.map((ep) => buildItemXml(ep, showCover)).join('\n');
 
   return `<?xml version="1.0" encoding="UTF-8"?>

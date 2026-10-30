@@ -163,7 +163,7 @@ Elementerne er ustylede/neutrale med vilje — styl dem i Designer (eller erstat
 
 ## Spotify / Apple Podcasts (RSS)
 
-Automatisk AI-oplæsning (ElevenLabs via Firebase Functions i iOS-projektet) og manuel upload lander begge i `podcasts/manifest.json`. RSS-feedet bygges fra manifestet — nye episoder dukker op hos platformene ved næste crawl.
+Automatisk AI-oplæsning (ElevenLabs via Firebase Functions i iOS-projektet) og manuel upload lander begge i `podcasts/manifest.json`. RSS-feedet bygges fra hele manifestet, uden spillerens pagineringsgrænse. Efter tilkobling af showet henter Spotify nye episoder ved næste crawl. En fungerende RSS-URL er ikke i sig selv dokumentation for, at showet er tilkoblet eller episoderne er synlige på Spotify.
 
 ### Feed-URL (indsend denne)
 
@@ -201,26 +201,32 @@ Lokale filer: `public/podcast/show-cover.jpg` (3000) og `public/podcast/show-cov
 1. Deploy Onkel Ragekniv (så `/api/podcast/rss` er live)
 2. Åbn [podba.se validate](https://podba.se/validate/) eller Cast Feed Validator
 3. Indtast `https://ai.aproposmagazine.com/api/podcast/rss`
-4. Ret fejl (enclosure length 0 på gamle episoder er OK indtil næste narration-sync)
+4. Kontrollér unikke, stabile GUID'er, offentlig lydadgang, korrekt enclosure-type og faktiske filstørrelser. `itunes:duration` er valgfrit; ukendte varigheder må ikke opfindes. Lydproduktionen kan fortsat levere AAC-LC i M4A/MP4 uden en ny konvertering til MP3.
 
 ### Indsend til platforme (én gang — kræver login + e-mail)
 
-Der findes **ingen offentlig API** til at oprette et nyt show på Spotify/Apple. Indsendelsen er web + e-mail-verifikation til `liv@aproposmagazine.com`.
+Spotify tilkobles gennem ejerens konto på Spotify for Creators og e-mail-verifikation til feedets ejer, `liv@aproposmagazine.com`. Brug eksisterende hosting og RSS. Flyt ikke hosting, og opret ikke et dubletshow, hvis showet allerede findes.
 
 **RSS-URL (kopiér):**
 ```
 https://ai.aproposmagazine.com/api/podcast/rss
 ```
 
-1. **Spotify** — [podcasters.spotify.com/dash/submit](https://podcasters.spotify.com/dash/submit)  
-   Paste RSS → Spotify sender kode til `liv@aproposmagazine.com` → udfyld kategori/sprog → Submit
+1. **Spotify** — [creators.spotify.com](https://creators.spotify.com/)
+   Log ind → **Find an existing show** → **Somewhere else** → indsæt RSS (eller eksisterende Spotify-showlink). Spotify sender en ottecifret kode til `liv@aproposmagazine.com`. Indtast den hos Spotify. Hvis showet allerede er claimed af en anden administrator, skal denne give kontoadgang; opret ikke et nyt show for at omgå det. Se [Spotifys officielle vejledning](https://support.spotify.com/us/creators/article/claiming-your-podcast-on-spotify-for-creators/).
 2. **Apple Podcasts (iTunes)** — [podcastsconnect.apple.com](https://podcastsconnect.apple.com/)  
    Add show / Add a show with an RSS feed → paste RSS → Apple sender bekræftelse til `liv@aproposmagazine.com`
 3. **Øvrige (osv.)** — samme RSS: Amazon Music, Pocket Casts, Podcast Index, YouTube Podcasts
 
-Efter godkendelse henter platformene nye episoder automatisk, når narration eller manuel pipeline opdaterer manifestet (typisk timer–døgn).
+Efter godkendelse henter platformene nye episoder automatisk, når narration eller manuel pipeline opdaterer manifestet. Spotify kontrollerer RSS flere gange i timen; giv ændringer mindst en time, før en manglende opdatering fejlmeldes. Kontrollér det faktiske show og mindst en ny episode på Spotify, og gem show-ID/URL og tidspunkt. Hverken en succesfuld lokal test eller en READY deployment er denne slutverifikation.
 
 **Engelske CMS-oversættelser** filtreres fra RSS (app-manifest kan stadig have dem).
+
+### Episodeidentitet og genudgivelser
+
+`lib/podcast/rss-episodes.ts` samler kun gentagelser af samme GUID og samme normaliserede artikelslug. En manuel optagelse foretrækkes; ellers bruges den nyeste gemte optagelse. Den valgte optagelses GUID, lyd-URL og dato bevares. Begge originaler bliver i arkivet og app-manifestet. Samme GUID på forskellige artikler udløser en konkret fejl frem for lydløst at fjerne en artikel.
+
+Den 30. oktober 2026 fandtes 154 indekserede lydfiler: 34 engelske oversættelser og 120 danske poster. To Placebo-revisioner delte GUID. Rettelsen giver 119 unikke danske RSS-episoder uden sletning eller ny lydgenerering. Se [distributionskontrollen](./editorial/SPOTIFY-DISTRIBUTION-2026-10-30.md) for test- og produktionsstatus.
 
 ### Manifest-felter til RSS
 
@@ -228,4 +234,4 @@ Nye episoder får (bagudkompatibelt — iOS ignorerer ukendte felter):
 
 - `durationSeconds`, `audioBytes`, `description`, `imageURL`, `guid`, `kind`
 
-Ældre episoder uden disse felter får show-cover som fallback og `length="0"` indtil næste sync.
+Ældre episoder uden eget billede får show-cover som fallback. Manglende filstørrelse giver stadig `length="0"` i legacy-koden og skal undersøges som manglende metadata, ikke kaldes verificeret. Kontrollen 30. oktober 2026 fandt ingen sådanne længder i det offentlige feed; alle lydfilstørrelser svarede til serverens Content-Range.
