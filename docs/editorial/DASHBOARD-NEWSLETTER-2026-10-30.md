@@ -44,4 +44,10 @@ Evidens ligger privat under `output/dashboard-20261030/`; rå adresser og tokens
 
 ## Produktionskvittering
 
-Afventer den præcise deployment og efterfølgende domæne-readback. Ingen aktivering påstås alene ud fra implementering eller tests.
+- Code SHA `e6855233c98a57c052c9966195a29624a1e370e9`, produktionsdeployment `dpl_2cNuzMQS8YVUp6CD8h8tRGG5nYyZ`. Direkte aliaslookup 14:46:10Z matcher præcis denne READY-release på `ai.aproposmagazine.com`. Den nye komponent er genfundet i de faktiske `/ai?view=dashboard`-assets.
+- Begge dashboard-API'er afviser anonyme kald med 401/no-store. Den signerede webhook afviser et usigneret tomt testinput med 400. Anonym direkte læsning af den private Firestore-samling giver 403. Ingen falske mailhændelser er indsat i produktion.
+- Den faktiske Firestore-periodeforespørgsel og dashboardmodel virker mod de 68 importerede kvitteringer i fem grupper. Historiske åbninger/klik er ukendte. De to oprindelige frameldingsdokumenter har uændret indhold/hash. Ejerens browserlogin er ikke simuleret; autoriseret UI-flow er testet med fixtures, mens live-kontrollen dækker release, afvisningsregler og faktiske private datalæsninger.
+- Narrow Resend PATCH aktiverede kun `open_tracking` og `click_tracking` på det eksisterende domæne `news.aproposmagazine.com`. Efterfølgende GET 14:46:37.271Z viser begge `true` og fortsat `verified`. Denne grænse er gemt som målingens start i den private konfiguration; historikdækningen er bevaret. Det svarer til kl. 15:46 Copenhagen. Gamle mails bliver ikke målelige bagudrettet.
+- Ingen mails er sendt eller gensendt. AI-intro/feature-koden er uændret, alle ni beskyttede Writer/globale filer matcher før-hashes, og de samtidige Liv-journalændringer er bevaret uden at indgå i releasen.
+
+Private kvitteringer: `production-verification.json`, `tracking-activation.json` og `post-activation-model.json` under det ovennævnte outputkatalog. Første ægte åbning/klik kræver en ny faktisk mail efter aktivering og et signal fra modtagerens mailprogram; dette er ikke erstattet af en kunstig produktionshændelse.
