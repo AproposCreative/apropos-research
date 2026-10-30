@@ -4,11 +4,30 @@ Design editoren kan poste kort direkte til Instagram (feed og stories) og option
 
 ## Flow
 
-1. Bruger vælger artikel i design editoren og åbner **Preview** (Instagram-visning).
-2. Klik på **Post til Instagram** (feed) eller **Post til Instagram Story** (story).
-3. Appen eksporterer kortet som JPEG (2x opløsning), uploader til Firebase Storage, henter download-URL og kalder `/api/instagram/publish` med `imageUrl` + `caption`.
-4. API'et opretter Instagram-media fra `image_url` og caption og publicerer til den konfigurerede IG-konto.
-5. Hvis `FACEBOOK_PAGE_ID` er sat (og opslaget er feed, ikke story), forsøger API'et bagefter automatisk at poste samme billede + caption på Facebook-siden.
+1. Vælg artikel og rediger kort samt opslagstekst. Automatisk gemning bevarer teksten, 1:1/9:16, farvetema, tekststørrelser og metadatafelter i en privat, kildeversionsbundet kladde.
+2. Klik **Udgiv**. Bekræftelsen viser Instagram og et særskilt Facebook-valg. Facebook følger kun med, hvis brugeren har valgt det; nye kladder starter uden Facebook. Stories bruger kun Instagram.
+3. Efter personlig bekræftelse eksporteres den viste version som JPEG. Klienten gemmer forsøgets UUID før afsendelse og uploader til `instagram-publish/{uid}-{sha256}.jpg`. Serveren kontrollerer den faktiske JPEG og digest via den eksisterende Firebase-adgang.
+4. En Firestore-transaktion reserverer én operation for godkendt design, tekst, artikel, format og Instagram-konto. Kanalvalget bindes til operationen. Samtidige klik, andre upload-tokens eller en ny enhed kan ikke skabe endnu et opslag af samme version.
+5. Før hvert Meta-skrivekald gemmes afsendelsesintentionen. Kvitteringer, opslag-ID'er og faktiske permalink-readbacks gemmes separat for Instagram, Facebook og Facebook-kommentaren. Et uklart svar sendes aldrig automatisk igen.
+6. **Kontrollér status** foretager læsninger. Ved kendt Instagram-container kan `PUBLISHED` bekræfte en tabt kvittering. Et manglende permalink eller en Facebook-fejl ændrer ikke et allerede bekræftet Instagram-opslag til fejlet.
+
+For Story er **Download Story** og **Kopiér artikellink** samlet. Den indtegnede Læs nu-knap er grafik; brug Instagrams linkmærkat for et klikbart artikellink.
+
+## Gemning og konfliktkontrol
+
+- Autentificeret `GET /api/design-editor/draft?articleId=...&sourceHash=...` læser den personlige kladde; `PUT` kræver `expectedRevision` og hele kladden.
+- Kladder er bundet til verificeret bruger-ID, artikel-ID og hash af CMS-kildens titel/undertitel. En ændret CMS-kilde får sin egen version. Oprindelig artikeltekst ændres ikke.
+- Browseren skriver løbende en lokal journal og sender efter 600 ms til serveren. Lukning og skjult side forsøger en keepalive-gemning. Offline arbejde kan ikke ses på en anden enhed, før status er **Gemt** på serveren.
+- En nyere serverversion giver HTTP 409. Brugeren vælger **Brug gemt version** eller **Gem mine ændringer**; appen overskriver ikke lydløst den anden enhed.
+
+## API og kvitteringer
+
+- Alle endpoints kræver verificeret redaktionel adgang. Ingen klientleveret brugeridentitet accepteres.
+- `POST /api/instagram/publish` kræver `{ requestId, articleId, imageUrl, imageSha256, card, caption, articleUrl, isStory, channels: { instagram: true, facebook: boolean } }`.
+- `GET /api/instagram/publish` viser `configured` og `facebookConfigured`. `?articleId=...` giver ejerens historik. `?requestId=...` giver samme forsøgs kvittering og kan læse bekræftede opslag/link tilbage.
+- Firestore: `socialEditorDrafts`, `socialEditorOwners`, `socialPublishOperations`, `socialPublishRequests`. Ingen ændring af Storage-regler, credentials eller udbyderbudgetter er nødvendig.
+- Et tvetydigt Facebook-svar uden post-ID kan ikke sikkert udledes af lignende opslag. Bevar det som ubekræftet og inspicér kanalen; opret ikke en ny afsendelse for at reparere kvitteringen. Tilsvarende kræver et stoppet forløb før publicering konkret afklaring frem for automatisk genstart.
+- Meta kan undlade at levere et permalink, især til Stories. Vis bekræftet status og gemt ID; opfind ikke et link.
 
 ## Miljøvariabler
 
@@ -18,7 +37,7 @@ I `.env.local` (og i Vercel under Production/Preview):
 |----------|----------|-------------|
 | `INSTAGRAM_ACCOUNT_ID` | Ja | Instagram Business/Creator Account ID (tal). |
 | `INSTAGRAM_ACCESS_TOKEN` | Ja | Page access token med nødvendige permissions (se nedenfor). |
-| `FACEBOOK_PAGE_ID` | Nej | Facebook-side ID for auto-posting. Find det via Graph API Explorer: `me?fields=id,name` med din Page valgt. |
+| `FACEBOOK_PAGE_ID` | Nej | Facebook-side ID for personligt valgt publicering. Find det via Graph API Explorer: `me?fields=id,name` med din Page valgt. |
 
 Firebase (til upload af billedet):
 - `NEXT_PUBLIC_FIREBASE_*` (apiKey, projectId, storageBucket, osv.) skal være sat.
@@ -105,30 +124,15 @@ Det returnerede `access_token` er permanent og udløber aldrig. Sæt det som `IN
 
 ## Tjek at det er sat op
 
-- **GET** `/api/instagram/publish` returnerer `{ "configured": true }` når konfigureret.
+- **GET** `/api/instagram/publish` returnerer `{ "configured": true, "facebookConfigured": true/false }` ved redaktionelt login.
 - **Settings** → "Test Facebook" knappen verificerer Facebook Page-forbindelse.
 
-## Test end-to-end
+## Verifikation
 
-1. **Firebase**: Tjek at Storage-upload virker.
-2. **Instagram API**: Verificer med GET `/api/instagram/publish`.
-3. **Design editor**: Gå til `/design-editor`, vælg en artikel, og klik **Post til Instagram**.
-4. Forventet:
-   - Feed: "Opslaget er publiceret på Instagram og Facebook."
-   - Story: "Story er publiceret på Instagram."
-   - Fejl: Beskeden vises under knappen.
+Kør de isolerede automatiske tests og `node scripts/verify-social-delivery-ui.mjs` først. UI-fixturen bruger rigtig React, canvas, JPEG/PNG, kladdejournal og klientflow, med lokale erstatninger for CMS, Firebase og Meta. Den foretager ingen rigtige sociale opslag eller betalte AI-kald.
 
-## Almindelige fejl
+En reel publicering kræver fortsat personlig bekræftelse i produktet. Kontrollér derefter kvittering og de faktiske kanallinks. Produktionsdeployment eller en fixture-kvittering er ikke dokumentation for et live opslag.
 
-- **"Instagram-publish er ikke konfigureret"** — Manglende env vars.
-- **"Firebase Storage er ikke tilgængelig"** — Manglende `NEXT_PUBLIC_FIREBASE_*`.
-- **"Instagram-tokenet er udløbet"** — Generer nyt Page access token.
-- **"Media ID is not available"** — Instagram behandler stadig billedet. Appen prøver automatisk op til 6 gange.
-- **"pages_manage_posts are not available"** — Tilføj "Manage everything on your Page" use case i Meta App Dashboard under Brugssituationer.
-- **"Manglende eller ugyldig imageUrl"** — Tjek Firebase Storage-regler for `instagram-publish/*`.
+Ved timeout: Hent samme forsøgs status. Route-grænsen er fortsat 120 sekunder. Hvis et afsendelses-intent står uden endelig kvittering, blokkerer den gemte operation en ny afsendelse af samme version. Klienten forsøger ikke automatisk igen.
 
-## Serverless Timeout
-
-Instagram's billedbehandling kan tage op til 90 sekunder. Vercel's default function timeout er 10 sekunder (Free) / 60 sekunder (Pro). Denne route har `maxDuration` sat, men ved timeout-problemer:
-1. Opgradér til Vercel Pro for længere function duration
-2. Prøv igen efter et par sekunder (klienten har retry-logik)
+Se [releasekontrol 30. oktober 2026](./editorial/SOCIAL-DELIVERY-2026-10-30.md).

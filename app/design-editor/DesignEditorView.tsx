@@ -11,9 +11,11 @@ import { useCardTextSize } from './useCardTextSize';
 import SubtitleControls from './SubtitleControls';
 import { useCardTitle } from './useCardTitle';
 import TitleControls from './TitleControls';
-import { storage } from '@/lib/firebase';
-import { ref, uploadBytes, getDownloadURL } from 'firebase/storage';
-import { socialConfigured, socialPublishFeedback, uncertainSocialPublish } from '@/lib/social-publish-feedback';
+import { socialConfigured } from '@/lib/social-publish-feedback';
+import { useAuth } from '@/lib/auth-context';
+import { useSocialDraft } from './useSocialDraft';
+import { useSocialPublishing, type SocialPostSpec } from './useSocialPublishing';
+import PublicationReceipts from './PublicationReceipts';
 
 const amiri = Amiri({
   weight: ['400', '700'],
@@ -29,61 +31,6 @@ const PANEL_GAP = 12;
 
 const CAPTION_FOOTER_TEXT = 'Læs gratis med – uden reklamer, pop-ups eller anden støj: www.aproposmagazine.com';
 const ARTICLE_BASE_URL = 'https://www.aproposmagazine.com/articles';
-
-/** Oversæt klient-fejl (eksport / Storage-upload / netværk) til forståelig dansk besked. */
-function describePublishError(error: unknown, stage: 'export' | 'upload'): string {
-  const code =
-    error && typeof error === 'object' && 'code' in error
-      ? String((error as { code?: unknown }).code || '')
-      : '';
-  const message = error instanceof Error ? error.message : String(error ?? '');
-
-  if (stage === 'export') {
-    return `Kunne ikke generere billedet (${message || 'ukendt fejl'}). Vælg en anden artikel eller genindlæs siden.`;
-  }
-
-  if (stage === 'upload') {
-    if (code === 'storage/unauthorized' || /unauthorized|permission/i.test(message)) {
-      return 'Din konto har ikke adgang til at gemme billedet. Log ind igen, eller kontakt den ansvarlige for Apropos.';
-    }
-    if (code === 'storage/unauthenticated' || /unauthenticated/i.test(message)) {
-      return 'Din session er udløbet. Log ud og ind igen, og prøv så at poste på ny.';
-    }
-    if (code === 'storage/retry-limit-exceeded' || code === 'storage/canceled') {
-      return 'Upload af billedet blev afbrudt (netværk). Tjek forbindelsen og prøv igen.';
-    }
-    if (/cors|network|failed to fetch/i.test(message)) {
-      return 'Forbindelsen blev afbrudt under billedoverførslen. Prøv igen. Kontakt den ansvarlige for Apropos, hvis fejlen fortsætter.';
-    }
-    return `Billedet kunne ikke uploades (${code || message || 'ukendt fejl'}). Prøv igen.`;
-  }
-
-  return `Der opstod en fejl (${message || 'ukendt'}). Prøv igen.`;
-}
-
-function PublishFeedback({
-  success,
-  warning,
-  error,
-}: {
-  success: string | null;
-  warning: string | null;
-  error: string | null;
-}) {
-  if (!success && !warning && !error) return null;
-  return (
-    <div className="space-y-1.5" role="status" aria-live="polite" data-publish-feedback>
-      {success ? (
-        <p className="inline-flex items-center gap-1.5 text-sm text-white/85">
-          <span className="size-1.5 rounded-full bg-emerald-400 shrink-0" />
-          {success}
-        </p>
-      ) : null}
-      {warning ? <p className="text-xs text-amber-300/90 leading-snug pl-3">{warning}</p> : null}
-      {error ? <p className="text-sm text-red-400/95">{error}</p> : null}
-    </div>
-  );
-}
 
 function stripHtmlForPrompt(input: string): string {
   return input
@@ -198,13 +145,19 @@ interface DesignEditorViewProps {
 
 export default function DesignEditorView({ onBack, embedMode }: DesignEditorViewProps) {
   const rootRef = useRef<HTMLDivElement>(null);
+  const { user } = useAuth();
   const [articles, setArticles] = useState<NormalizedArticle[]>([]);
   const [loading, setLoading] = useState(true);
   const [selected, setSelected] = useState<NormalizedArticle | null>(null);
   const [theme, setTheme] = useState<'light' | 'dark'>('light');
   const [size, setSize] = useState<SocialCardSize>('square');
-  const cardTitle = useCardTitle(selected?.id ?? '', selected?.title ?? '', selected?.excerpt ?? '', size);
-  const subtitle = useCardSubtitle(selected?.id ?? '', selected?.title ?? '', selected?.excerpt ?? '', size, amiri.style.fontFamily, selected?.socialSubtitles?.[size]);
+  const identity = JSON.stringify([selected?.id, selected?.title, selected?.excerpt]);
+  const draft = useSocialDraft(identity, selected?.id ?? '');
+  const [hydrated, setHydrated] = useState('');
+  const hydrationKey = draft.key+':'+draft.loadVersion;
+  const editorReady = draft.ready && hydrated === hydrationKey;
+  const cardTitle = useCardTitle(selected?.id ?? '', selected?.title ?? '', selected?.excerpt ?? '', size, editorReady);
+  const subtitle = useCardSubtitle(selected?.id ?? '', selected?.title ?? '', selected?.excerpt ?? '', size, amiri.style.fontFamily, selected?.socialSubtitles?.[size], editorReady);
   const textSize = useCardTextSize(JSON.stringify([selected?.id, selected?.title, selected?.excerpt]));
   const [previewError, setPreviewError] = useState<string | null>(null);
   const [exporting, setExporting] = useState(false);
@@ -215,11 +168,16 @@ export default function DesignEditorView({ onBack, embedMode }: DesignEditorView
   const [articlesPanelWidth, setArticlesPanelWidth] = useState(DEFAULT_PANEL_WIDTH);
   const [isResizingArticles, setIsResizingArticles] = useState(false);
   const [caption, setCaption] = useState('');
-  const [postingToInstagram, setPostingToInstagram] = useState(false);
-  const [publishStep, setPublishStep] = useState('');
-  const [instagramError, setInstagramError] = useState<string | null>(null);
-  const [publishSuccess, setPublishSuccess] = useState<string | null>(null);
-  const [publishWarning, setPublishWarning] = useState<string | null>(null);
+  const publishing = useSocialPublishing(selected?.id ?? '');
+  const postingToInstagram = publishing.posting;
+  const publishStep = publishing.step;
+  const instagramError = publishing.error;
+  const [facebook, setFacebook] = useState(false);
+  const [facebookConfigured, setFacebookConfigured] = useState(false);
+  const [confirmation, setConfirmation] = useState<{ spec: SocialPostSpec; card: SocialCardData; size: SocialCardSize } | null>(null);
+  const [copyState, setCopyState] = useState('');
+  const [metadataReady, setMetadataReady] = useState(false);
+  const [eyebrowOverrides, setEyebrowOverrides] = useState<Record<string, string[]>>({});
   const [instagramConfigured, setInstagramConfigured] = useState<boolean | null>(null);
   const [confirmInstagramPostOpen, setConfirmInstagramPostOpen] = useState(false);
   const [renderedCardDataUrl, setRenderedCardDataUrl] = useState<string | null>(null);
@@ -266,11 +224,12 @@ export default function DesignEditorView({ onBack, embedMode }: DesignEditorView
       const auth = jAuthors.data?.authors || jAuthors.authors || [];
       const sec = jSections.items || jSections.data?.items || [];
       const top = jTopics.items || jTopics.data?.items || [];
+      setMetadataReady(true);
       setAuthors(Array.isArray(auth) ? auth.map((a: { id: string; name?: string }) => ({ id: a.id, name: a.name ?? 'Ukendt' })) : []);
       setSections(Array.isArray(sec) ? sec.map((s: { id: string; name?: string; slug?: string }) => ({ id: s.id, name: s.name ?? s.slug ?? '' })).filter((s: { name: string }) => s.name) : []);
       setTopics(Array.isArray(top) ? top.map((t: { id: string; name?: string; slug?: string }) => ({ id: t.id, name: t.name ?? t.slug ?? '' })).filter((t: { name: string }) => t.name) : []);
     }).catch(() => {
-      if (!cancelled) { setAuthors([]); setSections([]); setTopics([]); }
+      if (!cancelled) { setAuthors([]); setSections([]); setTopics([]); setMetadataReady(true); }
     });
     return () => { cancelled = true; };
   }, []);
@@ -286,7 +245,9 @@ export default function DesignEditorView({ onBack, embedMode }: DesignEditorView
       const val = selected.section || selected.category || '';
       const label = selected.section && sections.length ? resolveName(selected.section, sections) : (selected.category || val);
       const cleanLabel = isWebflowId(label) ? '' : label;
-      if (cleanLabel) chips.push({ type: 'section', value: val, label: cleanLabel });
+      if (cleanLabel) chips.push({ type: 'section', value: val, label: cleanLabel,
+        options: [...new Set([selected.section, selected.category].filter(Boolean) as string[])]
+          .map(id => ({ id, name: resolveName(id, sections) })).filter(option => option.name && !isWebflowId(option.name)) });
     }
     const topicVals = [selected.primaryTopic, ...(selected.topics ?? [])].filter(Boolean) as string[];
     const seenTopic = new Set<string>();
@@ -307,8 +268,12 @@ export default function DesignEditorView({ onBack, embedMode }: DesignEditorView
         options,
       });
     }
-    setEyebrowChips(chips);
-  }, [selected?.id, selected?.section, selected?.primaryTopic, selected?.topics, selected?.category, selected?.authorId, sections, topics, authors, resolveName]);
+    const saved = eyebrowOverrides[identity];
+    setEyebrowChips(chips.map((chip, index) => {
+      const option = chip.options?.find(option => option.id === saved?.[index]);
+      return option ? { ...chip, value: option.id, label: option.name } : chip;
+    }));
+  }, [selected?.id, selected?.section, selected?.primaryTopic, selected?.topics, selected?.category, selected?.authorId, sections, topics, authors, resolveName, identity, eyebrowOverrides]);
 
   // Når artikel skiftes: foreslå caption fra titel + excerpt (uden Foto); altid afslutte med footer
   useEffect(() => {
@@ -320,7 +285,9 @@ export default function DesignEditorView({ onBack, embedMode }: DesignEditorView
   useEffect(() => {
     let cancelled = false;
     fetch('/api/instagram/publish')
-      .then(async r => socialConfigured(r.status, await r.json().catch(() => null)))
+      .then(async r => { const data = await r.json().catch(() => null);
+        if (!cancelled) setFacebookConfigured(r.ok && data?.facebookConfigured === true);
+        return socialConfigured(r.status, data); })
       .then(configured => {
         if (!cancelled) setInstagramConfigured(configured);
       })
@@ -392,41 +359,18 @@ export default function DesignEditorView({ onBack, embedMode }: DesignEditorView
     return () => ro.disconnect();
   }, [size]);
 
-  const cycleEyebrowChip = useCallback(
-    (index: number) => {
-      const chip = eyebrowChips[index];
-      if (!chip) return;
-      if (chip.type === 'section' && selected) {
-        const vals = [selected.section, selected.category].filter(Boolean) as string[];
-        const seen = new Set<string>();
-        const sectionList = vals
-          .filter((v) => !seen.has(v) && (seen.add(v), true))
-          .map((v) => ({ id: v, name: sections.length ? resolveName(v, sections) : v }))
-          .filter((x) => x.name);
-        if (sectionList.length <= 1) return;
-        const i = sectionList.findIndex((x) => x.id === chip.value || x.name === chip.label);
-        const nextIndex = i < 0 ? 0 : (i + 1) % sectionList.length;
-        const next = sectionList[nextIndex];
-        setEyebrowChips((prev) => {
-          const out = [...prev];
-          out[index] = { ...chip, value: next.id, label: next.name };
-          return out;
-        });
-        return;
-      }
-      if (chip.type === 'topicOrAuthor' && chip.options && chip.options.length > 1) {
-        const i = chip.options.findIndex((x) => x.id === chip.value || x.name === chip.label);
-        const nextIndex = i < 0 ? 0 : (i + 1) % chip.options.length;
-        const next = chip.options[nextIndex];
-        setEyebrowChips((prev) => {
-          const out = [...prev];
-          out[index] = { ...chip, value: next.id, label: next.name };
-          return out;
-        });
-      }
-    },
-    [eyebrowChips, selected, sections, resolveName]
-  );
+  const cycleEyebrowChip = useCallback((index: number) => {
+    const chip = eyebrowChips[index];
+    if (!chip) return;
+    const options = chip.type === 'section' && selected
+      ? [...new Set([selected.section, selected.category].filter(Boolean) as string[])].map(value => ({ id: value, name: resolveName(value, sections) }))
+      : chip.options ?? [];
+    if (options.length < 2) return;
+    const active = options.findIndex(option => option.id === chip.value);
+    const value = options[(active + 1) % options.length].id;
+    const values = eyebrowChips.map((item, i) => i === index ? value : item.value);
+    setEyebrowOverrides(previous => ({ ...previous, [identity]: values }));
+  }, [identity, eyebrowChips, selected, sections, resolveName]);
 
   const cardData: SocialCardData = useMemo(() => {
     const isStory = size === 'story';
@@ -573,18 +517,48 @@ export default function DesignEditorView({ onBack, embedMode }: DesignEditorView
 
   useEffect(() => {
     let cancelled = false;
-    fetch('/api/webflow/sample-articles')
-      .then((res) => res.json())
-      .then((data) => {
-        if (cancelled) return;
-        const items = data.items || [];
-        setArticles(items.map((it: { id: string; fieldData?: Record<string, unknown> }) => normalizeArticle(it)));
-        if (items.length > 0 && !selected) setSelected(normalizeArticle(items[0]));
-      })
-      .catch(() => { if (!cancelled) setArticles([]); })
+    if (!user) return;
+    setLoading(true);
+    Promise.all([
+      fetch('/api/webflow/sample-articles').then(response => response.json()),
+      fetch('/api/design-editor/draft').then(response => response.ok ? response.json() : {}).catch(() => ({})) as Promise<{ lastArticleId?: string }>,
+    ]).then(([data, saved]) => {
+      if (cancelled) return;
+      const list = (data.items || []).map((item: { id: string; fieldData?: Record<string, unknown> }) => normalizeArticle(item));
+      setArticles(list);
+      setSelected(list.find((article: NormalizedArticle) => article.id === saved.lastArticleId) ?? list[0] ?? null);
+    }).catch(() => { if (!cancelled) setArticles([]); })
       .finally(() => { if (!cancelled) setLoading(false); });
     return () => { cancelled = true; };
-  }, []);
+  }, [user?.uid]);
+
+  useEffect(() => {
+    if (!draft.ready || hydrated === hydrationKey) return;
+    const saved = draft.draft;
+    if (saved) {
+      cardTitle.edit(saved.title);
+      if (saved.subtitle !== null) subtitle.edit(saved.subtitle, saved.subtitleStatus);
+      else subtitle.reset();
+      setCaption(saved.caption); setTheme(saved.theme); setSize(saved.size);
+      textSize.restore(saved.titleSizePercent, saved.subtitleSizePercent);
+      setStoryMetaShuffleSeed(saved.storyMetaShuffleSeed); setFacebook(saved.facebook);
+      setEyebrowOverrides(previous => ({ ...previous, [identity]: saved.eyebrowValues }));
+    } else {
+      cardTitle.restore(); subtitle.reset(); textSize.restore(100, 100);
+      setCaption(buildDefaultCaption(selected)); setTheme('light'); setSize('square');
+      setStoryMetaShuffleSeed(0); setFacebook(false);
+    }
+    setHydrated(hydrationKey);
+  }, [draft.ready, hydrationKey]);
+
+  useEffect(() => {
+    if (!editorReady || !selected || !metadataReady) return;
+    draft.update({ title: cardTitle.text, subtitle: subtitle.checking && !subtitle.hasEntry ? null : subtitle.text,
+      subtitleStatus: subtitle.status ?? 'original', caption, theme, size,
+      titleSizePercent: textSize.title.percent, subtitleSizePercent: textSize.subtitle.percent,
+      eyebrowValues: eyebrowChips.map(chip => chip.value), storyMetaShuffleSeed, facebook });
+  }, [editorReady, selected?.id, cardTitle.text, subtitle.text, subtitle.checking, subtitle.hasEntry, subtitle.status,
+    caption, theme, size, textSize.title.percent, textSize.subtitle.percent, eyebrowChips, storyMetaShuffleSeed, facebook, metadataReady]);
 
   // Safety net: ensure first article is selected if selected is missing.
   useEffect(() => {
@@ -610,67 +584,24 @@ export default function DesignEditorView({ onBack, embedMode }: DesignEditorView
     }
   }, [size, cardData, subtitle.ready]);
 
-  const clearPublishFeedback = useCallback(() => {
-    setInstagramError(null);
-    setPublishSuccess(null);
-    setPublishWarning(null);
-  }, []);
-
-  const handlePostToInstagram = useCallback(async () => {
-    setConfirmInstagramPostOpen(false);
-    setPostingToInstagram(true);
-    clearPublishFeedback();
-    setPublishStep('Eksporterer billede…');
-    let instagramPublishStarted = false;
-    let stage: 'export' | 'upload' | 'publish' = 'export';
-    try {
-      if (!storage) {
-        setInstagramError('Firebase Storage er ikke tilgængelig.');
-        return;
-      }
-      const blob = await exportCardToJpegBlob(cardData, size, 0.92, { amiriFontFamily: amiri.style.fontFamily });
-      setPublishStep('Uploader billede…');
-      stage = 'upload';
-      const path = `instagram-publish/${Date.now()}.jpg`;
-      const storageRef = ref(storage, path);
-      await uploadBytes(storageRef, blob, { contentType: 'image/jpeg' });
-      const imageUrl = await getDownloadURL(storageRef);
-      setPublishStep('Publicerer til Instagram…');
-      stage = 'publish';
-      const isStory = size === 'story';
-      instagramPublishStarted = true;
-      const apiRes = await fetch('/api/instagram/publish', {
-        method: 'POST',
-        headers: { 'Content-Type': 'application/json' },
-        body: JSON.stringify({
-          imageUrl,
-          isStory,
-          caption: isStory ? undefined : captionForPublish,
-          articleUrl: isStory ? undefined : selectedArticleUrl,
-        }),
-      });
-      const feedback = socialPublishFeedback(apiRes.status, await apiRes.json().catch(() => null), isStory, Boolean(selectedArticleUrl));
-      setInstagramError(feedback.error);
-      setPublishSuccess(feedback.success);
-      setPublishWarning(feedback.warning);
-    } catch (e) {
-      console.error('Instagram publish failed', e);
-      if (instagramPublishStarted) {
-        setPublishWarning(uncertainSocialPublish().warning);
-        return;
-      }
-      setInstagramError(describePublishError(e, stage === 'export' ? 'export' : 'upload'));
-    } finally {
-      setPostingToInstagram(false);
-      setPublishStep('');
-    }
-  }, [size, cardData, captionForPublish, selectedArticleUrl, clearPublishFeedback]);
-
-  const requestPostToInstagram = useCallback(() => {
-    if (!subtitle.ready) { alert('Underteksten skal forkortes, før opslaget kan sendes.'); return; }
-    clearPublishFeedback();
+  const requestPostToInstagram = () => {
+    if (!editorReady || !subtitle.ready || !selected || !selectedArticleUrl || !!previewError) return;
+    setConfirmation({ card: structuredClone(cardData), size, spec: { articleId: selected.id, caption: size === 'story' ? '' : captionForPublish,
+      articleUrl: selectedArticleUrl, isStory: size === 'story', card: structuredClone(cardData), channels: { instagram: true, facebook: size === 'square' && facebook && facebookConfigured } } });
     setConfirmInstagramPostOpen(true);
-  }, [clearPublishFeedback, subtitle.ready]);
+  };
+  const handlePostToInstagram = async () => {
+    if (!confirmation) return;
+    const snapshot = confirmation;
+    setConfirmInstagramPostOpen(false);
+    await publishing.publish({ ...snapshot.spec, channels: { instagram: true, facebook: !snapshot.spec.isStory && facebook && facebookConfigured } },
+      () => exportCardToJpegBlob(snapshot.card, snapshot.size, 0.92, { amiriFontFamily: amiri.style.fontFamily }));
+  };
+  const copyArticleLink = async () => {
+    if (!selectedArticleUrl) return;
+    try { await navigator.clipboard.writeText(selectedArticleUrl); setCopyState('Link kopieret'); }
+    catch { setCopyState('Markér og kopiér linket herunder.'); }
+  };
 
   /** Brødtekst for editor (preview vs canvas) — delt mellem standalone og AI Writer embed. */
   const editorCanvas = (
@@ -744,7 +675,7 @@ export default function DesignEditorView({ onBack, embedMode }: DesignEditorView
                 {instagramConfigured === false && (
                   <p className="text-amber-400/90 text-xs">Instagram-publish er ikke konfigureret. Sæt INSTAGRAM_ACCOUNT_ID og INSTAGRAM_ACCESS_TOKEN (se docs/INSTAGRAM_PUBLISH.md).</p>
                 )}
-                <PublishFeedback success={publishSuccess} warning={publishWarning} error={instagramError} />
+                {instagramError && <p role="alert" className={styles.copyError}>{instagramError}</p>}
               </div>
             </div>
           </div>
@@ -755,16 +686,23 @@ export default function DesignEditorView({ onBack, embedMode }: DesignEditorView
           className={`${styles.workspace} flex-1 min-h-0 w-full flex flex-col items-center overflow-y-auto overflow-x-hidden touch-pan-y [overscroll-behavior:contain] justify-start app-safe-bottom`}
         >
           <div className={styles.workspaceContent}>
-            {selected && <div className={styles.copyGroup}>
+            {selected && <>
+              <div className={styles.saveStatus} role="status" aria-live="polite">{draft.status === 'saved' ? 'Gemt' : draft.status === 'saving' ? 'Gemmer…' : draft.status === 'conflict' ? 'Nyere version på en anden enhed' : draft.status === 'offline' ? 'Ikke synkroniseret' : 'Henter kladde…'}</div>
+              {draft.error && <div className={styles.syncNotice}><p>{draft.error}</p>{draft.status === 'conflict' ? <div className={styles.copyActions}>
+                <button type="button" className={styles.textButton} onClick={draft.useServer}>Brug gemt version</button>
+                <button type="button" className={styles.textButton} onClick={draft.keepLocal}>Gem mine ændringer</button>
+              </div> : <button type="button" className={styles.textButton} onClick={() => { void draft.retry(); }}>Prøv synkronisering igen</button>}</div>}
+              <fieldset disabled={!editorReady || postingToInstagram} className={styles.copyGroup}>
               <TitleControls key={cardTitle.key} title={cardTitle} sizing={textSize.title} />
               {selected.excerpt && <SubtitleControls key={subtitle.key} subtitle={subtitle} sizing={textSize.subtitle} />}
-            </div>}
+            </fieldset></>}
             {eyebrowChips.length > 0 && size !== 'story' && (
               <div className={`${styles.metaControls} no-scrollbar`}>
                 {eyebrowChips.map((chip, index) => (
                   <button
                     key={`${chip.type}-${index}-${chip.value}`}
                     type="button"
+                    disabled={!editorReady || postingToInstagram}
                     onClick={() => cycleEyebrowChip(index)}
                     className={styles.metaButton}
                     title="Klik for at vælge næste"
@@ -776,7 +714,7 @@ export default function DesignEditorView({ onBack, embedMode }: DesignEditorView
             )}
             {size === 'story' && (
               <div className={styles.metaControls}>
-                <button
+                <button disabled={!editorReady || postingToInstagram}
                   type="button"
                   onClick={() => setStoryMetaShuffleSeed((prev) => prev + 1)}
                   className={styles.metaButton}
@@ -787,7 +725,7 @@ export default function DesignEditorView({ onBack, embedMode }: DesignEditorView
                 <button
                   type="button"
                   onClick={() => setStoryMetaShuffleSeed(0)}
-                  disabled={storyMetaShuffleSeed === 0}
+                  disabled={storyMetaShuffleSeed === 0 || !editorReady || postingToInstagram}
                   className={styles.metaButton}
                   title="Gendan de oprindelige felter"
                 >
@@ -795,18 +733,17 @@ export default function DesignEditorView({ onBack, embedMode }: DesignEditorView
                 </button>
               </div>
             )}
-            {size === 'story' && (postingToInstagram || instagramConfigured === false || publishSuccess || publishWarning || instagramError) && (
-              <div className="w-full max-w-[480px] px-2 md:px-0">
-                {postingToInstagram && <p role="status" className="text-sm text-white/70">{publishStep || 'Udgiver story…'}</p>}
-                {instagramConfigured === false && (
-                  <p className="text-amber-400/90 text-[13px] leading-relaxed">Udgivelse til Instagram er ikke tilgængelig. Du kan stadig downloade billedet.</p>
-                )}
-                <div className="mt-2">
-                  <PublishFeedback success={publishSuccess} warning={publishWarning} error={instagramError} />
-                </div>
-              </div>
-            )}
-
+            {size === 'story' && selectedArticleUrl && <div className={styles.storyExport}>
+              <div className={styles.copyActions}><button type="button" className={styles.textButton} disabled={exporting || !editorReady || !!previewError} onClick={handleExportPng}>Download Story</button>
+                <button type="button" className={styles.textButton} onClick={() => { void copyArticleLink(); }}>Kopiér artikellink</button></div>
+              <input aria-label="Artikellink til Story" value={selectedArticleUrl} readOnly onFocus={event => event.target.select()} />
+              <p role="status">{copyState || 'Tilføj linket med Instagrams linkmærkat. Læs nu på billedet er grafik.'}</p>
+            </div>}
+            {postingToInstagram && <p role="status" className={styles.copyNote}>{publishStep}</p>}
+            <PublicationReceipts receipts={publishing.receipts} check={publishing.check} />
+            {publishing.unconfirmedRequestId && <button type="button" className={styles.textButton}
+              onClick={() => { void publishing.check(publishing.unconfirmedRequestId!); }}>Hent manglende kvittering</button>}
+            {publishing.error && <p role="alert" className={styles.copyError}>{publishing.error}</p>}
             {previewError && <p role="alert" className={styles.copyError} data-layout-error>{previewError}</p>}
             <div
               hidden={!!previewError}
@@ -843,6 +780,7 @@ export default function DesignEditorView({ onBack, embedMode }: DesignEditorView
                 <div>
                   <label htmlFor="social-post-caption" className={styles.captionLabel}>Opslagstekst</label>
                   <textarea
+                    disabled={!editorReady || postingToInstagram}
                     value={caption}
                     onChange={(e) => setCaption(e.target.value)}
                     id="social-post-caption"
@@ -850,7 +788,7 @@ export default function DesignEditorView({ onBack, embedMode }: DesignEditorView
                     rows={5}
                   />
                   <div className="mt-2">
-                    <PublishFeedback success={publishSuccess} warning={publishWarning} error={instagramError} />
+                    {instagramError && <p role="alert" className={styles.copyError}>{instagramError}</p>}
                   </div>
                 </div>
               </div>
@@ -869,8 +807,8 @@ export default function DesignEditorView({ onBack, embedMode }: DesignEditorView
     onArticles={() => setArticlesOpen(value => !value)} size={size}
     onSize={next => { if (size !== next) { subtitle.carryToNextFormat(); setSize(next); } }}
     dark={theme === 'dark'} onTheme={() => setTheme(value => value === 'light' ? 'dark' : 'light')}
-    publishing={postingToInstagram} publishDisabled={postingToInstagram || instagramConfigured === false || !!previewError} onPublish={requestPostToInstagram}
-    exporting={exporting} exportDisabled={!!previewError} onExport={handleExportPng} onClose={onBack} />;
+    publishing={postingToInstagram} editingDisabled={!editorReady || postingToInstagram} publishDisabled={!editorReady || !subtitle.ready || postingToInstagram || instagramConfigured !== true || !!previewError} onPublish={requestPostToInstagram}
+    exporting={exporting} exportDisabled={!editorReady || !!previewError} onExport={handleExportPng} onClose={onBack} />;
 
   return (
     <div ref={rootRef} className={`${rootClass} ${styles.root}`}>
@@ -1109,14 +1047,18 @@ export default function DesignEditorView({ onBack, embedMode }: DesignEditorView
             className="w-full max-w-sm rounded-2xl border border-white/15 bg-[#0c0c0c] p-4 shadow-[0_0_32px_-8px_rgba(255,255,255,0.18)]"
           >
             <p className="mb-1 text-[10px] uppercase tracking-wider text-white/40">
-              {size === 'story' ? 'Instagram Story' : 'Instagram feed'}
+              {confirmation?.spec.isStory ? 'Instagram Story' : 'Opslag'}
             </p>
             <h2 id="instagram-confirm-title" className="text-[17px] font-medium tracking-tight text-white">
               Er du sikker på, at du vil poste?
             </h2>
             <p className="mt-2 text-[13px] leading-relaxed text-white/65">
-              Det valgte {size === 'story' ? '9:16 story-design' : '1:1 opslag'} bliver publiceret direkte på Instagram-kontoen.
+              {confirmation?.spec.isStory ? 'Udgiv 9:16 Story på Instagram.' : 'Udgiv 1:1-opslaget på de valgte kanaler.'}
             </p>
+            <div className={styles.channelChoices}>
+              <label><input type="checkbox" checked readOnly aria-label="Instagram valgt" /> Instagram{confirmation?.spec.isStory ? ' Story' : ''}</label>
+              {!confirmation?.spec.isStory && <label><input type="checkbox" checked={facebook && facebookConfigured} disabled={!facebookConfigured} onChange={event => setFacebook(event.target.checked)} /> Facebook{!facebookConfigured ? ' (ikke tilsluttet)' : ''}</label>}
+            </div>
             <div className="mt-4 flex gap-2">
               <button
                 type="button"
@@ -1132,7 +1074,7 @@ export default function DesignEditorView({ onBack, embedMode }: DesignEditorView
                 disabled={postingToInstagram}
                 className="w-full px-4 py-2.5 rounded-xl text-[13px] font-medium text-white transition-all duration-200 border border-white/10 bg-white/5 hover:border-white/20 hover:bg-white/10 hover:shadow-[0_0_32px_-8px_rgba(255,255,255,0.18)] disabled:opacity-40 active:scale-[0.99]"
               >
-                {postingToInstagram ? 'Poster…' : 'Post nu'}
+                {postingToInstagram ? 'Udgiver…' : 'Udgiv nu'}
               </button>
             </div>
           </div>

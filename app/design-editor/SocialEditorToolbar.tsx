@@ -8,7 +8,7 @@ type Props = {
   embedded?: boolean; articlesOpen: boolean; onArticles: () => void;
   size: SocialCardSize; onSize: (size: SocialCardSize) => void;
   dark: boolean; onTheme: () => void; publishing: boolean; publishDisabled: boolean; onPublish: () => void;
-  exporting: boolean; exportDisabled?: boolean; onExport: () => void; onClose?: () => void;
+  exporting: boolean; exportDisabled?: boolean; editingDisabled?: boolean; onExport: () => void; onClose?: () => void;
 };
 
 export default function SocialEditorToolbar(props: Props) {
@@ -20,10 +20,10 @@ export default function SocialEditorToolbar(props: Props) {
     <h1 className={styles.toolbarTitle} aria-label="Sociale medier"><span className={styles.shortTitle} aria-hidden="true">SoMe</span><span className={styles.longTitle} aria-hidden="true">Sociale medier</span></h1>
     <div className={styles.toolbarControls}>
       <div className={styles.format} role="group" aria-label="Kortformat">
-        <button type="button" onClick={() => props.onSize('square')} aria-pressed={props.size === 'square'} title="Kvadrat">1:1</button>
-        <button type="button" onClick={() => props.onSize('story')} aria-pressed={props.size === 'story'} title="Story">9:16</button>
+        <button type="button" disabled={props.editingDisabled} onClick={() => props.onSize('square')} aria-pressed={props.size === 'square'} title="Kvadrat">1:1</button>
+        <button type="button" disabled={props.editingDisabled} onClick={() => props.onSize('story')} aria-pressed={props.size === 'story'} title="Story">9:16</button>
       </div>
-      <button type="button" onClick={props.onTheme} className={styles.iconButton} aria-label={props.dark ? 'Skift til lyst design' : 'Skift til mørkt design'} aria-pressed={props.dark} title="Lyst eller mørkt design">
+      <button type="button" disabled={props.editingDisabled} onClick={props.onTheme} className={styles.iconButton} aria-label={props.dark ? 'Skift til lyst design' : 'Skift til mørkt design'} aria-pressed={props.dark} title="Lyst eller mørkt design">
         <svg aria-hidden="true" viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="1.7"><circle cx="12" cy="12" r="8" /><path d="M12 4a8 8 0 0 1 0 16Z" fill="currentColor" stroke="none" /></svg>
       </button>
       <button type="button" onClick={props.onPublish} disabled={props.publishDisabled} className={styles.publishButton}

@@ -9,7 +9,7 @@ type TitleResult = { state: 'ready'; candidates: string[] } | { state: 'failed';
 
 /** Card-only title. The CMS title and post caption remain untouched. AI runs
  * only after a click, using the same version-bound, one-time SoMe budget. */
-export function useCardTitle(id: string, original: string, subtitle: string, size: SocialCardSize) {
+export function useCardTitle(id: string, original: string, subtitle: string, size: SocialCardSize, enabled = true) {
   const key = JSON.stringify([id, original, subtitle, size]);
   const sharedKey = JSON.stringify([id, original, subtitle]);
   const [manual, setManual] = useState<Record<string, string>>({});
@@ -23,7 +23,7 @@ export function useCardTitle(id: string, original: string, subtitle: string, siz
   const result = results[resultKey];
 
   useEffect(() => {
-    if (variant < 0 || !id || !original.trim() || results[resultKey] || inFlight.current.has(resultKey)) return;
+    if (!enabled || variant < 0 || !id || !original.trim() || results[resultKey] || inFlight.current.has(resultKey)) return;
     inFlight.current.add(resultKey);
     const manualAtRequest = manual[sharedKey];
     (async () => {
@@ -57,7 +57,7 @@ export function useCardTitle(id: string, original: string, subtitle: string, siz
           error: error instanceof Error ? error.message : 'AI-forslaget kunne ikke hentes.', code: failure.code } }));
       } finally { inFlight.current.delete(resultKey); requestLocked.current = false; }
     })();
-  }, [key, sharedKey, id, original, subtitle, size, variant, resultKey, results, manual]);
+  }, [enabled, key, sharedKey, id, original, subtitle, size, variant, resultKey, results, manual]);
 
   const options = Array.from({ length: variant + 1 }, (_, index) => {
     const saved = results[JSON.stringify([key, index])];

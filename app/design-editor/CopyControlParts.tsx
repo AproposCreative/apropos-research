@@ -26,7 +26,7 @@ export function CopyTextarea({ label, value, onChange }: { label: string; value:
     return () => observer.disconnect();
   }, [value]);
   return <label><span className="sr-only">{label}</span><textarea ref={ref} aria-label={label} value={value}
-    onChange={event => onChange(event.target.value)} rows={1} className={styles.copyInput} /></label>;
+    onChange={event => onChange(event.target.value)} maxLength={label.startsWith('Overskrift') ? 4000 : 12000} rows={1} className={styles.copyInput} /></label>;
 }
 
 export function CopyChevron() {

@@ -23,7 +23,7 @@ type AiCopy = { state: 'ready'; candidates: string[] } |
 /** Generate only when the original and any version-bound saved copy do not fit.
  * Per-key local and server caches avoid another paid call on format switching.
  */
-export function useCardSubtitle(id: string, title: string, original: string, size: SocialCardSize, family: string, prepared?: string) {
+export function useCardSubtitle(id: string, title: string, original: string, size: SocialCardSize, family: string, prepared?: string, enabled = true) {
   const key = JSON.stringify([id, title, original, size, prepared ?? null]);
   const sharedKey = JSON.stringify([id, title, original]);
   const [entries, setEntries] = useState<Record<string, { text: string; status: 'manual' | SubtitleFit['source'] }>>({});
@@ -56,7 +56,7 @@ export function useCardSubtitle(id: string, title: string, original: string, siz
   const needsAi = !!(current && automatic && id && original.trim() &&
     (variants[key]?.forced || checked.fit.source === 'excerpt' || !checked.fit.readable));
   useEffect(() => {
-    if (!needsAi || aiCopy[aiKey] || inFlight.current.has(aiKey)) return;
+    if (!enabled || !needsAi || aiCopy[aiKey] || inFlight.current.has(aiKey)) return;
     inFlight.current.add(aiKey);
     (async () => {
       try {
@@ -88,8 +88,8 @@ export function useCardSubtitle(id: string, title: string, original: string, siz
           code: failure?.code, generation: failure?.generation } }));
       } finally { inFlight.current.delete(aiKey); requestLocked.current = false; }
     })();
-  }, [aiKey, needsAi, aiCopy, id, title, original, size, variant]);
-  const edit = (value: string, status: 'manual' | 'original' = 'manual') => {
+  }, [enabled, aiKey, needsAi, aiCopy, id, title, original, size, variant]);
+  const edit = (value: string, status: 'manual' | SubtitleFit['source'] = 'manual') => {
     setEntries(prev => ({ ...prev, [sharedKey]: { text: value, status } }));
   };
   const ai = aiCopy[aiKey];
@@ -167,7 +167,7 @@ export function useCardSubtitle(id: string, title: string, original: string, siz
     setVariants(prev => ({ ...prev, [key]: { active: index, latest: prev[key]?.latest ?? index, forced: true } }));
   };
   return {
-    key, text: fit?.text ?? input,
+    key, text: fit?.text ?? input, hasEntry: !!entry,
     status: entry?.status ?? fit?.source,
     truncated: fit?.truncated ?? false, error, edit, restore: () => edit(original, 'original'),
     canResume, resuming, resume, options: available, choose, nextVariant, carryToNextFormat,
@@ -179,7 +179,7 @@ export function useCardSubtitle(id: string, title: string, original: string, siz
     reset: () => { setEntries(prev => { const next = { ...prev }; delete next[sharedKey]; return next; });
       setVariants(prev => ({ ...prev, [key]: { active: 0, latest: prev[key]?.latest ?? 0, forced: false } }));
       setRefresh(value => value + 1); },
-    ready: !!(fit?.readable && (!needsAi || !!ai)),
+    ready: enabled && !!(fit?.readable && (!needsAi || !!ai)),
     checking: !current || (needsAi && !ai),
   };
 }

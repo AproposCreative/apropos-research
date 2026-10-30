@@ -18,5 +18,7 @@ export function useCardTextSize(articleKey: string) {
     return { percent: sizes[articleKey]?.[field] ?? 100,
       increase: () => update(TEXT_SIZE_STEP), decrease: () => update(-TEXT_SIZE_STEP), reset: () => update(null) };
   };
-  return { title: control('title'), subtitle: control('subtitle') };
+  return { title: control('title'), subtitle: control('subtitle'),
+    restore: (title: number, subtitle: number) => setSizes(previous => ({ ...previous,
+      [articleKey]: { title: textSizePercent(title), subtitle: textSizePercent(subtitle) } })) };
 }

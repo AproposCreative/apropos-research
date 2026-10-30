@@ -69,3 +69,18 @@
 .copySizeActions { margin-left: auto; }
 .copySizeActions .help { margin-left: 0; }
 @media (max-width: 370px) { .copySizeActions { margin-left: 0; }.copyActions { justify-content: space-between; } }
+.saveStatus { align-self: flex-end; color: #98989d; font-size: 12px; padding: 0 4px; }
+fieldset.copyGroup { min-width: 0; border: 0; padding: 0; margin: 0; }
+fieldset.copyGroup:disabled { opacity: .6; }
+.syncNotice, .storyExport, .receipts { width: 100%; max-width: 640px; border-radius: 16px; padding: 8px 12px; background: #1c1c1e; box-sizing: border-box; font-size: 13px; }
+.syncNotice p, .storyExport p, .receipt p { margin: 4px 0; color: #98989d; line-height: 1.4; }
+.storyExport input { width: 100%; border: 0; padding: 6px 0; background: transparent; color: #d1d1d6; font-size: 13px; }
+.receipts > summary { min-height: 36px; display: flex; align-items: center; color: #98989d; cursor: pointer; }
+.receipt { padding: 8px 0; border-top: 1px solid #38383a; }
+.receipt time { color: #98989d; font-size: 12px; }
+.receipt > div { display: flex; justify-content: space-between; gap: 8px; padding: 6px 0; }
+.receipt a { color: #0a84ff; text-decoration: none; }
+.channelChoices { display: flex; flex-direction: column; gap: 0; margin-top: 12px; }
+.channelChoices label { min-height: 44px; display: flex; align-items: center; gap: 10px; font-size: 14px; }
+.channelChoices input { accent-color: #0a84ff; width: 18px; height: 18px; }
+.receipts details > summary { min-height: 40px; display: flex; align-items: center; color: #98989d; cursor: pointer; border-top: 1px solid #38383a; }
