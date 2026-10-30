@@ -111,6 +111,26 @@ export const MIN_NEWSLETTER_ARTICLES = 3;
 /** Maks. antal artikler i mail og AI-intro (nyeste først efter sortering). */
 export const MAX_NEWSLETTER_ARTICLES = 8;
 
+/** Exact live item read for an explicit feature; never use pending CMS edits. */
+export async function resolveLiveNewsletterFeature(id: string, baseUrl: string): Promise<NewsletterArticle> {
+  if (!/^[a-f0-9]{24}$/i.test(id)) throw new Error('Ugyldigt feature-id.');
+  const cfg = getWebflowConfig();
+  const token = cfg.apiToken || env.WEBFLOW_API_TOKEN;
+  const collectionId = cfg.articlesCollectionId || env.WEBFLOW_ARTICLES_COLLECTION_ID;
+  if (!token || !collectionId) throw new Error('Feature kan ikke kontrolleres uden Webflow-konfiguration.');
+  const response = await fetch(`https://api.webflow.com/v2/collections/${collectionId}/items/${id}/live`, {
+    headers: { Authorization: `Bearer ${token}` }, cache: 'no-store', signal: AbortSignal.timeout(15000),
+  });
+  if (!response.ok) throw new Error(`Ugens feature kunne ikke læses live (${response.status}).`);
+  const item = await response.json();
+  if (item.id !== id || item.isArchived === true || item.isDraft === true || !item.lastPublished) {
+    throw new Error('Ugens feature er ikke en tilgængelig publiceret artikel.');
+  }
+  const article = mapItemToNewsletterArticle(item, baseUrl.replace(/\/$/, ''));
+  if (!article || !article.thumbUrl) throw new Error('Ugens feature mangler gyldig tekst eller hovedbillede.');
+  return article;
+}
+
 function sortArticlesBySelectionDateDesc(list: NewsletterArticle[]): NewsletterArticle[] {
   return [...list].sort((a, b) => Date.parse(b.selectionDate) - Date.parse(a.selectionDate));
 }

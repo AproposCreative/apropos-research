@@ -2,6 +2,7 @@ import { getPreviousIsoWeekRange, type WeekRange } from '@/lib/newsletter/week-r
 import {
   fetchArticlesForWeek,
   MIN_NEWSLETTER_ARTICLES,
+  resolveLiveNewsletterFeature,
   enrichNewsletterArticlesWithAuthorNames,
   resolveArticlesByIdsOrdered,
   type NewsletterArticle,
@@ -12,6 +13,7 @@ import { introTextToHtml, renderNewsletterEmailHtml } from '@/lib/newsletter/ren
 import { newsletterUtmCampaignCustom, newsletterUtmCampaignFromWeek } from '@/lib/newsletter/newsletter-utm';
 import { env } from '@/lib/config/env';
 import { buildSourceBasedNewsletterIntro } from '@/lib/newsletter/source-summary';
+import { getWeeklyNewsletterFeatureId, promoteWeeklyNewsletterFeature } from '@/lib/newsletter/weekly-feature';
 
 /** Bruges når AI ikke giver overskrift; samme tekst som emnefelt (kun overskrift, ingen dato-linje). */
 export const HEADLINE_FALLBACK_DA = 'Seneste fra Apropos';
@@ -81,6 +83,16 @@ export async function prepareWeeklyArticlesForDraft(params: {
       const note = 'Forrige uges forsideartikel er flyttet nederst, så ikke to uger i træk samme feature.';
       minimumNote = minimumNote ? `${minimumNote} ${note}` : note;
     }
+  }
+
+  // Historical previews retain their historical selection, not today's override.
+  const featureId = week.start.getTime() === getPreviousIsoWeekRange(refDate).start.getTime()
+    ? await getWeeklyNewsletterFeatureId(refDate) : null;
+  if (featureId) {
+    const feature = await resolveLiveNewsletterFeature(featureId, baseUrl);
+    articles = promoteWeeklyNewsletterFeature(articles, feature);
+    const note = 'Ugens feature er valgt af redaktionen og vises øverst.';
+    minimumNote = minimumNote ? `${minimumNote} ${note}` : note;
   }
 
   return {
