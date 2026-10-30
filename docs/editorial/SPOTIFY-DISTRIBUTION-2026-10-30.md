@@ -4,7 +4,7 @@
 
 Use the existing article-audio production and Firebase hosting. The canonical feed is `https://ai.aproposmagazine.com/api/podcast/rss`; `/api/podcast/feed.xml` is its alias. No new generation, codec migration, jingle change, audio upload, credential change or manifest write was performed for this work.
 
-The RSS repair is implemented and locally verified. Production verification is pending at this checkpoint. Spotify account claiming, show ID and episode visibility remain unverified. Browser bootstrap returned `Local browser use is disabled in Work settings`; no alternate browser control, account submission or verification-code request was attempted. An owner must enable browser use or complete the one-time Spotify claim in their existing account.
+The RSS repair is implemented, tested and verified in production. Spotify account claiming, show ID and episode visibility remain unverified. Browser bootstrap returned `Local browser use is disabled in Work settings`; no alternate browser control, account submission or verification-code request was attempted. An owner must enable browser use or complete the one-time Spotify claim in their existing account.
 
 ## Archive and delivery evidence
 
@@ -34,6 +34,14 @@ The canonical RSS and subsequent normal writes of the optional RSS mirror use th
 The actual archived manifest produces valid XML with 119 unique Danish episodes. Every pre-existing distinct Danish GUID is retained; zero invalid enclosures and zero dropped manifest entries. Candidate summary and XML: `candidate-summary.json` and `feed-candidate.xml` in the local evidence directory.
 
 24 tests passed across `test/podcast-rss.spec.ts`, `test/podcast-public-failure.spec.ts` and `test/podcast-player.spec.ts`. Coverage includes the exact punctuation-collision pattern in either order, manual recording priority, unrelated collision rejection, feeds beyond player pagination, preserved language filtering, stable GUIDs, XML escaping, MIME/size/date metadata and absent optional duration. The isolated application typecheck passed with `tmp/newsletter-feature-typecheck.json`, which excludes unrelated generated output. No dependency change or paid provider call was needed.
+
+## Production release
+
+Code commit `d2044299f784546017d83e1f58332ac5d8ac61f4`, deployment `dpl_2jHd1Nr5SCyG7sHUWzo1NjvrnNUw`, was READY on the production alias `ai.aproposmagazine.com`. Direct authenticated alias lookup and public checks at **2026-10-30T13:20:28.428Z** matched that exact commit.
+
+Both `/api/podcast/rss` and `/api/podcast/feed.xml` returned HTTP 200 with 119 unique GUIDs, every expected episode identity, the selected 27 October Placebo revision and valid enclosure metadata. The newest episode, The Terminal List, returned a public HTTP 206 audio range with the expected 10,935,515-byte total. The two RSS responses had identical XML SHA-256 `5cee2b437fd4a5886d19ac981b5b0cbd9bd67b1141184cc0296d8016fe219cb6`. Evidence: local `production-after.json`, `feed-after.xml` and `feed-alias-after.xml`.
+
+A fresh authorized manifest read at **2026-10-30T13:20:11.129Z** confirmed the same storage generation, SHA-256 and all 154 original entries. Evidence: local `manifest-after-verification.json`. The release changed only RSS episode selection, its tests and distribution documentation. It did not change article narration, audio binaries, the manifest, website playback code, AI Writer or jingle selection.
 
 ## Spotify account step
 
