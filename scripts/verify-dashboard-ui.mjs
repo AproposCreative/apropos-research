@@ -34,6 +34,11 @@ window.fetch=async (url, options={})=>{
  if(u.pathname==='/api/dashboard/newsletter')return Response.json({data:newsletters});
  if(u.pathname!=='/api/dashboard')throw Error('Unexpected endpoint '+u.pathname);
  const p=u.searchParams.get('period');const result={...base,period:p};
+ if(p==='365d')result.topArticles=[
+  {path:'/articles/another-brick-in-the-wall-part-5-royal-arena',slug:'another-brick-in-the-wall-part-5-royal-arena',title:'Another Brick in the Wall Part 5: Anmeldelse',views:941},
+  {path:'/articles/monarch-legacy-of-monsters-season-2',slug:'monarch-legacy-of-monsters-season-2',title:'Monarch: Legacy of Monsters sæson 2 anmeldelse',views:427},
+  {path:'/articles/deep-purple---58-ar-senere-er-der-stadig-ild-i-orgelet',slug:'deep-purple---58-ar-senere-er-der-stadig-ild-i-orgelet',title:'Anmeldelse: Deep Purple - Royal Arena',views:195},
+ ];
  if(mode==='staff')delete result.newsletter;
  if(mode==='partial'){result.overview=null;result.availability={...base.availability,overview:false};}
  // Deliberately ignore AbortSignal to prove stale responses cannot overwrite the active period.
@@ -93,7 +98,20 @@ try {
     await page.getByText('30.000', { exact: true }).first().waitFor();
     await page.waitForTimeout(400);
     assert.equal(await page.getByText('777', { exact: true }).count(), 0);
-    results.push({ width, ...state, search: true, campaigns: true, staleResponseDiscarded: true });
+    await page.getByRole('combobox', { name: 'Periode' }).selectOption('365d');
+    await page.getByRole('link', { name: 'Anmeldelse: Deep Purple - Royal Arena', exact: true }).waitFor();
+    const rankedRows=page.getByRole('heading',{name:'Mest læste artikler',exact:true}).locator('..').locator('ul > li');
+    assert.equal(await rankedRows.count(),3);
+    assert.deepEqual(await rankedRows.evaluateAll(rows=>rows.map(row=>Number(row.querySelector('span').textContent))),[1,2,3]);
+    assert.deepEqual(await rankedRows.evaluateAll(rows=>rows.map(row=>Number(row.lastElementChild.textContent))),[941,427,195]);
+    const hrefs=await rankedRows.locator('a').evaluateAll(links=>links.map(a=>a.href));
+    assert.equal(new Set(hrefs).size,3);
+    await page.screenshot({path:out+'/year-ranking-'+width+'.png'});
+    await page.getByRole('combobox', { name: 'Periode' }).selectOption('7d');
+    await page.getByRole('link', { name: 'Boganmeldelse: Nogen der kender nogen',exact:true }).waitFor();
+    assert.equal(await rankedRows.count(),1);
+    assert.equal(await page.getByRole('link', { name:'Anmeldelse: Deep Purple - Royal Arena',exact:true }).count(),0);
+    results.push({ width, ...state, search: true, campaigns: true, staleResponseDiscarded: true, yearRankingUniqueAndSequential: true, oldRowsRemovedOnPeriodChange: true });
     await page.close();
   }
   for (const mode of ['staff', 'partial']) {

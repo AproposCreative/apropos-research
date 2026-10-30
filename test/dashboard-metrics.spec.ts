@@ -35,9 +35,11 @@ it('aggregates article paths beyond 200 titles for the author leaderboard', asyn
   }));
   expect((await fetchArticleViewsBySlug('28d')).get('book')).toBe(8);
 });
-it('ranks complete article view totals across changed titles and trailing slashes', async () => {
+it.each(['7d','28d','90d','365d'] as const)('ranks complete article totals across title changes and trailing slashes for %s', async period => {
   vi.stubGlobal('fetch', vi.fn(async (_url, options) => {
     const body = JSON.parse(options.body); expect(body.limit).toBe(10000);
+    const range = dashboardDateRange(period);
+    expect(body.dateRanges).toEqual([{ startDate: range.startDate, endDate: range.endDate }]);
     expect(JSON.stringify(body.dimensionFilter)).toContain('page_view');
     return Response.json({ rows: [
       { dimensionValues: [{value:'/articles/other'},{value:'Other'}],metricValues:[{value:'8'}] },
@@ -45,7 +47,7 @@ it('ranks complete article view totals across changed titles and trailing slashe
       { dimensionValues: [{value:'/articles/book/'},{value:'Previous book title'}],metricValues:[{value:'5'}] },
     ] });
   }));
-  expect(await fetchTopArticles('28d', 1)).toEqual([{path:'/articles/book',slug:'book',title:'Current book title',views:11}]);
+  expect(await fetchTopArticles(period, 1)).toEqual([{path:'/articles/book',slug:'book',title:'Current book title',views:11}]);
 });
 it('keeps absent historical opens unknown rather than reporting zero or unread', () => {
   const old = message({ sentAt: '2026-10-23T13:00:00Z' });
