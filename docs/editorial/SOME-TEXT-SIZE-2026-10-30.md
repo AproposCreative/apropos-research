@@ -41,3 +41,26 @@ No real social posts are sent for verification.
 - Screenshots and receipts: `output/social-text-size-20261030/`.
 
 Production deployment/readback is recorded below after verification.
+
+## Production readback
+
+Verified 2026-10-30 12:59:16.902 UTC (13:59 Copenhagen):
+
+- Release `f4378a8a152e4a68c8f46390438ae255ba478156`.
+- Production deployment `dpl_8ej2WHt36F18tDfwBAtC4zr6TYes` is READY and direct
+  `ai.aproposmagazine.com` deployment lookup matches that exact Git SHA.
+- Public `/design-editor` returns HTTP 200 and serves both button labels, the
+  title/subtitle size fields and the new action-group stylesheet.
+- Served JS `/_next/static/immutable/chunks/3wd3h5o4mpelc.js` SHA-256:
+  `d3092a88f02d9e7bc0d95ce906b2a09c6ec89099eb514f19942cf918f1b8721a`.
+- Served CSS `/_next/static/immutable/chunks/3z_0eibp3ja-0.css` SHA-256:
+  `23a321a222ab71374e76e05a2513552b0643eef9910dae3b1a45782ef2b1bb0c`.
+- Eight unit tests and all ten viewport/embed combinations passed, plus the
+  focused limit/reset/article/JPEG/overflow checks and confirmation-cancel case.
+  Twenty real PNG downloads were verified; the square files match preview bytes.
+- Application TypeScript, changed-source ESLint and diff checks pass. Nine
+  protected Writer/global files remain byte-identical in the exact release.
+
+Receipt: `output/social-text-size-20261030/production-receipt.json`.
+Production verification only reads HTML/static assets/deployment metadata. No
+provider requests, social publications or service data changes were made.
