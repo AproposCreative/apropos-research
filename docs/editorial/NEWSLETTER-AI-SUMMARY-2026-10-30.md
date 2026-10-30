@@ -94,3 +94,18 @@ media/anniversaries and the parser rejects internal feature/hero wording.
 Evidence: output/newsletter-check-2026-10-30/ai-summary-reviewed-receipt.json
 and ai-friday-reviewed-preview.html. These preparation/readback checks do not
 claim delivery of the scheduled newsletter. No mail was sent by this task.
+
+### Final production verification, 30 October 11:09 Copenhagen
+
+Editorial prompt/parser correction e8dac3ab5de939c6650aebcf5e743469f8150954
+is READY as dpl_CXiQFsDf4qdUT4yYtTrEWwnPvaV5 and matched by a direct lookup of
+the actual ai.aproposmagazine.com alias. At 2026-10-30T10:09:10.613Z another
+protected cache-only production dry-run returned HTTP 200, introSource=ai,
+the reviewed headline as the email subject, matching introductory text and the
+book first. Dedicated accounting remained exactly one call / 1,925 USD micros /
+zero reserved; shared state and schedule were unchanged. Friday auto-send is
+enabled for 13:45 Europe/Copenhagen and had not started at verification.
+
+The two affected suites passed again (14 tests) after the correction. The final
+receipt is output/newsletter-check-2026-10-30/ai-summary-release-receipt.json.
+This records prepared content and the configured schedule, not future delivery.
