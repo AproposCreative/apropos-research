@@ -68,3 +68,65 @@ automatic retry. No personal browser profile or account session was used.
 
 Production verification is recorded below after deployment and actual readback.
 Evidence: `output/podcast-operations-20261030/` (no authentication material).
+
+## Production verification
+
+Code release `7234e56f6769987287c647b7af87c3478839eea9` is READY on
+`ai.aproposmagazine.com`, deployment `dpl_EkfFSCJ3Bm592trwgfgJQjU6kDiB`.
+Actual readback completed **2026-10-30T17:03:24.851Z**:
+
+- Four bounded owner refreshes returned HTTP 200. Artwork/metadata updates:
+  13, 0, 0, 0. Duration updates: 20, 20, 20, 16. Zero failures or unmatched
+  sources. The 13 metadata updates are 11 recovered Danish entries plus the two
+  legacy producer-identity repairs.
+- **130 episodes / 130 distinct GUIDs** in canonical RSS and the matching Firebase
+  mirror. All previous 119 remain with their relative order, enclosure URL/bytes,
+  author and original publication date. Previously present durations are unchanged.
+  Recovered entries retain their original dates; no synthetic new publication.
+- Recovered examples include Barsel, SAVEUS, Silo, Syd for Solen, the O Days guide
+  and Nak & Æd. Their old source recordings already existed; nothing was narrated.
+- **76 missing durations measured**, all 130 RSS entries now have a duration.
+  Original raw manifest generation `1793201330830175`, SHA-256
+  `6c7e95c09d881e271bff2b4d22924f8e855deab3e361d19999d8cb378fa1a250`
+  remains unchanged. Every one of the **154 source audio objects** retains its
+  generation, byte size, MD5 and CRC32C from the pre-release inventory.
+- All **130 cover URLs** were fetched publicly and decoded: JPEG, 1400 x 1400,
+  within 450 KiB, real white bottom band and visible original black wordmark.
+  All **113 distinct article links** returned HTTP 200. There are 130 retained
+  audio versions for 113 distinct published articles, not 130 distinct articles.
+- Both legacy Asta records now retain the exact original queue ID, explicit
+  `identitySource: narration_queue` and current published CMS ID/title/URL/cover.
+  The original three Asta audio revisions remain separate in RSS and grouped in
+  the article status view. No missing article source remains in the selected feed.
+- Owner status GET returned 200/private-no-store. Anonymous status GET and repair
+  POST returned 401. Non-owner rejection is additionally covered by route tests.
+- The actual Spotify public show embed independently verified Terminal List,
+  episode `0UxG5lNMhor1j0ElNdjrER`. The owner action with that actual episode URL
+  also returned 200/verified. This establishes one independently checked Spotify
+  link, not Spotify readback of all 130 entries or cached artwork refresh.
+- A repeated production refresh returned HTTP 200 with zero metadata/duration
+  updates, zero failures and zero new incidents. No automatic resend/regeneration.
+- Actual owner report: 243 published CMS articles; 113 with selected existing
+  audio; 130 RSS versions; zero missing durations; zero historical source gaps;
+  one independently verified Spotify link; zero new incidents. It also exposes
+  **21 older failed audio jobs and one stalled job**, dated July/August. These
+  are a separate narration backlog, quietly recorded as the initial baseline,
+  not failures caused or repaired by this metadata release. No paid retry was run.
+- The actual production report was rendered through the real component in
+  isolated Chromium at 390px/1280px: no overflow or JavaScript errors, correct
+  live counts, real verified episode link, 22 historical problems and no repeat
+  alert. This is local UI verification against actual production data, not use of
+  the owner's personal browser or a claimed iPhone acceptance test.
+- Vercel configuration readback at 17:04:23Z confirms crons enabled and
+  `/api/cron/podcast-metadata` scheduled `*/15 * * * *` on this exact deployment.
+  This is configuration proof, not a claim of a new natural timer execution.
+
+Zero paid AI/TTS calls, audio regeneration, CMS publication, outgoing mail,
+budget/provider policy changes or account-role changes. Safe repair only changes
+podcast metadata/facts/status and the RSS mirror. Existing narration failures
+remain separately visible and require an explicit, reviewed production decision.
+
+Primary receipts: `verification.json`, `sync-receipts.json`, `repeat-sync.json`,
+`spotify-link-verification.json`, `cron-config.json`, `artwork-checks.json`,
+`audio-objects-before.json`, `operations-live.json` and
+`ui-live-data-verification.json` in the evidence directory above.
