@@ -25,3 +25,14 @@ it('fails closed when Firebase is unavailable', async () => {
   mocks.read.mockRejectedValue(new Error('unavailable'));
   expect(await verifyEditorialToken('token')).toBeNull();
 });
+it.each(['frederik.emil.kragh@gmail.com','frederik@aproposcreative.com'])('accepts the verified owner alias %s with canonical role and original UID', async email => {
+  mocks.user.mockResolvedValue({uid:'existing-google-uid',email,emailVerified:true});
+  mocks.read.mockResolvedValueOnce({exists:false}).mockResolvedValueOnce({exists:true,data:()=>({active:true,role:'admin'})});
+  expect(await verifyEditorialToken('verified-token')).toEqual({uid:'existing-google-uid',role:'admin',owner:true});
+});
+it.each(['alias','canonical'])('rejects the alias when %s access has been suspended', async target => {
+  mocks.user.mockResolvedValue({uid:'existing-google-uid',email:'frederik@aproposcreative.com',emailVerified:true});
+  mocks.read.mockResolvedValueOnce({exists:true,data:()=>({active:target!=='alias',role:'admin'})})
+    .mockResolvedValueOnce({exists:true,data:()=>({active:target!=='canonical',role:'admin'})});
+  expect(await verifyEditorialToken('verified-token')).toBeNull();
+});

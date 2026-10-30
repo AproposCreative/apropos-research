@@ -189,6 +189,7 @@ export function AuthProvider({ children }: { children: ReactNode }) {
     const firebaseAuth = getFirebaseAuth();
     if (!firebaseAuth) throw new Error('Firebase not initialized');
     const provider = new GoogleAuthProvider();
+    provider.setCustomParameters({ prompt: 'select_account' });
     const result = await signInWithPopup(firebaseAuth, provider);
     await requireAllowedUser(result.user, connectionOnly);
   };
@@ -221,7 +222,7 @@ export function AuthProvider({ children }: { children: ReactNode }) {
   const showAiBootLayer = isAiRoute && loaderMounted;
   // The public connection page owns its loading/login/error UI. Keep its dark
   // shell mounted during access checks instead of rendering an empty document.
-  const showChildren = pathname === '/connect/chatgpt' || pathname === '/connect/chatgpt/welcome' || !loading;
+  const showChildren = pathname === '/login' || pathname === '/connect/chatgpt' || pathname === '/connect/chatgpt/welcome' || !loading;
 
   return (
     <AuthContext.Provider value={value}>

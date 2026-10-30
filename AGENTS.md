@@ -1,5 +1,16 @@
 # Apropos project working instructions
 
+## Owner Google login (owner choice 2026-10-30)
+
+The owner explicitly approved `frederik.emil.kragh@gmail.com` and
+`frederik@aproposcreative.com` as owner logins alongside
+`frederik@aproposmagazine.com`. This supersedes the three-address restriction
+only for those two exact identities. Require server-verified Firebase identity,
+verified email, and current suspension/revocation checks. Suspension of the
+canonical owner or the alias blocks the alias. Keep existing UIDs, workspaces,
+editorial approvals, mail sender addresses and stored work. No account merge,
+domain-wide owner access or simulated personal consent.
+
 ## Liv editorial direction (owner choice 2026-10-27)
 
 Liv's new work is reviews and concrete culture guides: concerts, TV series, film,

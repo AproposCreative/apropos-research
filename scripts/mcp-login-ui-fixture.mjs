@@ -19,7 +19,7 @@ const mocks = {
       return signInWithEmailAndPassword(auth);
     }
     export const createUserWithEmailAndPassword = signInWithEmailAndPassword;
-    export async function signOut() {} export class GoogleAuthProvider {}`,
+    export async function signOut() {} export class GoogleAuthProvider {setCustomParameters() {}}`,
   autosave: `export const autoSaveService = {setOwner() {}};`,
   verification: `export const createEmailVerificationActions = () => ({sendVerification: async()=>{},checkVerification:async()=>{}});`,
   mail: `export const requestAuthMail = async () => {};`,

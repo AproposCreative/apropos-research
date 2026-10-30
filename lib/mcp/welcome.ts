@@ -2,6 +2,7 @@ import { createHash } from 'node:crypto';
 import { Resend } from 'resend';
 import { getAdminAuth, getAdminDb } from '@/lib/firebase-admin';
 import { activeMember } from './oauth';
+import { isEditorialOwnerEmail } from '@/lib/editorial-capabilities';
 import { MCP_WELCOME_VERSION, mcpWelcomeContent } from './welcome-content';
 
 const collection = () => {
@@ -32,7 +33,7 @@ export async function deliverMcpWelcome(uid: string, now = Date.now()) {
   if (!member) return { status: 'access_unconfirmed' };
   const user = await auth.getUser(uid);
   const email = user.email?.trim().toLowerCase();
-  if (!email || !user.emailVerified || user.disabled || !email.endsWith('@aproposmagazine.com')) return { status: 'access_unconfirmed' };
+  if (!email || !user.emailVerified || user.disabled || (!email.endsWith('@aproposmagazine.com') && !isEditorialOwnerEmail(email))) return { status: 'access_unconfirmed' };
   const claim = await db.runTransaction(async tx => {
     const [snap, grantSnap] = await Promise.all([tx.get(ref), tx.get(db.collection('mcpGrants').doc(initial.grantId))]);
     const old = snap.data() as McpWelcomeJob | undefined, grant = grantSnap.data();

@@ -23,7 +23,7 @@ it('puts Google first and keeps password login available but collapsed', () => {
   expect($('input[type=email]').attr('autocomplete')).toBe('username');
   expect($('input[type=password]').attr('autocomplete')).toBe('current-password');
   expect($.html()).not.toContain('frederik@');
-  expect($.text()).toContain('din verificerede Apropos-mail');
+  expect($.text()).toContain('dit godkendte ejerlogin');
   expect($.text()).toContain('ikke en separat Apropos-adgangskode');
   expect($('svg').attr('aria-hidden')).toBe('true');
 });

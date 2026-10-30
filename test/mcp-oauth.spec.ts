@@ -50,6 +50,19 @@ it.each(['casper@aproposmagazine.com', 'milo@aproposmagazine.com', 'liv@aproposm
   memory.rows.set(`editorialAccess/${teamEmail}`, { active: false });
   expect(await authenticateMcp(request(token.access_token))).toBeNull();
 });
+it.each(['frederik.emil.kragh@gmail.com','frederik@aproposcreative.com'])('accepts the approved owner login %s, but respects canonical suspension and token revocation', async alias => {
+  fake.getUser.mockResolvedValue({email:alias,emailVerified:true,disabled:false});
+  memory.rows.set(`editorialAccess/${email}`,{active:true,role:'admin'});
+  expect(await activeMember('existing-alias-uid',Date.now())).toEqual({uid:'existing-alias-uid',owner:true,role:'admin'});
+  memory.rows.set(`editorialAccess/${email}`,{active:false,role:'admin'});
+  expect(await activeMember('existing-alias-uid',Date.now())).toBeNull();
+  memory.rows.set(`editorialAccess/${email}`,{active:true,role:'admin'});
+  memory.rows.set(`editorialAccess/${alias}`,{active:false,role:'admin'});
+  expect(await activeMember('existing-alias-uid',Date.now())).toBeNull();
+  memory.rows.delete(`editorialAccess/${alias}`);
+  fake.getUser.mockResolvedValue({email:alias,emailVerified:true,disabled:false,tokensValidAfterTime:new Date(Date.now()+1000).toISOString()});
+  expect(await activeMember('existing-alias-uid',Date.now())).toBeNull();
+});
 it('requires the browser-bound cookie and a live single-use request', async () => {
   const data = await setup(); await expect(readAuthorization(data.request, opaque())).rejects.toThrow();
   await consent(data.request, data.cookie, 'frederik', false); await expect(consent(data.request, data.cookie, 'frederik', true)).rejects.toThrow();

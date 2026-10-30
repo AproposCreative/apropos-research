@@ -4,9 +4,14 @@ service cloud.firestore {
     function editor() {
       let email = request.auth.token.email.lower();
       let path = /databases/$(database)/documents/editorialAccess/$(email);
+      let ownerEmail = 'frederik@aproposmagazine.com';
+      let ownerPath = /databases/$(database)/documents/editorialAccess/$(ownerEmail);
       return request.auth != null && request.auth.token.email_verified == true
-        && email in ['milo@aproposmagazine.com', 'casper@aproposmagazine.com', 'frederik@aproposmagazine.com']
-        && (!exists(path) || get(path).data.active == true);
+        && email in ['milo@aproposmagazine.com', 'casper@aproposmagazine.com', 'frederik@aproposmagazine.com',
+          'frederik.emil.kragh@gmail.com', 'frederik@aproposcreative.com']
+        && (!exists(path) || get(path).data.active == true)
+        && (!(email in ['frederik.emil.kragh@gmail.com', 'frederik@aproposcreative.com'])
+          || !exists(ownerPath) || get(ownerPath).data.active == true);
     }
     // Preserve the public magazine app's existing read-only CMS mirrors.
     match /{collection}/{id} {

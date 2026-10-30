@@ -83,7 +83,7 @@ export default function AuthModal() {
 
         <div className="mt-6 text-center">
           <p className="text-white/40 text-xs">
-            Kun for redaktionens tre godkendte og verificerede konti.
+            Kun for godkendte og verificerede redaktionskonti og ejerlogin.
           </p>
         </div>
       </div>

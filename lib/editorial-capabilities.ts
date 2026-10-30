@@ -1,5 +1,10 @@
 /** Shared UI policy; the server derives owner status from the verified account. */
 export const OWNER_EMAIL = 'frederik@aproposmagazine.com';
+/** Owner-approved Google identities, 2026-10-30. Exact addresses only; no domain grant. */
+export const OWNER_LOGIN_EMAILS = [OWNER_EMAIL, 'frederik.emil.kragh@gmail.com', 'frederik@aproposcreative.com'] as const;
+export function isEditorialOwnerEmail(email: string | undefined | null): boolean {
+  return typeof email === 'string' && OWNER_LOGIN_EMAILS.some(allowed => allowed === email.trim().toLowerCase());
+}
 export const OWNER_APPS = ['seo-engine', 'podcast', 'newsletter', 'liv-inbox', 'push-desk', 'image-gen', 'chatgpt-editorial', 'akkreditering'] as const;
 export type EditorialCapabilities = { owner: boolean };
 export const NO_CAPABILITIES: EditorialCapabilities = { owner: false };

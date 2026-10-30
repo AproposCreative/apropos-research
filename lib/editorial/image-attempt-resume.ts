@@ -1,6 +1,8 @@
 import { z } from 'zod';
 import { getAdminAuth } from '@/lib/firebase-admin';
-import { OWNER_EMAIL } from '@/lib/editorial-capabilities';
+import { isEditorialOwnerEmail } from '@/lib/editorial-capabilities';
+import { editorialRole } from '@/lib/auth-policy';
+import { readEditorialAccessEntry } from '@/lib/editorial-access';
 import { cmsFieldHash } from '@/lib/liv/cms-field-hash';
 import { readSubmission, submissionStore } from './submissions';
 import { submissionId, submissionInput, type SubmissionRecord } from './submission-contract';
@@ -103,8 +105,10 @@ export async function adaptUnusedImageAttemptInputMode(uid: string, raw: unknown
 
 async function authorizeAttempt(uid: string, input: z.infer<typeof imageAttemptResumeInput>, previousGrantId?: string, adaptMode = false) {
   const account = await getAdminAuth()!.getUser(uid);
-  if (!account.emailVerified || account.disabled || account.email?.toLowerCase() !== OWNER_EMAIL)
+  if (!account.emailVerified || account.disabled || !isEditorialOwnerEmail(account.email))
     throw Error('mcp_submission_owner_required');
+  if (!editorialRole({ email: account.email, emailVerified: account.emailVerified, disabled: account.disabled,
+    entry: await readEditorialAccessEntry(account.email!.trim().toLowerCase()) })) throw Error('mcp_submission_owner_required');
   const row = await readSubmission(uid, input.submissionId), { db, collection } = submissionStore();
   if (row.status !== 'draft') throw Error('mcp_submission_operation_pending');
   const ref = collection.doc(row.id), brief = (await ref.collection('chatBriefs').doc(input.briefId).get()).data();

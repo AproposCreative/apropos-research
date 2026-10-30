@@ -88,7 +88,7 @@ try {
         assert.equal(await page.locator('[data-apropos-boot]').count(),0);
         await page.getByRole('button',{name:/^Sociale medier/}).click();
         assert.equal(await page.evaluate(()=>fixture.calls.length),1); // Side menu reuses the same query.
-        await page.getByRole('button',{name:'Luk',exact:true}).click();
+        await page.getByRole('button',{name:'Luk værktøjer',exact:true}).click();
         await page.evaluate(()=>changeAccount());
         await page.getByRole('link',{name:/Redaktionen i ChatGPT/}).waitFor({state:'detached'});
         await page.locator('[data-apropos-boot]').waitFor({state:'detached'});

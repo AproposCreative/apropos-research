@@ -1,5 +1,6 @@
 import { describe, it, expect } from 'vitest';
 import { editorialRole, isSameOriginApi, requestHeaders } from '../lib/auth-policy';
+import { isEditorialOwnerEmail, OWNER_LOGIN_EMAILS } from '../lib/editorial-capabilities';
 
 describe('editorial access', () => {
   it('requires a verified named colleague', () => {
@@ -12,7 +13,7 @@ describe('editorial access', () => {
     }
     expect(editorialRole({ email: 'a@aproposmagazine.com' })).toBeNull();
   });
-  it('does not allow old allowlist or bootstrap entries to bypass the three-address restriction', () => {
+  it('does not allow old allowlist or bootstrap entries to bypass named-account restrictions', () => {
     const user = { email: 'guest@example.com', emailVerified: true };
     expect(editorialRole({ ...user, entry: { active: true, role: 'editor' } })).toBeNull();
     expect(editorialRole({ ...user, bootstrapAdmin: true })).toBeNull();
@@ -20,6 +21,19 @@ describe('editorial access', () => {
     expect(editorialRole({ ...user, entry: { active: false, role: 'editor' } })).toBeNull();
     expect(editorialRole({ ...user, disabled: true, bootstrapAdmin: true })).toBeNull();
     expect(editorialRole({ ...user, emailVerified: false, bootstrapAdmin: true })).toBeNull();
+  });
+  it('allows only the owner-approved exact aliases and retains verification, disabled and suspension checks', () => {
+    for (const email of OWNER_LOGIN_EMAILS) {
+      expect(isEditorialOwnerEmail(email.toUpperCase())).toBe(true);
+      expect(editorialRole({email,emailVerified:true})).toBe('editor');
+      expect(editorialRole({email,emailVerified:false})).toBeNull();
+      expect(editorialRole({email,emailVerified:true,disabled:true})).toBeNull();
+      expect(editorialRole({email,emailVerified:true,entry:{active:false,role:'admin'}})).toBeNull();
+    }
+    for (const email of ['other@gmail.com','frederik+other@aproposcreative.com','other@aproposcreative.com','frederik@aproposcreative.com.evil.test']) {
+      expect(isEditorialOwnerEmail(email)).toBe(false);
+      expect(editorialRole({email,emailVerified:true,entry:{active:true,role:'admin'}})).toBeNull();
+    }
   });
   it('preserves existing verified administrators without elevating domain users', () => {
     expect(editorialRole({ email: 'frederik@aproposmagazine.com', emailVerified: true, bootstrapAdmin: true })).toBe('admin');

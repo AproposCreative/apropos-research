@@ -1,8 +1,9 @@
 import { createHash, randomBytes } from 'node:crypto';
 import { z } from 'zod';
 import { getAdminDb, getAdminAuth } from '@/lib/firebase-admin';
-import { editorialRole, normalizeAccessEmail, type AccessEntry } from '@/lib/auth-policy';
-import { OWNER_EMAIL } from '@/lib/editorial-capabilities';
+import { editorialRole, normalizeAccessEmail } from '@/lib/auth-policy';
+import { isEditorialOwnerEmail } from '@/lib/editorial-capabilities';
+import { readEditorialAccessEntry } from '@/lib/editorial-access';
 import { allowedRedirect, MCP_ORIGIN, MCP_RESOURCE, MCP_SCOPES } from './config';
 import { MCP_WELCOME_VERSION } from './welcome-content';
 
@@ -29,15 +30,14 @@ export async function activeMember(uid: string, authenticatedAt: number) {
   const auth = getAdminAuth(); if (!auth) return null;
   try {
     const user = await auth.getUser(uid), email = normalizeAccessEmail(user.email);
-    if (!email || !email.endsWith('@aproposmagazine.com') || !user.emailVerified || user.disabled ||
+    if (!email || (!email.endsWith('@aproposmagazine.com') && !isEditorialOwnerEmail(email)) || !user.emailVerified || user.disabled ||
       !Number.isFinite(authenticatedAt) || Date.parse(user.tokensValidAfterTime || '') > authenticatedAt) return null;
-    const [entryDoc, revocation] = await Promise.all([db().collection('editorialAccess').doc(email).get(), collection('Revocations').doc(uid).get()]);
+    const [entry, revocation] = await Promise.all([readEditorialAccessEntry(email), collection('Revocations').doc(uid).get()]);
     if ((revocation.data()?.revokedAt ?? -1) >= authenticatedAt) return null;
-    const entry = entryDoc.data() as AccessEntry | undefined;
     if (entry?.active === false) return null;
     // Domain membership is MCP-only. It does not expand the web app's allowlist
     // or grant owner capabilities to a colleague with an admin-looking claim.
-    const owner = email === OWNER_EMAIL;
+    const owner = isEditorialOwnerEmail(email);
     const role = owner ? editorialRole({ email, emailVerified: user.emailVerified, disabled: user.disabled, entry }) : 'editor';
     return role ? { uid, role, owner } : null;
   } catch { return null; }

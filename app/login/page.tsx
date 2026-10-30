@@ -15,14 +15,14 @@ export default function LoginPage() {
   const [showForgotPassword, setShowForgotPassword] = useState(false);
   const [forgotEmail, setForgotEmail] = useState('');
 
-  const { user, verificationEmail, signIn, signUp, resetPassword, signInWithGoogle } = useAuth();
+  const { user, loading: checkingAccess, accessError, verificationEmail, signIn, signUp, resetPassword, signInWithGoogle } = useAuth();
   const router = useRouter();
 
   useEffect(() => {
-    if (user) {
+    if (user && !checkingAccess) {
       router.replace('/ai');
     }
-  }, [user, router]);
+  }, [user, checkingAccess, router]);
 
   const formatAuthError = (err: any) => {
     const code = String(err?.code || '').replace('auth/', '');
@@ -66,8 +66,6 @@ export default function LoginPage() {
         router.replace('/ai');
       } else {
         await signIn(email, password);
-        setSuccess('Thank you! Your submission has been received!');
-        router.replace('/ai');
       }
     } catch (error: any) {
       if (error?.code === 'auth/verification-send-failed' || error?.code === 'auth/email-already-in-use') setIsSignUp(false);
@@ -84,8 +82,6 @@ export default function LoginPage() {
 
     try {
       await signInWithGoogle();
-      setSuccess('Thank you! Your submission has been received!');
-      router.replace('/ai');
     } catch (error: any) {
       setError(formatAuthError(error));
     } finally {
@@ -234,9 +230,9 @@ export default function LoginPage() {
           )}
 
           {verificationEmail && <p className="mb-4 text-sm text-white/80">Din mail mangler bekræftelse. <Link className="underline" href="/ai">Åbn mailbekræftelse</Link></p>}
-          {error && (
-            <div className="mb-4 p-4 bg-red-900/20 border border-red-500/30 rounded-lg text-red-300 text-sm">
-              {error}
+          {(error || accessError) && (
+            <div role="alert" className="mb-4 p-4 bg-red-900/20 border border-red-500/30 rounded-lg text-red-300 text-sm">
+              {error || accessError}
             </div>
           )}
 
@@ -247,6 +243,7 @@ export default function LoginPage() {
               <input
                 id="email"
                 type="email"
+                autoComplete="username"
                 value={email}
                 onChange={(e) => setEmail(e.target.value)}
                 placeholder="Email"
@@ -260,6 +257,7 @@ export default function LoginPage() {
               <input
                 id="password"
                 type="password"
+                autoComplete={isSignUp ? 'new-password' : 'current-password'}
                 value={password}
                 onChange={(e) => setPassword(e.target.value)}
                 placeholder="Password"

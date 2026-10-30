@@ -1,7 +1,7 @@
 import type { EditorialCapabilities } from './editorial-capabilities';
 
-export const ACCESS_MESSAGE = 'Adgang er kun for redaktionens tre godkendte og verificerede konti.';
-export const MCP_ACCESS_MESSAGE = 'Forbindelsen kræver en aktiv, verificeret @aproposmagazine.com-konto.';
+export const ACCESS_MESSAGE = 'Adgang kræver en godkendt og verificeret redaktionskonto eller et godkendt ejerlogin. Vælg en anden konto for at prøve igen.';
+export const MCP_ACCESS_MESSAGE = 'Forbindelsen kræver en aktiv, verificeret Apropos-konto eller et godkendt ejerlogin.';
 export const ACCESS_UNAVAILABLE_MESSAGE = 'Adgangen kunne ikke kontrolleres lige nu. Prøv at logge ind igen.';
 export const ACCESS_TIMEOUT_MESSAGE = 'Adgangskontrollen tog for lang tid. Prøv at logge ind igen.';
 export const AUTH_ACCESS_TIMEOUT_MS = 20_000;

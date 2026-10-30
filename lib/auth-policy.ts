@@ -1,4 +1,5 @@
 /** Shared policy only; never trust email/domain supplied by the client. */
+import { isEditorialOwnerEmail } from './editorial-capabilities';
 export type EditorialRole = 'editor' | 'admin';
 export type AccessEntry = { active: boolean; role: EditorialRole };
 export const EDITORIAL_EMAILS = ['milo@aproposmagazine.com', 'casper@aproposmagazine.com', 'frederik@aproposmagazine.com'] as const;
@@ -14,7 +15,7 @@ export function editorialRole(args: {
   entry?: AccessEntry | null; bootstrapAdmin?: boolean;
 }): EditorialRole | null {
   const email = normalizeAccessEmail(args.email);
-  if (!email || !EDITORIAL_EMAILS.some(allowed => allowed === email) || !args.emailVerified || args.disabled) return null;
+  if (!email || (!EDITORIAL_EMAILS.some(allowed => allowed === email) && !isEditorialOwnerEmail(email)) || !args.emailVerified || args.disabled) return null;
   // Explicit suspension also disables a domain account.
   if (args.entry?.active === false) return null;
   if (args.bootstrapAdmin) return 'admin';

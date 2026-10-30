@@ -6,9 +6,14 @@ service firebase.storage {
     function editor() {
       let email = request.auth.token.email.lower();
       let path = /databases/(default)/documents/editorialAccess/$(email);
+      let ownerEmail = 'frederik@aproposmagazine.com';
+      let ownerPath = /databases/(default)/documents/editorialAccess/$(ownerEmail);
       return request.auth != null && request.auth.token.email_verified == true
-        && email in ['milo@aproposmagazine.com', 'casper@aproposmagazine.com', 'frederik@aproposmagazine.com']
-        && (!firestore.exists(path) || firestore.get(path).data.active == true);
+        && email in ['milo@aproposmagazine.com', 'casper@aproposmagazine.com', 'frederik@aproposmagazine.com',
+          'frederik.emil.kragh@gmail.com', 'frederik@aproposcreative.com']
+        && (!firestore.exists(path) || firestore.get(path).data.active == true)
+        && (!(email in ['frederik.emil.kragh@gmail.com', 'frederik@aproposcreative.com'])
+          || !firestore.exists(ownerPath) || firestore.get(ownerPath).data.active == true);
     }
     match /apropos-config/{allPaths=**} {
       allow read: if true;
