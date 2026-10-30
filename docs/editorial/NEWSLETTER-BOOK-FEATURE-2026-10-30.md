@@ -33,4 +33,30 @@ configuration security check pass. Full checkout TypeScript encounters an
 unrelated untracked output/ringo-bio-publish-20261028.ts error; clean-source
 TypeScript verification and production release/readback are tracked below.
 
-Production choice/readback and deployment receipt will be appended after release.
+### Production verified, 30 October 2026, 10:38 Copenhagen
+
+- Release 303730e524f845836320cdf4a7247c81caea109a, deployment
+  dpl_4pgqpagoEgpVyxwhQszyAGc5zbFx READY with actual ai.aproposmagazine.com alias
+  and exact Git SHA independently read back before the feature configuration write.
+- Clean application-source TypeScript check passes with the existing configured
+  exclusions preserved and untracked output excluded; the unrelated output script
+  was not edited. Targeted tests/lint/security checks passed as above.
+- In a Firestore transaction, confirmed auto-2026-W44 had not started, then saved
+  newsletterWeeklyFeatures/2026-W44 with the selected book ID and owner-request
+  attribution. There was no previous feature. No historical send record modified.
+- Rebuilt a local no-AI HTML preview using current live CMS and saved selection.
+  Book is first, hero src matches its cover, and hero link matches its article.
+  Both source-based intro and article list start with the book. Five articles
+  selected, no duplicate book. No CMS/article timestamps changed.
+- Actual production GET /api/cron/newsletter-weekly?dryRun=1 returned HTTP200,
+  dryRun=true, weekKey=2026-W44, book first, five articles, skipAiIntro=true.
+  No withAi flag, claim, send or new AI generation. Schedule readback is unchanged:
+  enabled, Friday 13:45 Europe/Copenhagen. Current send is still not_started.
+- Existing manual-send-history queries emitted missing-composite-index warnings
+  during local selection; their existing fallback behavior was retained. This
+  release neither claims complete historical exclusion verification nor changes
+  indexes/history to select the book. Production dry-run feature verification passed.
+
+Evidence: output/newsletter-check-2026-10-30/book-feature-receipt.json and
+book-feature-preview.html. No mail was sent by this task. Actual scheduled
+delivery remains a later event, not established by the successful dry-run.
