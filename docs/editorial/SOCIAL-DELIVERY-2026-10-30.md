@@ -22,6 +22,10 @@ The selected final copy is synchronized. Existing AI candidate caches and spend 
 - Production-service Firestore verification at 2026-10-30T13:52:52Z passed actual draft write/readback, stale revision rejection, publication claim/replay, request readback and article-history query. All generated fixture documents were removed and absence verified. No real user draft, social account or published receipt was altered. Evidence: `firestore-verification.json`.
 - Local evidence: `output/social-delivery-20261030/tests.json`, `report.json`, exported `story.png` and mobile/desktop screenshots.
 
-## Deployment checkpoint
+## Production verification
 
-Implementation and tests completed. Exact release and public production verification pending at this checkpoint. No real Meta publication is claimed. A provider-level ambiguous Facebook response still requires checking the real channel; replaying the request is not a reconciliation strategy. Story permalinks may be unavailable from Meta. Historical posts from before this release have not been invented or backfilled into the new ledger.
+Code release `adfb2b8f76a3b3e2ef6ab9080120ef275d391e31` is live on `ai.aproposmagazine.com`, deployment `dpl_BVVRnDYpABVw5HKFzL8v1c1R6vHS`. Direct authenticated deployment lookup and public checks at **2026-10-30T13:59:14.476Z** confirmed the exact SHA, READY state and HTTP 200 editor page. Served JavaScript includes the new draft API/journal, persistent publication identity, explicit Facebook configuration, request IDs and Story clipboard action. Served CSS includes the compact sync, channel and receipt layouts. Both private API endpoints correctly returned HTTP 401 without authentication. The existing podcast RSS still returned HTTP 200 with 119 episodes.
+
+Evidence: local `output/social-delivery-20261030/production-receipt.json`, including the exact served JS/CSS hashes. Nine protected Writer files still match the earlier owner-approved baseline; evidence `writer-protected-after.json`. The final browser fixture also verified automatic AI fitting and journal recovery after reloading immediately, before the autosave delay.
+
+No real Meta publication is claimed. A provider-level ambiguous Facebook response still requires checking the real channel; replaying the request is not a reconciliation strategy. Story permalinks may be unavailable from Meta. Historical posts from before this release have not been invented or backfilled into the new ledger. Already-open editor tabs must reload to use the new API contract and client.
