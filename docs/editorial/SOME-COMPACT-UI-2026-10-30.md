@@ -52,3 +52,21 @@ for produktionsbundlet Amiri. De er layoutbevis, ikke en ændret liveartikel.
 Evidens: output/social-compact-20261030/report.json, de åbne/lukkede
 skærmbilleder og PNG-eksporter; output/some-recovery-20261030/browser-report.json.
 Release og produktionsreadback tilføjes efter deployment.
+
+## Produktion, 30. oktober kl. 12:59 Copenhagen
+
+70530e6f2eb0941c3f0f0e4c5059099b413b9229 er deployet READY som
+dpl_AVYMyRh5NsgMSHkSNzaCnuEq9se7. Direkte lookup af ai.aproposmagazine.com
+matchede samme release. GET /design-editor svarede HTTP 200, og det nye
+stylesheet blev hentet via referencen i sidens client-chunks:
+/_next/static/immutable/chunks/2mf1ekjia51ec.css, SHA-256
+49daddf9d88e984ae1d548f0637608552ef7ad5c19eec3e7a1d1e3fd5ff642a7.
+Det indeholder den kompakte containerbaserede værktøjslinje og feltgrænsen
+på 180 px. Den private editors markup ligger bag klientlogin og blev ikke
+vist i den uautentificerede HTML-shell; de interaktive UI-kontroller er derfor
+dokumenteret af de isolerede browserfixtures, ikke som en live telefonprøve.
+
+Kontrollen udførte kun metadata-/HTML-/stylesheet-reads. Ingen providerkald,
+budget-/dataændring, mailafsendelse eller social udgivelse. Receipt ligger i
+output/social-compact-20261030/production-receipt.json. En allerede åben
+browser skal genindlæses for at få den nye klientversion.
