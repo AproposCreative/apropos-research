@@ -9,7 +9,8 @@ export const PODCAST_ARTWORK_MAX_BYTES = 450 * 1024;
 /** Square directory artwork; contain preserves the entire approved photograph. */
 export async function encodePodcastArtwork(input: Buffer): Promise<Buffer> {
   for (const quality of [88, 80, 70, 60]) {
-    const bytes = await sharp(input, { limitInputPixels: 40_000_000, animated: false }).rotate()
+    // Same bounded input ceiling as the shared approved-image delivery encoder.
+    const bytes = await sharp(input, { limitInputPixels: 80_000_000, animated: false }).rotate()
       .resize(PODCAST_ARTWORK_SIZE, PODCAST_ARTWORK_SIZE, { fit: 'contain', background: '#111111' })
       .flatten({ background: '#111111' }).toColourspace('srgb').jpeg({ quality, mozjpeg: true }).toBuffer();
     if (bytes.length <= PODCAST_ARTWORK_MAX_BYTES) return bytes;

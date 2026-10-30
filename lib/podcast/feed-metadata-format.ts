@@ -45,12 +45,24 @@ export function publishedPodcastArticle(item: Record<string, unknown>): Publishe
   return { id: String(item.id || ''), slug, title, description, coverUrl: coverUrl.trim(), credit: podcastPlainText(fields['foto-credit'], 300) };
 }
 
-export function matchPodcastArticle(slug: string, articles: PublishedPodcastArticle[]): PublishedPodcastArticle | null {
+export function matchPodcastArticle(slug: string, articles: PublishedPodcastArticle[], originalTitle?: string, boundCmsId?: string): PublishedPodcastArticle | null {
+  // Retain an established CMS identity across later title/slug changes.
+  if (boundCmsId) {
+    const bound = articles.filter(a => a.id === boundCmsId);
+    if (bound.length === 1) return bound[0];
+    return null;
+  }
   const exact = articles.filter(a => a.slug === slug);
   if (exact.length === 1) return exact[0];
   if (exact.length > 1) return null;
   const matches = articles.filter(a => slugToManifestId(a.slug) === slugToManifestId(slug));
-  return matches.length === 1 ? matches[0] : null;
+  if (matches.length === 1) return matches[0];
+  if (matches.length > 1 || !originalTitle) return null;
+  // Legacy narration sometimes stored an English slug for a Danish article.
+  // Bootstrap only on a unique, EXACT complete title; never fuzzy similarity.
+  const title = podcastPlainText(originalTitle, 500).normalize('NFC');
+  const byTitle = articles.filter(a => a.title.normalize('NFC') === title);
+  return byTitle.length === 1 ? byTitle[0] : null;
 }
 
 export function podcastSourceHash(article: PublishedPodcastArticle): string {

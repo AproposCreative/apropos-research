@@ -56,14 +56,16 @@ export async function syncPodcastFeedMetadata(manifest: PodcastManifest, limit =
     const [articles, previous] = await Promise.all([fetchPublishedPodcastArticles(), readPodcastFeedMetadata(manifest)]);
     const unmatched: string[] = [], updated: string[] = [], failed: Array<{ guid: string; reason: string }> = [];
     const candidates = selectPodcastRssEpisodes(manifest.episodes).flatMap(episode => {
-      const guid = podcastEpisodeGuid(episode), article = matchPodcastArticle(episode.articleSlug, articles);
+      const guid = podcastEpisodeGuid(episode), prior = previous[guid];
+      const boundCmsId = prior?.articleIdentity === slugToManifestId(episode.articleSlug) ? prior.id : undefined;
+      const article = matchPodcastArticle(episode.articleSlug, articles, episode.title, boundCmsId);
       if (!article) { unmatched.push(guid); return []; }
       const sourceHash = podcastSourceHash(article);
       return previous[guid]?.sourceHash === sourceHash ? [] : [{ episode, guid, article, sourceHash }];
     });
     const batch = candidates.slice(0, Math.min(20, Math.max(1, limit)));
     // Small concurrency bounds memory, bandwidth and the server request duration.
-    for (let i = 0; i < batch.length; i += 4) await Promise.all(batch.slice(i, i + 4).map(async ({ episode, guid, article, sourceHash }) => {
+    for (let i = 0; i < batch.length; i += 2) await Promise.all(batch.slice(i, i + 2).map(async ({ episode, guid, article, sourceHash }) => {
       try {
         if (!article.coverUrl) throw Error('podcast_published_cover_missing');
         const prior = previous[guid];
@@ -84,7 +86,8 @@ export async function syncPodcastFeedMetadata(manifest: PodcastManifest, limit =
         failed.push({ guid, reason });
       }
     }));
-    return { busy: false, total: selectPodcastRssEpisodes(manifest.episodes).length, matched: candidates.length + Object.keys(previous).filter(g => !candidates.some(c => c.guid === g) && !unmatched.includes(g)).length,
+    return { busy: false, complete: unmatched.length === 0 && candidates.length === updated.length,
+      total: selectPodcastRssEpisodes(manifest.episodes).length, matched: selectPodcastRssEpisodes(manifest.episodes).length - unmatched.length,
       updated, failed, unmatched, remaining: candidates.length - updated.length, checkedAt: new Date().toISOString() };
   } finally {
     await db.runTransaction(async tx => {

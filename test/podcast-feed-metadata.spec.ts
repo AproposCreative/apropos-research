@@ -60,6 +60,16 @@ describe('published episode presentation', () => {
     expect(matchPodcastArticle('deep-purple-royal-arena', [article, { ...article, slug: 'deep-purple--royal-arena' }])).toBeNull();
     expect(matchPodcastArticle('another-review', [article])).toBeNull();
   });
+  it('recovers legacy translated slugs only through a unique exact full title', () => {
+    expect(matchPodcastArticle('old-english-slug', [article], article.title)).toEqual(article);
+    expect(matchPodcastArticle('old-english-slug', [article], 'Deep Purple')).toBeNull();
+    expect(matchPodcastArticle('old-english-slug', [article, { ...article, id: 'another-cms-id' }], article.title)).toBeNull();
+  });
+  it('keeps an established CMS identity after a title or slug changes and never rebinds a missing item', () => {
+    const renamed = { ...article, title: 'Ny titel', slug: 'ny-slug' };
+    expect(matchPodcastArticle('old-slug', [renamed], 'Old title', article.id)).toEqual(renamed);
+    expect(matchPodcastArticle(article.slug, [article], article.title, 'deleted-id')).toBeNull();
+  });
   it('changes only presentation and keeps immutable identity, audio and dates', () => {
     const changed = applyPodcastFeedMetadata(episode, metadata);
     expect(changed.title).toBe(article.title);
@@ -97,6 +107,12 @@ describe('safe podcast artwork', () => {
   it('rejects non-images without uploading anything', async () => {
     await expect(encodePodcastArtwork(Buffer.from('<html>error</html>'))).rejects.toThrow();
     expect(mocks.store).not.toHaveBeenCalled();
+  });
+  it('handles the observed 60MP legacy LP photo within the shared 80MP image ceiling', async () => {
+    const original = await sharp({ create: { width: 9504, height: 6336, channels: 3, background: '#eeeeee' } }).webp().toBuffer();
+    const output = await encodePodcastArtwork(original);
+    expect(await sharp(output).metadata()).toMatchObject({ format: 'jpeg', width: 1400, height: 1400 });
+    expect(output.length).toBeLessThanOrEqual(PODCAST_ARTWORK_MAX_BYTES);
   });
 });
 
