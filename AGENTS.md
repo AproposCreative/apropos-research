@@ -150,3 +150,17 @@ every body image: 200 KiB/1200px. Verify actual bytes and CMS readback. A locked
 original or a small file/optimized filename is not an exemption. Failed or skipped
 processing must never be reported as compliant. Do not publish pending editorial
 changes while optimizing an already live article.
+
+
+## Podcast episode artwork (owner choice 2026-10-30)
+
+Spotify/RSS episodes use the existing native app cover design: square centered
+aspect-fill image, white bottom strip at 19% of the square, original black
+Apropos logo centered in the strip (max 50% of strip height / 70% of square
+width). Prefer the published mobile image, then thumb, as the app does. Use the
+actual retained app logo in `public/podcast/apropos-logo-black.svg`; never invent
+or replace it. This display template applies only to podcast derivatives and
+does not change approved website originals. Missing-photo episode artwork uses
+the app's dark background with the same white strip/logo. Keep the separate
+show cover and all episode GUIDs, audio, publication dates and original manifest.
+Version artwork changes so existing episodes reconcile automatically.

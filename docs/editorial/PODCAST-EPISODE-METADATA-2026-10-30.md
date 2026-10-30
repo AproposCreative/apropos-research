@@ -45,3 +45,28 @@ Evidence directory: `output/podcast-metadata-20261030/`. No credentials or authe
 Canonical feed: https://ai.aproposmagazine.com/api/podcast/rss
 
 Spotify account claiming/refresh is separate. Feed readback does not demonstrate a Spotify directory refresh or successful ownership verification.
+
+
+## Owner artwork correction, later 30 October 2026
+
+The owner rejected the letterboxed article photos shown by Spotify and selected the app's existing cover design for **all** episodes. This supersedes the earlier visual implementation above.
+
+The authoritative reference is the read-only native `PodcastPlayerManager.brandedNarrationArtwork` implementation and `PodcastRepository.enriched`: mobile image before thumbnail; centered aspect-fill on a square; a white strip across the bottom 19%; original black Apropos wordmark centered inside, at most 50% of strip height and 70% of square width. The podcast display crop changes only a derivative, never the selected original or website image.
+
+The actual app logo SVG was copied unchanged into `public/podcast/apropos-logo-black.svg`. SHA-256: `e9c57776ccb161b46b97518cfb02a8732e2328a4fe31dad2ccc5f28fd25b1f04`. No generated or substituted logo. The app checkout was read only; no iOS code, build, binary or account was changed.
+
+Artwork is versioned `ios-white-band-v1`; version participates in metadata reconciliation and reuse checks. All previous photo-only covers are therefore replaced once, despite unchanged source URLs, and later title-only changes still reuse the verified artwork. Two missing-source historical episodes use the app's dark-image fallback with the same white strip and original logo. The show's separate channel cover remains intact.
+
+Local validation: 46 focused podcast tests and app TypeScript validation passed. The Terminal List sample and the missing-photo fallback were visually inspected. New tests cover the mobile-image preference, visible white band/original logo, old-style replacement, branded missing-photo fallback, stable episode identity and idempotency. Serverless tracing explicitly includes the original logo file.
+
+Production verified **2026-10-30T16:20:19.330Z** on the alias for code `443ad14583021d1a9354827240f7b92031c19cd2`, deployment `dpl_5Q9S5ETjmuRA1UVJgoGWdvykj2zY`:
+
+- All **119 episode covers** were publicly fetched and decoded as 1400 x 1400 JPEGs within 450 KiB. Every image has the native white band and visible centered black wordmark, checked on actual decoded pixels.
+- 117 article-specific metadata records migrated in six bounded batches, zero failures. The two missing-source episodes use the app-style dark fallback; their original source gap remains explicit.
+- All 117 stored records declare `ios-white-band-v1`. A repeated synchronization updated zero records and had zero failures. Previous originals and earlier display derivatives remain retained.
+- All 119 GUIDs, ordering, audio enclosures/byte counts, dates, durations, authors, titles, descriptions and article links match the correction's before snapshot. Raw manifest generation and SHA-256 remain the earlier values above. RSS mirror equals the canonical feed.
+- Original logo SVG and branded fallback are publicly HTTP 200. Logo bytes equal the app asset hash above. The live Terminal List cover is byte-identical to the visually checked sample: SHA-256 `0b54fc1774fe190a87371f0d822d73d41a6abb41bea2dc276f41059f2267bf08`, 149403 bytes.
+- No paid AI, narration, CMS edits, mail, account/credential changes or iOS deployment. All nine protected Writer hashes are unchanged. Anonymous metadata write remains HTTP 401.
+
+These are actual feed/image readbacks. Spotify's separate cached display has not been claimed as refreshed by this verification.
+Evidence: `output/podcast-app-artwork-20261030/`.
