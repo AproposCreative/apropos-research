@@ -28,4 +28,17 @@ Evidence: `output/social-title-gap-20261030/`, including actual font receipts,
 before/after images and `verification.json`. The photo in the test images is an
 explicit local fixture, not replacement article imagery.
 
-Production readback is recorded after deployment below.
+## Production readback
+
+Verified **2026-10-30T17:20:50.866Z**: release
+`9f3d7d8c36e8fc2e52a24e62db82cac19f2e06b5`, READY deployment
+`dpl_31yuMNjX2moDRNG463evbphv9kWy`, alias `ai.aproposmagazine.com`.
+`/design-editor` returns HTTP 200 and serves the shared renderer with actual
+ascent/descent measurements, both size controls and the unchanged editor styles.
+Served renderer chunk SHA-256:
+`cb518b73e578d372f6c96d5ac3f50548dcf59e155ad6bc03a4c0021f4c3e6f26`.
+
+Only this renderer and this report changed in the release. The restored desktop
+entry point, menu and all Writer files remain unchanged. No provider requests,
+real social posts or service data writes. Actual public asset/deployment receipt:
+`output/social-title-gap-20261030/production-receipt.json`.
