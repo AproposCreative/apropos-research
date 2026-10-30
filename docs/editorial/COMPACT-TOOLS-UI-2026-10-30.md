@@ -56,3 +56,24 @@ apply the tool theme to Writer's editing surface.
 
 Local screenshots and detailed receipts: `output/compact-tools-20261030/`.
 Production deployment and actual alias/CSS readback are recorded below when verified.
+
+## Production readback
+
+Verified 2026-10-30 12:38:13.885 UTC (13:38 Copenhagen):
+
+- Code release `beec54def3a27b556430f0941292049a69a44a18`.
+- Vercel production `dpl_yWt14C5PJLj2rsKGn2JCuwDBQ2gg`, build READY.
+- Direct authenticated deployment lookup for `ai.aproposmagazine.com` matches
+  that exact deployment and Git SHA.
+- Public `/settings`, `/connect/chatgpt` and `/ai?view=liv` return HTTP 200 and
+  serve the compact theme CSS. Native selector container rules are present.
+- Served stylesheet `/_next/static/immutable/chunks/0lboc3mt32ogx.css` SHA-256:
+  `ce9645f85c3641082d60c422203856ba0c94eb250d5230366de6b7bbe7238400`.
+- The 52 fixture cases' largest tool header is 57 px. Production verification
+  reads HTML/CSS without opening an authenticated tool or triggering its effects.
+- Exact Git-release comparison confirms all nine protected Writer/global files
+  are byte-identical to the pre-change snapshot.
+
+Receipt: `output/compact-tools-20261030/production-receipt.json`.
+No actual provider, SMTP, CMS, configuration or automation writes were used for
+verification. This release deploys UI code; it is not a Liv article delivery.
