@@ -210,6 +210,8 @@ export async function buildWeeklyNewsletterDraft(params: {
   referenceDate?: Date;
   /** Sæt true for at undgå Firestore-kald og flytning af forrige lead (tests). */
   skipDemotePreviousLead?: boolean;
+  /** Server-owned weekly AI path; cache-only previews cannot buy a generation. */
+  scheduledAiMode?: 'prepare' | 'read';
 }): Promise<BuildDraftResult> {
   const prepared = await prepareWeeklyArticlesForDraft({
     week: params.week,
@@ -219,11 +221,23 @@ export async function buildWeeklyNewsletterDraft(params: {
     skipDemotePreviousLead: params.skipDemotePreviousLead,
   });
 
+  if (params.scheduledAiMode) {
+    const { getScheduledNewsletterSummary } = await import('@/lib/newsletter/scheduled-ai');
+    const summary = await getScheduledNewsletterSummary(prepared.week, prepared.articles,
+      params.referenceDate ?? new Date(), params.scheduledAiMode === 'prepare');
+    if (summary) {
+      const draft = await composeWeeklyNewsletterDraft({ ...prepared, articles: summary.articles,
+        introOverride: summary.intro, headlineOverride: summary.headline, skipAiIntro: true,
+        logoAssetBaseUrl: params.logoAssetBaseUrl });
+      return { ...draft, introSource: 'ai' };
+    }
+  }
+
   return composeWeeklyNewsletterDraft({
     week: prepared.week,
     articles: prepared.articles,
     introOverride: params.introOverride,
-    skipAiIntro: params.skipAiIntro,
+    skipAiIntro: params.scheduledAiMode ? true : params.skipAiIntro,
     logoAssetBaseUrl: params.logoAssetBaseUrl,
     articleError: prepared.articleError,
     minimumNote: prepared.minimumNote,

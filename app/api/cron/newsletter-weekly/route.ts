@@ -63,7 +63,8 @@ export async function GET(req: NextRequest) {
     const draft = await buildWeeklyNewsletterDraft({
       excludeArticleIds: excludeFull,
       relaxedExcludeArticleIds: excludeRelax,
-      skipAiIntro: !dryRunWithAi,
+      skipAiIntro: true,
+      scheduledAiMode: dryRunWithAi ? 'prepare' : 'read',
     });
     const recipients = await getNewsletterRecipients();
     console.info('[cron/newsletter-weekly]', {
@@ -84,7 +85,9 @@ export async function GET(req: NextRequest) {
       subject: draft.subject,
       headline: draft.headline,
       introPreview: draft.intro.slice(0, 400),
-      skipAiIntro: !dryRunWithAi,
+      skipAiIntro: draft.introSource !== 'ai',
+      allowAiGeneration: dryRunWithAi,
+      introSource: draft.introSource,
       articles: draft.articles.map((a) => ({
         id: a.id,
         title: a.title,
@@ -176,30 +179,12 @@ export async function GET(req: NextRequest) {
     const draft = await buildWeeklyNewsletterDraft({
       excludeArticleIds: excludeFull,
       relaxedExcludeArticleIds: excludeRelax,
-      // Scheduled sends may not use the interactive Writer budget. Compose a
-      // source-bound article digest instead of attempting paid backend AI.
       skipAiIntro: true,
+      scheduledAiMode: 'prepare',
     });
 
-    if (draft.introSource === 'none' || !draft.intro.trim()) {
-      await finishWeeklyAutoSend(weekKey, {
-        status: 'skipped',
-        reason: 'missing_editorial_summary: Artiklerne har ikke nok komplette uddrag til en kildebaseret opsummering.',
-      });
-      console.warn('[cron/newsletter-weekly]', {
-        weekKey,
-        skipped: true,
-        reason: 'missing_editorial_summary',
-        articleCount: draft.articles.length,
-      });
-      return NextResponse.json({
-        ok: true,
-        skipped: true,
-        reason: 'missing_editorial_summary',
-        weekKey,
-        articleCount: draft.articles.length,
-        warnings: draft.warnings,
-      });
+    if (draft.introSource !== 'ai' || !draft.intro.trim()) {
+      throw new Error('newsletter_ai_summary_required');
     }
 
     const prodHost = env.VERCEL_PROJECT_PRODUCTION_URL?.trim().replace(/\/$/, '').replace(/^https?:\/\//, '');
@@ -210,7 +195,7 @@ export async function GET(req: NextRequest) {
     const cacheHash = buildWeeklyDraftInputHash({
       week: draft.week,
       articles: draft.articles,
-      skipAiIntro: true,
+      skipAiIntro: false,
       logoAssetBaseUrl: logoBase,
     });
     await saveWeeklyDraftCache(draft, cacheHash);

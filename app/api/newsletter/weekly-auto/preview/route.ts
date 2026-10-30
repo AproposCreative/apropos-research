@@ -45,6 +45,7 @@ export async function POST(req: NextRequest) {
       excludeArticleIds: excludeFull,
       relaxedExcludeArticleIds: excludeRelax,
       skipAiIntro,
+      ...(!skipAiIntro && isCurrentWeek ? { scheduledAiMode: 'read' as const } : {}),
       logoAssetBaseUrl: req.nextUrl.origin,
     });
 
@@ -83,6 +84,7 @@ export async function POST(req: NextRequest) {
       warnings: draft.warnings,
       articlePoolStats: draft.articlePoolStats,
       skipAiIntro,
+      introSource: draft.introSource,
     });
   } catch (e) {
     return NextResponse.json(
