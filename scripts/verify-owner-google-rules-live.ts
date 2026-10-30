@@ -22,16 +22,22 @@ export async function verifyOwnerGoogleRulesLive(origin?: string) {
     const probe = `login-verification-${randomUUID()}`, draft = doc(database, 'drafts', probe);
     const image = ref(storage, `article-imports/${user.uid}/${probe}.png`);
     let draftCreated = false, imageCreated = false;
+    let stage = 'session';
     try {
       await signInWithCustomToken(auth, await admin.createCustomToken(user.uid));
       // These are the actual Firebase client rules, not privileged Admin writes.
+      stage = 'own-draft-create';
       await setDoc(draft, { userId: user.uid, verification: true }); draftCreated = true;
+      stage = 'own-draft-read';
       if (!(await getDoc(draft)).exists()) throw Error('draft_probe_readback_failed');
+      stage = 'own-storage-upload';
       await uploadBytes(image, Buffer.from('iVBORw0KGgoAAAANSUhEUgAAAAEAAAABCAQAAAC1HAwCAAAAC0lEQVR42mP8/x8AAwMCAO+jS1kAAAAASUVORK5CYII=', 'base64'), { contentType: 'image/png' }); imageCreated = true;
+      stage = 'reject-owner-transfer';
       let ownerTransferDenied = false;
       try { await setDoc(draft, { userId: 'not-this-account', verification: true }); }
       catch (error) { if ((error as { code?: string }).code !== 'permission-denied') throw error; ownerTransferDenied = true; }
       if (!ownerTransferDenied) throw Error('draft_owner_transfer_not_denied');
+      stage = 'reject-private-access-list';
       let accessListDenied = false;
       try { await getDoc(doc(database, 'editorialAccess', email)); }
       catch (error) { if ((error as { code?: string }).code !== 'permission-denied') throw error; accessListDenied = true; }
@@ -48,11 +54,14 @@ export async function verifyOwnerGoogleRulesLive(origin?: string) {
           api.push({ path, status: response.status });
         }
       }
+      stage = 'cleanup';
       await deleteObject(image); imageCreated = false;
       await deleteDoc(draft); draftCreated = false;
       await signOut(auth);
       reports.push({ account: index === 0 ? 'editorial-owner' : index === 1 ? 'approved-gmail' : 'approved-creative',
         draftReadWrite: true, storageUploadDelete: true, ownerTransferDenied, accessListDenied, artifactsRemoved: true, api });
+    } catch (error) {
+      throw Error(`owner_login_verification_failed:account-${index}:${stage}:${(error as {code?:string}).code || 'check_failed'}`);
     } finally {
       try {
         // Admin cleanup is confined to this randomly named probe if client rules fail.

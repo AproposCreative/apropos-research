@@ -50,3 +50,7 @@ Keep hosting at Apropos. In [Spotify for Creators](https://creators.spotify.com/
 After claiming, save the actual Spotify show URL/ID and verify existing episodes plus a later naturally produced episode. Spotify polls RSS several times an hour; allow at least an hour for an update. A successful RSS check or deployment alone does not establish Spotify publication.
 
 Official references: [claiming an existing show](https://support.spotify.com/us/creators/article/claiming-your-podcast-on-spotify-for-creators/), [show distribution](https://support.spotify.com/us/creators/article/getting-your-show-on-spotify/) and [delivery specification](https://providersupport.spotify.com/article/podcast-delivery-specification-1-9).
+
+## Owner resumed browser access, 30 October afternoon
+
+During the separate owner Google-login repair the owner answered “Klar” to the pending browser-settings question. A fresh bootstrap of the installed, host-gated Browser runtime via Node REPL still returned `Local browser use is disabled in Work settings`. No browser or tab handle was exposed, and no Spotify page, claim, verification-code mail or account action was performed. The reported setting change is not treated as evidence that this session actually has browser control. No alternate browser backend, CDP/AppleScript, session extraction or scripted Spotify API bypass was used. The previously verified feed remains ready; the Spotify account step is still unverified.
