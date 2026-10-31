@@ -184,3 +184,17 @@ the URL for Instagram's link sticker. Do not automatically post article links as
 Facebook comments or request comment-management permissions. The drawn CTA is
 graphics, not a clickable sticker. Preserve historical receipts and duplicate
 locks; removing the comment step never authorizes resending an existing post.
+
+### Hosted Instagram Story links (later owner choice 2026-10-31)
+
+The owner requested Story → Udgiv through the existing SoMe editor with a
+server-hosted Business Suite browser, independent of an open chat or owner
+computer. Keep the black drawn CTA and add Meta's native clickable link sticker;
+the owner accepted that the sticker has Meta's own appearance. This supersedes
+export-only delivery for connected Story publishing. The owner separately approved
+the dedicated persistent Story service credential in Google Cloud/Vercel. Personal
+Meta login is completed by the owner in the owner-only server connection screen.
+Never copy a local browser profile. Preserve existing publication identities,
+receipts and one-click locks. There is no silent Graph fallback, duplicate retry,
+Facebook comment step or general internal-API access for this worker. A prepared
+server or passing fixture is not evidence of a live, verified linked Story.
