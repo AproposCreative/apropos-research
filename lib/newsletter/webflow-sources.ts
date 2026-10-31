@@ -1,3 +1,4 @@
+import { audiencePageProof } from './audience-completeness';
 import { signupDate, type NewsletterSignup } from './signup-details';
 import { getWebflowConfig } from '@/lib/webflow-config';
 import { env } from '@/lib/config/env';
@@ -170,7 +171,7 @@ function mapItemToNewsletterArticle(
   };
 }
 
-async function fetchAllCollectionItems(collectionId: string): Promise<{ items: any[]; error?: string }> {
+async function fetchAllCollectionItems(collectionId: string): Promise<{ items: any[]; error?: string; complete?: boolean }> {
   const cfg = getWebflowConfig();
   const token = cfg.apiToken || env.WEBFLOW_API_TOKEN;
   const siteId = cfg.siteId || env.WEBFLOW_SITE_ID;
@@ -181,7 +182,7 @@ async function fetchAllCollectionItems(collectionId: string): Promise<{ items: a
   const headers = { Authorization: `Bearer ${token}`, 'Accept-Version': '1.0.0' } as const;
   const pageSize = 100;
   const maxItems = 5000;
-  let offset = 0;
+  let offset = 0, validPages = true, complete = false;
   const items: any[] = [];
 
   while (offset < maxItems) {
@@ -192,13 +193,15 @@ async function fetchAllCollectionItems(collectionId: string): Promise<{ items: a
       return { items, error: (j as { message?: string }).message || `Webflow ${res.status}` };
     }
     const data: any = await res.json();
+    const proof = audiencePageProof(data, 'items', pageSize);
+    validPages = validPages && proof.valid;
     const page = data.items || [];
     items.push(...page);
-    if (page.length < pageSize) break;
+    if (page.length < pageSize) { complete = validPages && proof.terminal; break; }
     offset += pageSize;
   }
 
-  return { items };
+  return { items, complete };
 }
 
 export async function fetchArticlesForWeek(
@@ -497,12 +500,12 @@ export async function resolveArticlesByIdsOrdered(
 export async function fetchNewsletterSignupEmails(
   collectionId: string | undefined,
   emailFieldSlug: string
-): Promise<{ emails: string[]; subscribers?: NewsletterSignup[]; error?: string }> {
+): Promise<{ emails: string[]; subscribers?: NewsletterSignup[]; error?: string; complete?: boolean }> {
   if (!collectionId?.trim()) {
     return { emails: [], error: 'WEBFLOW_NEWSLETTER_SIGNUPS_COLLECTION_ID er ikke sat' };
   }
 
-  const { items, error } = await fetchAllCollectionItems(collectionId.trim());
+  const { items, error, complete } = await fetchAllCollectionItems(collectionId.trim());
   if (error && items.length === 0) {
     return { emails: [], error };
   }
@@ -523,7 +526,7 @@ export async function fetchNewsletterSignupEmails(
     subscribers.push({ email: e, signedUpAt: signupDate(fd['subscribed-at'] ?? fd['signup-date'] ?? fd['signed-up-at']) });
   }
 
-  return { emails, subscribers, error };
+  return { emails, subscribers, error, complete };
 }
 
 /**

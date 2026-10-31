@@ -57,6 +57,8 @@ export async function isApiRequestAuthorized(request: NextRequest): Promise<bool
   if (!pathname.startsWith('/api/')) return true;
   // Bootstrap mail handler verifies unverified users itself; reset must work logged out.
   if (pathname === '/api/auth/mail' && request.method === 'POST') return true;
+  // Native signup verifies Firebase identity and limited-use App Check itself.
+  if (pathname === '/api/reader-newsletter/signup' && request.method === 'POST') return true;
   if (isPublicApiPath(pathname)) return true;
   // Only the personal submission endpoint accepts MCP-domain membership.
   // The handler still binds every record to the authenticated uid.
@@ -88,3 +90,4 @@ export async function isApiRequestAuthorized(request: NextRequest): Promise<bool
 
   return false;
 }
+
