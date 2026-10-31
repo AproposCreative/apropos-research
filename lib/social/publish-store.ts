@@ -2,6 +2,7 @@ import { createHash } from 'node:crypto';
 import { getAdminDb } from '@/lib/firebase-admin';
 import type { SocialPublishInput, SocialPublishReceipt } from './publish-types';
 import { DEFAULT_TITLE_SUBTITLE_GAP, titleSubtitleGap } from './card-layout';
+import { STORY_LINK_LABEL } from './story-browser';
 const hash = (value: unknown) => createHash('sha256').update(JSON.stringify(value)).digest('hex');
 function database() { const db = getAdminDb(); if (!db) throw Error('social_publish_storage_unavailable'); return db; }
 const requestKey = (uid: string, requestId: string) => hash([uid, requestId]);
@@ -46,11 +47,11 @@ export async function claimSocialPublish(uid: string, input: SocialPublishInput,
     if (options?.browserStory) {
       if (!input.isStory || input.channels.facebook) throw Error('social_story_only');
       receipt.delivery = 'business-suite'; receipt.phase = 'story_queued';
-      receipt.storyLink = { status: 'pending', label: 'Læs anmeldelsen', articleUrl: input.articleUrl };
+      receipt.storyLink = { status: 'pending', label: STORY_LINK_LABEL, articleUrl: input.articleUrl };
       tx.create(db.collection('socialStoryBrowserTasks').doc(id), { id, ownerUid: uid, createdAt: now,
         requestId: input.requestId, status: 'queued', dispatchCount: 0, imageSha256: input.imageSha256,
         objectPath: `instagram-publish/${uid}-${input.imageSha256}.jpg`,
-        imageUrl: input.imageUrl, articleUrl: input.articleUrl, stickerLabel: 'Læs anmeldelsen' });
+        imageUrl: input.imageUrl, articleUrl: input.articleUrl, stickerLabel: STORY_LINK_LABEL });
     }
     tx.create(ref, receipt);
     tx.set(requestRef, { ownerUid: uid, operationId: id });

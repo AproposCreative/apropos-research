@@ -12,7 +12,7 @@ async function fixture() {
   const bytes = await sharp({ create: { width: 1080, height: 1920, channels: 3, background: '#000' } }).jpeg().toBuffer();
   const digest = createHash('sha256').update(bytes).digest('hex');
   const task = { id: 'one', ownerUid: 'owner', objectPath: `instagram-publish/owner-${digest}.jpg`, imageSha256: digest,
-    articleUrl: 'https://www.aproposmagazine.com/articles/tony', stickerLabel: 'Læs anmeldelsen' };
+    articleUrl: 'https://www.aproposmagazine.com/articles/tony', stickerLabel: 'Læs artiklen her' };
   const page = { close: vi.fn().mockResolvedValue(undefined) };
   const context = { newPage: vi.fn().mockResolvedValue(page), close: vi.fn().mockResolvedValue(undefined), storageState: async () => ({ cookies: [], origins: [] }) };
   const browser = { newContext: vi.fn().mockResolvedValue(context) };

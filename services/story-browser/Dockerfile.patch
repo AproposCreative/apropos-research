@@ -1,4 +1,4 @@
 # Optional code-only release over the exact previously verified browser image.
 # The full Dockerfile remains the source for a fresh dependency/browser build.
-FROM us-central1-docker.pkg.dev/apropos-magazine-6004a/gcf-artifacts/story-browser@sha256:2752a2fd803610bc862d8f773e4239c33cce1370f7f44f4996614ef73f4d7350
+FROM us-central1-docker.pkg.dev/apropos-magazine-6004a/gcf-artifacts/story-browser@sha256:8590c9ef1672f5964c52935902c2cdf459381ed08e457987c0024b4861821877
 COPY --chown=node:node services/story-browser /app/services/story-browser

@@ -741,7 +741,7 @@ export default function DesignEditorView({ onBack, embedMode }: DesignEditorView
               <div className={styles.copyActions}><button type="button" className={styles.textButton} disabled={exporting || !editorReady || !subtitle.ready || !!previewError} onClick={handleExportPng}>Download Story</button>
                 <button type="button" className={styles.textButton} onClick={() => { void copyArticleLink(); }}>Kopiér artikellink</button></div>
               <input aria-label="Artikellink til Story" value={selectedArticleUrl} readOnly onFocus={event => event.target.select()} />
-              <p role="status">{copyState || (storyLinkDelivery ? 'Artikellink tilføjes automatisk ved Udgiv.' : 'Tilføj linket med Instagrams linkmærkat. Læs nu på billedet er grafik.')}</p>
+              <p role="status">{copyState || (storyLinkDelivery ? '“Læs artiklen her” tilføjes som klikbart link ved Udgiv.' : 'Tilføj linket med Instagrams linkmærkat.')}</p>
             </div>}
             {postingToInstagram && <p role="status" className={styles.copyNote}>{publishStep}</p>}
             <PublicationReceipts receipts={publishing.receipts} check={publishing.check} />

@@ -8,11 +8,7 @@ const CTA_FONT_SIZE_SQUARE = 32.547;
 const CTA_LINE_HEIGHT_MULTIPLIER = 1.4;
 const CTA_PADDING_Y_SQUARE = 24;
 const CTA_PADDING_X_SQUARE = 78;
-const CTA_WIDTH_STORY = 910;
-const CTA_PADDING_Y_STORY = 19.2;
-const CTA_PADDING_X_STORY = 50.4;
-const CTA_FONT_SIZE_STORY = 52.8;
-const STORY_META_TO_CTA_GAP = 40;
+const STORY_META_TO_IMAGE_GAP = 40;
 // Additional whitespace below the subtitle, not added line-height. Preview,
 // download and publishing all share this renderer (1080px export coordinates).
 const SUBTITLE_BOTTOM_SPACE = 18;
@@ -179,15 +175,15 @@ async function renderCardToContext(
   const logoSubSize = isStory ? 14 : 16;
   const maxTextWidth = isStory ? STORY_TITLE_MAX_WIDTH : width - padding * 2;
   const maxBylineWidth = isStory ? STORY_BYLINE_MAX_WIDTH : width - padding * 2;
-  const ctaScale = size === 'square' ? 1 : isStory ? 0.72 : 0.58;
-  const ctaFontSize = isStory ? CTA_FONT_SIZE_STORY : CTA_FONT_SIZE_SQUARE * ctaScale;
-  const ctaPaddingY = isStory ? CTA_PADDING_Y_STORY : CTA_PADDING_Y_SQUARE * ctaScale;
-  const ctaPaddingX = isStory ? CTA_PADDING_X_STORY : CTA_PADDING_X_SQUARE * ctaScale;
+  const ctaScale = isSquare ? 1 : 0.58;
+  const ctaFontSize = CTA_FONT_SIZE_SQUARE * ctaScale;
+  const ctaPaddingY = CTA_PADDING_Y_SQUARE * ctaScale;
+  const ctaPaddingX = CTA_PADDING_X_SQUARE * ctaScale;
   const ctaLineHeight = ctaFontSize * CTA_LINE_HEIGHT_MULTIPLIER;
   const ctaH = ctaLineHeight + ctaPaddingY * 2;
   const textBlockTopGap = isSquare ? 0 : isStory ? 6 : 4;
   const headerToTextGap = isSquare ? 26 : isStory ? 26 : 22;
-  const textBottomGap = isSquare ? 20 : isStory ? STORY_META_TO_CTA_GAP + ctaH / 2 - CTA_OFFSET : 14;
+  const textBottomGap = isSquare ? 20 : isStory ? STORY_META_TO_IMAGE_GAP : 14;
   const dark = data.theme === 'dark';
   const foreground = dark ? '#ffffff' : '#000000';
   const background = dark ? '#000000' : '#ffffff';
@@ -411,11 +407,15 @@ async function renderCardToContext(
     drawPlaceholder(ctx, 0, imageTop, width, imageH);
   }
 
+  // Story uses Meta's actual link sticker. Do not bake a second button/text
+  // into preview, download or the approved JPEG. Feed keeps its graphic CTA.
+  if (isStory) return;
+
   // ---- CTA follows image and overlaps top edge ----
   const ctaText = 'Læs nu på Apropos Magazine';
   ctx.font = `500 ${ctaFontSize}px Inter, Arial, sans-serif`;
   const ctaTextWidth = ctx.measureText(ctaText).width;
-  const ctaW = isStory ? CTA_WIDTH_STORY : Math.min(width - 64, ctaTextWidth + ctaPaddingX * 2);
+  const ctaW = Math.min(width - 64, ctaTextWidth + ctaPaddingX * 2);
   const ctaX = (width - ctaW) / 2;
   const ctaY = imageTop + CTA_OFFSET - ctaH / 2;
   const radius = ctaH / 2;

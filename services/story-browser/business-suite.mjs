@@ -12,7 +12,8 @@ export async function metaConnectionReady(page) {
     await page.getByRole('heading', { name: 'Apropos Magazine', exact: true }).isVisible().catch(() => false);
 }
 export async function prepareStory(page, task, imagePath) {
-  if (!articlePath(task.articleUrl) || task.stickerLabel !== 'Læs anmeldelsen') throw Error('invalid_story_task');
+  // Retain the approved label on already queued jobs; never rewrite a receipt.
+  if (!articlePath(task.articleUrl) || !['Læs anmeldelsen', 'Læs artiklen her'].includes(task.stickerLabel)) throw Error('invalid_story_task');
   await page.goto(home);
   await page.getByRole('button', { name: 'Opret story', exact: true }).waitFor({ state: 'visible', timeout: 30_000 });
   if (!await metaConnectionReady(page)) throw Error('meta_login_required');
@@ -40,8 +41,8 @@ export async function prepareStory(page, task, imagePath) {
   await form.getByRole('button', { name: 'Anvend', exact: true }).click();
   await editor.getByRole('button', { name: 'Anvend', exact: true }).click();
   await editor.waitFor({ state: 'hidden' });
-  // Preserve the supplied design as the base image; Meta's native link sticker
-  // is the additional interactive layer, as in the owner's verified test.
+  // The approved Story image has no drawn CTA. The native sticker is the only
+  // reading prompt; Meta controls its icon and typeface.
   if ((await channels.innerText()).trim() !== profile) throw Error('story_channel_mismatch');
   return { channel: profile, articleUrl: task.articleUrl, stickerLabel: task.stickerLabel };
 }

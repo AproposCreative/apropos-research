@@ -312,3 +312,25 @@ reported as completed end-to-end delivery. No new publication permission is
 inferred from the exhausted one-off test approval. Historical receipts and
 duplicate locks remain unchanged. After personal login, verify the saved
 connection and obtain a concrete new test publication choice before a real send.
+
+### Single Story link prompt, later owner refinement, 31 October 2026
+
+The owner requested removing the old baked-in CTA text and using a short native
+reading prompt, and asked whether the chain icon and typography can be changed.
+Story now omits the old graphic button entirely rather than leaving an empty
+black pill behind the separate native sticker. New jobs use “Læs artiklen her”.
+Square/feed images retain their existing CTA. Existing approved jobs and receipts
+retain their original labels, identities and locks; no existing post is resent.
+
+In the actual earlier Business Suite inspection, no icon-removal or font-family
+control for link stickers was found. Do not present the separate text tool's
+controls as sticker customization. The new shorter native label is within the
+observed 25-character limit. No custom iconless or custom-font clickable sticker
+is claimed. Preview/download are the base image; Meta adds the interactive layer
+only during connected Story publishing.
+
+46 relevant store, route and runtime tests passed, as did scoped lint and diff
+checks. Local visual fixtures confirmed the Story base has no graphic CTA and
+the square base retains it. The separate hosted connection still needs the
+owner's personal login before a real hosted publication can be verified. No new
+Story has been published for this refinement.

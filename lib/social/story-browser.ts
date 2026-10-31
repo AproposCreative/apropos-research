@@ -1,4 +1,4 @@
-export const STORY_LINK_LABEL = 'Læs anmeldelsen';
+export const STORY_LINK_LABEL = 'Læs artiklen her';
 export function storyBrowserRequested() {
   return process.env.SOCIAL_STORY_DELIVERY === 'business-suite' || !!process.env.SOCIAL_STORY_BROWSER_URL?.trim();
 }

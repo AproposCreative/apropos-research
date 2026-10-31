@@ -198,3 +198,8 @@ Never copy a local browser profile. Preserve existing publication identities,
 receipts and one-click locks. There is no silent Graph fallback, duplicate retry,
 Facebook comment step or general internal-API access for this worker. A prepared
 server or passing fixture is not evidence of a live, verified linked Story.
+
+Later design refinement: Story images omit the old drawn CTA and use the native
+link label “Læs artiklen her” once. Feed images keep their existing graphic CTA.
+Meta controls the sticker icon and typeface; do not claim arbitrary font or icon
+customization without observing those controls. Keep old queued labels/receipts.
