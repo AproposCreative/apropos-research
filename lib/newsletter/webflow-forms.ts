@@ -1,4 +1,5 @@
 import { mergeSignups, signupDate, type NewsletterSignup } from './signup-details';
+import { audiencePageProof } from './audience-completeness';
 import { env } from '@/lib/config/env';
 import { getWebflowConfig } from '@/lib/webflow-config';
 
@@ -54,7 +55,7 @@ export type WebflowForm = {
 };
 
 /** List alle forms for sitet — kræver `forms:read` scope. */
-export async function listForms(): Promise<{ forms: WebflowForm[]; error?: string }> {
+export async function listForms(): Promise<{ forms: WebflowForm[]; error?: string; complete?: boolean }> {
   const token = resolveToken();
   const siteId = resolveSiteId();
   if (!token || !siteId) {
@@ -63,7 +64,7 @@ export async function listForms(): Promise<{ forms: WebflowForm[]; error?: strin
 
   const limit = 100;
   const all: WebflowForm[] = [];
-  let offset = 0;
+  let offset = 0, validPages = true, complete = false;
   while (offset < 5000) {
     const url = `https://api.webflow.com/v2/sites/${siteId}/forms?limit=${limit}&offset=${offset}`;
     const res = await fetchWithWebflowAuth(url, token);
@@ -71,6 +72,8 @@ export async function listForms(): Promise<{ forms: WebflowForm[]; error?: strin
     if (!res.ok) {
       return { forms: [], error: formatWebflowError(j, res.status) };
     }
+    const proof = audiencePageProof(j, 'forms', limit);
+    validPages = validPages && proof.valid;
     const raw = j.forms;
     const page = Array.isArray(raw) ? raw : [];
     for (const f of page as Array<{ id?: string; displayName?: string; formElementId?: string | null }>) {
@@ -82,10 +85,10 @@ export async function listForms(): Promise<{ forms: WebflowForm[]; error?: strin
         });
       }
     }
-    if (page.length < limit) break;
+    if (page.length < limit) { complete = validPages && proof.terminal; break; }
     offset += limit;
   }
-  return { forms: all };
+  return { forms: all, complete };
 }
 
 function submissionNotFoundError(status: number, message: string): boolean {
@@ -102,6 +105,7 @@ type FetchSubmissionsOpts = {
 async function parseSubmissionsResponse(res: Response): Promise<{
   page: Array<Record<string, unknown>>;
   error?: string;
+  pageValid?: boolean;
 }> {
   const j = (await res.json().catch(() => ({}))) as {
     formSubmissions?: Array<Record<string, unknown>>;
@@ -113,7 +117,7 @@ async function parseSubmissionsResponse(res: Response): Promise<{
       error: formatWebflowError(j as Record<string, unknown>, res.status),
     };
   }
-  return { page: j.formSubmissions || [] };
+  return { page: j.formSubmissions || [], pageValid: audiencePageProof(j, 'formSubmissions', 100).valid };
 }
 
 /**
@@ -123,7 +127,7 @@ async function parseSubmissionsResponse(res: Response): Promise<{
 export async function fetchFormSubmissions(
   formId: string,
   opts?: FetchSubmissionsOpts
-): Promise<{ submissions: Array<Record<string, unknown>>; error?: string }> {
+): Promise<{ submissions: Array<Record<string, unknown>>; error?: string; complete?: boolean }> {
   const token = resolveToken();
   const siteId = resolveSiteId();
   if (!token || !siteId) {
@@ -136,21 +140,22 @@ export async function fetchFormSubmissions(
   async function fetchPages(
     buildUrl: (off: number) => string,
     filter?: (row: Record<string, unknown>) => boolean
-  ): Promise<{ submissions: Array<Record<string, unknown>>; error?: string }> {
+  ): Promise<{ submissions: Array<Record<string, unknown>>; error?: string; complete?: boolean }> {
     const all: Array<Record<string, unknown>> = [];
-    let offset = 0;
+    let offset = 0, validPages = true, complete = false;
     while (offset < maxItems) {
       const res = await fetchWithWebflowAuth(buildUrl(offset), token);
-      const { page, error } = await parseSubmissionsResponse(res);
+      const { page, error, pageValid } = await parseSubmissionsResponse(res);
+      validPages = validPages && pageValid === true;
       if (error) {
         return { submissions: all, error };
       }
       const slice = filter ? page.filter(filter) : page;
       all.push(...slice);
-      if (page.length < limit) break;
+      if (page.length < limit) { complete = validPages; break; }
       offset += limit;
     }
-    return { submissions: all };
+    return { submissions: all, complete };
   }
 
   const perFormUrl = (off: number) =>
@@ -159,6 +164,7 @@ export async function fetchFormSubmissions(
   let firstError: string | undefined;
   let offset = 0;
   const primaryAll: Array<Record<string, unknown>> = [];
+  let primaryValid = true;
   while (offset < maxItems) {
     const res = await fetchWithWebflowAuth(perFormUrl(offset), token);
     const msg = res.ok
@@ -177,16 +183,17 @@ export async function fetchFormSubmissions(
     const data = (await res.json().catch(() => ({}))) as {
       formSubmissions?: Array<Record<string, unknown>>;
     };
+    primaryValid = primaryValid && audiencePageProof(data, 'formSubmissions', limit).valid;
     const page = data.formSubmissions || [];
     primaryAll.push(...page);
     if (page.length < limit) {
-      return { submissions: primaryAll };
+      return { submissions: primaryAll, complete: primaryValid };
     }
     offset += limit;
   }
 
   if (primaryAll.length > 0) {
-    return { submissions: primaryAll };
+    return { submissions: primaryAll, complete: false };
   }
 
   const elementId = opts?.formElementId?.trim();
@@ -234,10 +241,10 @@ export async function fetchFormSubmissions(
 async function fetchAllSiteFormSubmissions(
   token: string,
   siteId: string
-): Promise<{ submissions: Array<Record<string, unknown>>; error?: string }> {
+): Promise<{ submissions: Array<Record<string, unknown>>; error?: string; complete?: boolean }> {
   const limit = 100;
   const all: Array<Record<string, unknown>> = [];
-  let offset = 0;
+  let offset = 0, validPages = true, complete = false;
   while (offset < 10000) {
     const q = new URLSearchParams({ limit: String(limit), offset: String(offset) });
     const url = `https://api.webflow.com/v2/sites/${siteId}/form_submissions?${q}`;
@@ -246,12 +253,14 @@ async function fetchAllSiteFormSubmissions(
     if (!res.ok) {
       return { submissions: all, error: formatWebflowError(j, res.status) };
     }
+    const proof = audiencePageProof(j, 'formSubmissions', limit);
+    validPages = validPages && proof.valid;
     const page = (j.formSubmissions as Array<Record<string, unknown>>) || [];
     all.push(...page);
-    if (page.length < limit) break;
+    if (page.length < limit) { complete = validPages && proof.terminal; break; }
     offset += limit;
   }
-  return { submissions: all };
+  return { submissions: all, complete };
 }
 
 function newsletterFormNameRegex(): RegExp {
@@ -444,7 +453,7 @@ export function extractEmailsFromSubmissions(
  */
 export async function fetchNewsletterEmails(
   formIdOrName?: string
-): Promise<{ emails: string[]; subscribers?: NewsletterSignup[]; formId?: string; formName?: string; error?: string }> {
+): Promise<{ emails: string[]; subscribers?: NewsletterSignup[]; formId?: string; formName?: string; error?: string; complete?: boolean }> {
   const token = resolveToken();
   const siteId = resolveSiteId();
   if (!token || !siteId) {
@@ -458,7 +467,7 @@ export async function fetchNewsletterEmails(
     const direct = await fetchFormSubmissions(search, {});
     const fromDirect = extractEmailsFromSubmissions(direct.submissions);
     if (fromDirect.length > 0) {
-      return { emails: fromDirect, subscribers: extractSignupDetails(direct.submissions), formId: search, formName: search, error: direct.error };
+      return { emails: fromDirect, subscribers: extractSignupDetails(direct.submissions), formId: search, formName: search, error: direct.error, complete: direct.complete };
     }
   }
 
@@ -470,7 +479,7 @@ export async function fetchNewsletterEmails(
       const first = filtered[0];
       const formName =
         typeof first?.displayName === 'string' ? first.displayName : 'Nyhedsbrevs-formular';
-      return { emails, subscribers: extractSignupDetails(filtered), formName, error: siteWide.error };
+      return { emails, subscribers: extractSignupDetails(filtered), formName, error: siteWide.error, complete: siteWide.complete };
     }
   }
 
@@ -499,8 +508,8 @@ export async function fetchNewsletterEmails(
 
 async function fetchNewsletterEmailsViaListForms(
   formIdOrName?: string
-): Promise<{ emails: string[]; subscribers?: NewsletterSignup[]; formId?: string; formName?: string; error?: string }> {
-  const { forms, error: listErr } = await listForms();
+): Promise<{ emails: string[]; subscribers?: NewsletterSignup[]; formId?: string; formName?: string; error?: string; complete?: boolean }> {
+  const { forms, error: listErr, complete: formsComplete } = await listForms();
   if (listErr) return { emails: [], error: listErr };
   if (forms.length === 0) return { emails: [], error: 'Ingen forms fundet på Webflow-sitet' };
 
@@ -521,14 +530,14 @@ async function fetchNewsletterEmailsViaListForms(
     return { emails: [], error: `Kunne ikke finde subscribe-form. Tilgængelige: ${names}` };
   }
 
-  const { submissions, error: subErr } = await fetchFormSubmissions(form.id, {
+  const { submissions, error: subErr, complete: submissionsComplete } = await fetchFormSubmissions(form.id, {
     formElementId: form.formElementId,
     formDisplayName: form.displayName,
   });
   if (subErr && submissions.length === 0) {
-    return { emails: [], formId: form.id, formName: form.displayName, error: subErr };
+    return { emails: [], formId: form.id, formName: form.displayName, error: subErr, complete: false };
   }
 
   const emails = extractEmailsFromSubmissions(submissions);
-  return { emails, subscribers: extractSignupDetails(submissions), formId: form.id, formName: form.displayName, error: subErr };
+  return { emails, subscribers: extractSignupDetails(submissions), formId: form.id, formName: form.displayName, error: subErr, complete: formsComplete === true && submissionsComplete === true && !subErr };
 }
