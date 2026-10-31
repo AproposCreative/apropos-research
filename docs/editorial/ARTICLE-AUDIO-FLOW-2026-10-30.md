@@ -1,6 +1,6 @@
 # Artikel til automatisk lydepisode
 
-## Første faktiske v4-episode, kontrolleret 31. oktober kl. 13:54
+## Første faktiske v4-episode, kontrolleret 31. oktober kl. 14:01
 
 Terminallisten sæson 2 har nu en reel afsluttet `narration_queue`-kvittering på
 CMS-item `6ae5df9e1a88dda9a0b30ba2`. Den oprindelige lydmetadata fra kl. 12:34:14

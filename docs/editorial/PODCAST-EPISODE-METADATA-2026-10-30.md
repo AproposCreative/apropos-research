@@ -121,4 +121,3 @@ spotify-artwork-verification.json, spotify-cover-current.jpg, podcast-tests.log
 and typecheck.log. The original encoder, approved logo, audio worker and sources
 were preserved. The existing metadata timer still determines when a new episode
 becomes ready; this release adds no paid pipeline or public write route.
-
