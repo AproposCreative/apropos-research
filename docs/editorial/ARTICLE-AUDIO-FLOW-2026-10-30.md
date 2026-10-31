@@ -1,5 +1,46 @@
 # Artikel til automatisk lydepisode
 
+## Ellen v4 aktiveret til nye lydartikler 31. oktober kl. 12:32
+
+Efter ejerens valg af v4-prøven er den eksisterende lydworker opdateret med
+`eleven_v4`. Google afsluttede den afgrænsede kildeopdatering kl. 11:32:18 UTC.
+Den aktive, sunde revision er `generatenarrationonqueue-00011-nog` med 100 %
+trafik. Frisk readback kl. 11:33:24 UTC har verificeret alle 13 kildefiler mod
+den testede pakke, SHA-256
+`00e2482e98f71d2d18e66ff32fbc3cede2d268ccd7725008ac221b385ea90f72`.
+Kun `narration.js` og `narrationAudioRecipe.cjs` er ændret. Én fælles modelkonstant
+styrer både provideranmodninger og episoderne gemte modelmetadata.
+
+V.2-jinglen er frisk aflæst som det gemte valg, revision 1, kl. 11:34:04 UTC.
+Næste nye lydartikel bruger dermed Ellen/v4 med den nye V.2-jingle, seks sekunders
+intro med originalens naturlige overgang, det aftalte beatniveau, ingen indsatte
+tresekunders musikpauser og den længere afslutning om gratis lytning uden reklamer
+og forstyrrelser. Voice-ID, dansk, stability 1 og episode-seed følger den godkendte
+v4-prøve. Eksisterende chunkgrænse og talehastighed bevares.
+
+Alle 25 målrettede hermetiske kontroller består, inklusive flere v4-chunks,
+korrekte modelmetadata, komplet afslutning, virkelig FFmpeg-mix, V.1/V.2-valg,
+kvotestop, providerfejl og genbrug af en allerede indtalt artikel. En lokal mixprøve
+med den bevarede virkelige v4-indtaling og V.2-jinglen er desuden fuldt dekodet:
+43,78 sekunder, peak -5,2 dB. Ingen nye providerkald i denne aktivering.
+
+Runtime, trigger, secrets, skalering, timeout, memory, retry og øvrige servicefelter
+matcher førtilstanden; konfigurationshash
+`0b102584f558a9131054fbce018ac02cc3a2d5eaacf168181be08fba9e7639ae`.
+Budget, 80 %-kvotestop og alle oprindelige musikassets er bevaret. De 130
+eksisterende RSS-episoders GUID/lyd-URL-par er identiske før og efter. Ingen
+artikel, køjob eller gammel episode er publiceret eller genindspillet for at
+demonstrere aktiveringen. Første reelle nye artikels v4-episode skal fortsat
+verificeres efter ejerens normale publicering.
+
+Evidens: `output/narration-v4-release-20261031/production-evidence.zip`,
+`production-verified.json`, `candidate-verification.json`, `tests.tap`,
+`rebuilt-exact-verification.json`, `v4-jingle-mix-validation.json`,
+`jingle-after.json`, `rss-preservation.json` og `cloud-run-v4-active.jpg`.
+Den tidligere aktive v3-kilde/revision 10 er bevaret som rollback. Vedligeholdte
+verifikations- og jingleværktøjer kræver nu den aktuelle v4-release; ældre
+kvitteringer i de daterede afsnit nedenfor er historik.
+
 ## Privat Ellen v3/v4-lytteprøve 31. oktober kl. 12:14
 
 Ejeren bestilte en kort v4-demo før et eventuelt modelskift. Ét faktisk v4-kald

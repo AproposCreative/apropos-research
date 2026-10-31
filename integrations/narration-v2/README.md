@@ -1,4 +1,4 @@
-# V.2 narration recipe
+# V.2 narration recipe with Ellen v4
 
 Owner request: activate the reviewed V.2 direction for future audio articles,
 include the longer outro, remove inserted music breaks and reduce voice drift.
@@ -11,9 +11,11 @@ not a replacement queue, publishing flow or app backend.
 - The beat follows the existing demo's +3 dB setting and 80 ms loop joins.
 - No synthetic three-second silence between speech chunks. Natural spoken
   sentence pauses and normal playback speed are retained.
-- Same Ellen resolution and `eleven_v3`; Danish, fixed robust stability and a
+- Same Ellen resolution and owner-approved `eleven_v4`; Danish, fixed robust stability and a
   common episode seed on all requests. Closing stars and thanks share a request
-  with substantial preceding article text. No unsupported V3 request stitching.
+  with substantial preceding article text. Request fields match the approved
+  real v4 listening demo; no new stitching, style or speed settings are added.
+  `MODEL_ID` is shared by provider requests and saved episode metadata.
 - Exact ending, shared by V.1/V.2: “Tak fordi du lyttede med på Apropos Magazine.
   Lyt til alle vores artikler gratis, uden reklamer og forstyrrelser.”
 - Music continues for 6.5 seconds after all speech, with the existing fade out.
@@ -75,13 +77,41 @@ Local tests cannot prove a real Ellen performance or production deployment.
    website, RSS and Spotify. Do not synthesize a fake published article to prove
    the trigger or claim Spotify has ingested an episode before readback.
 
-The local status/selection operator is in
-`output/narration-v2-release-20261031/select-jingle.mjs`. It requires current
+The maintained status/selection operator is in
+`integrations/narration-v2/select-jingle.mjs`. It requires current
 owner account status and a fresh independently written production source
 verification receipt before a setting write. `status` is read-only and explicitly
 does not claim that the current worker supports the candidate recipe.
+The current v4 verifier writes to `output/narration-v4-release-20261031/`;
+the selector also requires the proof's model to match `recipe.MODEL_ID`.
 
-## Production activation, 31 October 2026
+## Current model activation, 31 October 2026
+
+The owner selected Ellen v4 for the next new audio article. The existing worker
+is now `generatenarrationonqueue-00011-nog`, healthy with 100% traffic. Google
+completed the source-only patch at 11:32:18 UTC. At 11:33:24 UTC the actual active
+source matched all 13 tested file hashes, archive SHA-256
+`00e2482e98f71d2d18e66ff32fbc3cede2d268ccd7725008ac221b385ea90f72`.
+Only `narration.js` and `narrationAudioRecipe.cjs` changed; every asset, package,
+entrypoint, notification policy and service setting is preserved. Runtime/trigger
+configuration still hashes to
+`0b102584f558a9131054fbce018ac02cc3a2d5eaacf168181be08fba9e7639ae`.
+
+V.2 remains selected at revision 1 (fresh read at 11:34 UTC), including the
+approved transition, beat level and longer closing. All 25 hermetic checks pass;
+provider requests and persisted episode metadata both use the shared v4 model
+constant. The retained real v4 demo also mixes and decodes with V.2: 43.78s,
+peak -5.2 dB, without a new paid request. All 130 existing RSS GUID/audio URL
+pairs remain identical. No queue replay or old episode regeneration occurred.
+The next legitimately published new article remains the first end-to-end v4
+episode acceptance point. Rollback is the retained revision 10 source.
+
+Evidence: `output/narration-v4-release-20261031/production-evidence.zip`,
+production-verified.json, candidate-verification.json, tests.tap,
+rebuilt-exact-verification.json, jingle-after.json, rss-preservation.json,
+v4-jingle-mix-validation.json and cloud-run-v4-active.jpg.
+
+## Historical V.2 activation, 31 October 2026
 
 V.2 is active for newly generated episodes. Google completed the source-only
 update at 10:18 UTC; the active revision is `generatenarrationonqueue-00010-vik`
