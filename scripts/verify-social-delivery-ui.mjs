@@ -8,7 +8,7 @@ import postcss from 'postcss';
 import tailwind from 'tailwindcss';
 import { chromium } from 'playwright';
 
-const outputDir = 'output/social-delivery-20261030';
+const outputDir = process.env.APROPOS_SOCIAL_OUTPUT_DIR || 'output/social-delivery-20261030';
 const title = 'TONY';
 const subtitle = 'A24 og Matt Johnson skildrer Anthony Bourdains formative sommer i Provincetown, hvor Dominic Sessa og Antonio Banderas bærer historien.';
 const first = 'En sommer i Provincetown former Bourdain.';
@@ -33,7 +33,7 @@ window.fixture={calls:[],errors:[],closed:false,frames:[],uploads:[]}; const nat
 const draws=new WeakMap();
 fixture.jpeg=async(data,size)=>{const blob=await exportCardToJpegBlob(data,size,0.92,{amiriFontFamily:${JSON.stringify(buildDir ? 'Amiri' : 'Georgia')}});return {type:blob.type,size:blob.size};};
 const fillText=CanvasRenderingContext2D.prototype.fillText;
-CanvasRenderingContext2D.prototype.fillText=function(text,...args){const lines=draws.get(this.canvas)||[];lines.push({text,font:this.font});draws.set(this.canvas,lines);return fillText.call(this,text,...args);};
+CanvasRenderingContext2D.prototype.fillText=function(text,...args){const lines=draws.get(this.canvas)||[];const metrics=this.measureText(text);lines.push({text,font:this.font,y:args[1],ascent:metrics.actualBoundingBoxAscent,descent:metrics.actualBoundingBoxDescent});draws.set(this.canvas,lines);return fillText.call(this,text,...args);};
 const toDataURL=HTMLCanvasElement.prototype.toDataURL;
 HTMLCanvasElement.prototype.toDataURL=function(...args){const src=toDataURL.apply(this,args);fixture.frames.push({src,width:this.width,height:this.height,draws:draws.get(this)||[]});if(fixture.frames.length>50)fixture.frames.shift();return src;};
 window.addEventListener('error',e=>fixture.errors.push(e.message));
@@ -91,10 +91,11 @@ const server=createServer(async(req,res)=>{
   const key=JSON.stringify([body.articleId,body.card,body.caption,body.isStory]);
   if(receipts.has(key)){const receipt=receipts.get(key);attempts.set(body.requestId,receipt);return json({receipt,replay:true});}
   publishCalls++;
-  const receipt={id:'receipt-'+publishCalls,ownerUid:'fixture-owner',articleId:body.articleId,requestId:body.requestId,createdAt:new Date().toISOString(),updatedAt:new Date().toISOString(),complete:true,phase:'done',channels:body.channels,
-   instagram:{status:'published',id:'123',url:'https://www.instagram.com/p/fixture/'},facebook:{status:body.channels.facebook?'published':'skipped',...(body.channels.facebook?{id:'123_456',url:'https://www.facebook.com/fixture/posts/456'}:{})},comment:{status:body.channels.facebook?'published':'skipped'}};
+  const receipt={id:'receipt-'+publishCalls,ownerUid:'fixture-owner',articleId:body.articleId,requestId:body.requestId,createdAt:new Date().toISOString(),updatedAt:new Date().toISOString(),complete:true,phase:body.channels.facebook?'stopped':'done',channels:body.channels,
+   instagram:{status:'published',id:'123',url:'https://www.instagram.com/p/fixture/'},facebook:{status:body.channels.facebook?'published':'skipped',...(body.channels.facebook?{id:'123_456',url:'https://www.facebook.com/fixture/posts/456'}:{})},comment:body.channels.facebook?{status:'failed',error:'Meta afviste handlingen (kode 200).'}:{status:'skipped'}};
   receipts.set(key,receipt);attempts.set(body.requestId,receipt);return json({receipt});
  }
+ if(buildDir && /^\/media\/[a-zA-Z0-9._-]+\.woff2$/.test(req.url)){res.setHeader('Content-Type','font/woff2');return res.end(await readFile(buildDir+'/static'+req.url));}
  if(req.url==='/bundle.js'){res.setHeader('Content-Type','text/javascript');return res.end(bundle.outputFiles.find(f=>f.path.endsWith('.js')).text);}
  if(req.url==='/bundle.css'){res.setHeader('Content-Type','text/css');return res.end(bundle.outputFiles.find(f=>f.path.endsWith('.css')).text);}
  if(req.url==='/fixture.svg'){res.setHeader('Content-Type','image/svg+xml');return res.end('<svg xmlns="http://www.w3.org/2000/svg" width="1000" height="800"><rect width="1000" height="800" fill="#bbb"/></svg>');}
@@ -121,12 +122,19 @@ try{
  await expand(page,'subtitle');await page.waitForFunction(()=>document.querySelector('textarea[aria-label="Undertekst på billedet"]')?.value==='En sommer i Provincetown former Bourdain.');
  await expand(page,'title');await page.getByRole('textbox',{name:'Overskrift på billedet',exact:true}).fill('Bourdain før berømmelsen');
  await expand(page,'subtitle');await page.getByRole('textbox',{name:'Undertekst på billedet',exact:true}).fill('En sommer former Bourdain.');
+ await page.getByRole('button',{name:'Mindre afstand til underteksten'}).click();
+ await page.waitForFunction(()=>{const f=fixture.frames.at(-1),i=f?.draws.findIndex(d=>d.font.includes('italic'));if(!(i>0))return false;const a=f.draws[i],b=f.draws[i-1];return Math.abs(a.y-a.ascent-b.y-b.descent-16)<.01;});
  await page.getByRole('button',{name:'Gør overskriften større'}).click();
  await page.getByLabel('Opslagstekst',{exact:true}).fill('Min redigerede opslagstekst.');
  await page.reload();await page.getByRole('button',{name:'Luk',exact:true}).first().click();await page.waitForFunction(()=>!document.querySelector('fieldset')?.disabled);
  assert.equal(await page.getByLabel('Opslagstekst',{exact:true}).inputValue(),'Min redigerede opslagstekst.');await saved(page);
+ await expand(page,'title');await page.getByRole('button',{name:'Gendan normal afstand'}).waitFor();
+ await page.waitForFunction(()=>{const f=fixture.frames.at(-1),i=f?.draws.findIndex(d=>d.font.includes('italic'));if(!(i>0))return false;const a=f.draws[i],b=f.draws[i-1];return Math.abs(a.y-a.ascent-b.y-b.descent-16)<.01;});
+ report.push('custom title/subtitle ink spacing remains 16px after text enlargement and reload');
+ await page.screenshot({path:outputDir+'/390-spacing-controls.png'});
  report.push('automatic AI fitting still works; immediate reload restores unsaved local journal');
  await page.getByRole('button',{name:'9:16',exact:true}).click();await page.getByRole('button',{name:'Skift til mørkt design'}).click();await saved(page);
+ await page.waitForFunction(()=>!Array.from(document.querySelectorAll('button')).find(b=>b.textContent==='Download Story')?.disabled);
  const download=page.waitForEvent('download');await page.getByRole('button',{name:'Download Story',exact:true}).click();await(await download).saveAs(outputDir+'/story.png');
  await page.getByRole('button',{name:'Kopiér artikellink',exact:true}).click();assert.match(await page.evaluate(()=>navigator.clipboard.readText()),/\/articles\/kontrapunkt$/);
  await page.screenshot({path:outputDir+'/390-story-export.png'});
@@ -137,6 +145,7 @@ try{
  report.push('manual title/subtitle/caption/design/format survive reload; Story PNG and clipboard work');
  const secondContext=await browser.newContext({viewport:{width:1440,height:1000}}), second=await open(secondContext);
  await expand(second,'title');assert.equal(await second.getByRole('textbox',{name:'Overskrift på billedet',exact:true}).inputValue(),'Bourdain før berømmelsen');
+ await second.getByRole('button',{name:'Gendan normal afstand'}).waitFor();
  await second.getByRole('textbox',{name:'Overskrift på billedet',exact:true}).fill('En ny titel fra en anden enhed');await saved(second);
  await page.getByRole('textbox',{name:'Overskrift på billedet',exact:true}).fill('Mine lokale ændringer');
  await page.getByText('En anden enhed har gemt en nyere version.',{exact:true}).waitFor();
@@ -157,10 +166,17 @@ try{
  await page.getByRole('button',{name:'Post til Instagram',exact:true}).click();await page.getByRole('checkbox',{name:'Facebook',exact:true}).check();
  await page.getByRole('button',{name:'Udgiv nu',exact:true}).click();
  await page.waitForFunction(()=>document.querySelectorAll('a[href*="facebook.com/fixture/posts"]').length===1);
+ await page.getByText('Artikellinket blev ikke tilføjet som Facebook-kommentar. Facebook mangler adgang til kommentarer.',{exact:false}).waitFor();
+ assert.equal(await page.getByText('Meta afviste handlingen (kode 200).',{exact:true}).count(),0);
  assert.equal(publishCalls,2);report.push('Facebook only receives an explicitly checked version; independent post links retained');
  await page.screenshot({path:outputDir+'/390-publication-receipts.png'});
  await page.reload();await page.getByRole('button',{name:'Luk',exact:true}).first().click();await page.waitForFunction(()=>!document.querySelector('fieldset')?.disabled);
  await page.getByText('Tidligere udgivelser (1)',{exact:true}).click();assert.equal(await page.getByRole('link',{name:'Se opslag',exact:true}).count(),3);assert.equal(publishCalls,2);
+ const latestTime=await page.locator('section[aria-label="Udgivelseskvittering"] time').first().getAttribute('datetime');
+ await page.getByRole('button',{name:'Kontrollér status',exact:true}).last().click();
+ await page.waitForFunction(()=>!Array.from(document.querySelectorAll('button')).some(b=>b.textContent==='Kontrollerer…'));
+ assert.equal(await page.locator('section[aria-label="Udgivelseskvittering"] time').first().getAttribute('datetime'),latestTime);
+ report.push('old permission error is explained specifically; checking older receipt preserves latest-publication order');
  report.push('receipt history survives reload');
  await page.getByLabel('Opslagstekst',{exact:true}).fill('Et forsøg med tabt kvittering.');await saved(page);
  await page.goto(origin+'/?lost=1');await page.getByRole('button',{name:'Luk',exact:true}).first().click();await page.waitForFunction(()=>!document.querySelector('fieldset')?.disabled);

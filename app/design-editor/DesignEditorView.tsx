@@ -463,6 +463,7 @@ export default function DesignEditorView({ onBack, embedMode }: DesignEditorView
       title: cardTitle.text,
       titleSizePercent: textSize.title.percent,
       subtitleSizePercent: textSize.subtitle.percent,
+      titleSubtitleGap: textSize.spacing.gap,
       excerpt: subtitle.text || undefined,
       theme,
       imageUrl: selected?.imageUrl ?? undefined,
@@ -476,7 +477,7 @@ export default function DesignEditorView({ onBack, embedMode }: DesignEditorView
         : (dedupedStoryBottomMetaLabels.length > 0 ? dedupedStoryBottomMetaLabels : undefined),
       rating: selected?.rating ?? undefined,
     };
-  }, [subtitle.text, cardTitle.text, textSize.title.percent, textSize.subtitle.percent, selected?.excerpt, selected?.imageUrl, selected?.category, selected?.section, selected?.primaryTopic, selected?.topics, selected?.rating, selected?.authorId, eyebrowChips, authors, sections, topics, resolveName, size, storyMetaShuffleSeed, theme]);
+  }, [subtitle.text, cardTitle.text, textSize.title.percent, textSize.subtitle.percent, textSize.spacing.gap, selected?.excerpt, selected?.imageUrl, selected?.category, selected?.section, selected?.primaryTopic, selected?.topics, selected?.rating, selected?.authorId, eyebrowChips, authors, sections, topics, resolveName, size, storyMetaShuffleSeed, theme]);
 
   const filteredArticles = useMemo(() => {
     const q = articleSearch.trim().toLowerCase();
@@ -540,7 +541,7 @@ export default function DesignEditorView({ onBack, embedMode }: DesignEditorView
       if (saved.subtitle !== null) subtitle.edit(saved.subtitle, saved.subtitleStatus);
       else subtitle.reset();
       setCaption(saved.caption); setTheme(saved.theme); setSize(saved.size);
-      textSize.restore(saved.titleSizePercent, saved.subtitleSizePercent);
+      textSize.restore(saved.titleSizePercent, saved.subtitleSizePercent, saved.titleSubtitleGap);
       setStoryMetaShuffleSeed(saved.storyMetaShuffleSeed); setFacebook(saved.facebook);
       setEyebrowOverrides(previous => ({ ...previous, [identity]: saved.eyebrowValues }));
     } else {
@@ -556,9 +557,10 @@ export default function DesignEditorView({ onBack, embedMode }: DesignEditorView
     draft.update({ title: cardTitle.text, subtitle: subtitle.checking && !subtitle.hasEntry ? null : subtitle.text,
       subtitleStatus: subtitle.status ?? 'original', caption, theme, size,
       titleSizePercent: textSize.title.percent, subtitleSizePercent: textSize.subtitle.percent,
+      titleSubtitleGap: textSize.spacing.gap,
       eyebrowValues: eyebrowChips.map(chip => chip.value), storyMetaShuffleSeed, facebook });
   }, [editorReady, selected?.id, cardTitle.text, subtitle.text, subtitle.checking, subtitle.hasEntry, subtitle.status,
-    caption, theme, size, textSize.title.percent, textSize.subtitle.percent, eyebrowChips, storyMetaShuffleSeed, facebook, metadataReady]);
+    caption, theme, size, textSize.title.percent, textSize.subtitle.percent, textSize.spacing.gap, eyebrowChips, storyMetaShuffleSeed, facebook, metadataReady]);
 
   // Safety net: ensure first article is selected if selected is missing.
   useEffect(() => {
@@ -693,7 +695,7 @@ export default function DesignEditorView({ onBack, embedMode }: DesignEditorView
                 <button type="button" className={styles.textButton} onClick={draft.keepLocal}>Gem mine ændringer</button>
               </div> : <button type="button" className={styles.textButton} onClick={() => { void draft.retry(); }}>Prøv synkronisering igen</button>}</div>}
               <fieldset disabled={!editorReady || postingToInstagram} className={styles.copyGroup}>
-              <TitleControls key={cardTitle.key} title={cardTitle} sizing={textSize.title} />
+              <TitleControls key={cardTitle.key} title={cardTitle} sizing={textSize.title} spacing={selected.excerpt ? textSize.spacing : undefined} />
               {selected.excerpt && <SubtitleControls key={subtitle.key} subtitle={subtitle} sizing={textSize.subtitle} />}
             </fieldset></>}
             {eyebrowChips.length > 0 && size !== 'story' && (
@@ -734,7 +736,7 @@ export default function DesignEditorView({ onBack, embedMode }: DesignEditorView
               </div>
             )}
             {size === 'story' && selectedArticleUrl && <div className={styles.storyExport}>
-              <div className={styles.copyActions}><button type="button" className={styles.textButton} disabled={exporting || !editorReady || !!previewError} onClick={handleExportPng}>Download Story</button>
+              <div className={styles.copyActions}><button type="button" className={styles.textButton} disabled={exporting || !editorReady || !subtitle.ready || !!previewError} onClick={handleExportPng}>Download Story</button>
                 <button type="button" className={styles.textButton} onClick={() => { void copyArticleLink(); }}>Kopiér artikellink</button></div>
               <input aria-label="Artikellink til Story" value={selectedArticleUrl} readOnly onFocus={event => event.target.select()} />
               <p role="status">{copyState || 'Tilføj linket med Instagrams linkmærkat. Læs nu på billedet er grafik.'}</p>

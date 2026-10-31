@@ -12,6 +12,7 @@ export interface SocialCardData {
   excerpt?: string;
   titleSizePercent?: number;
   subtitleSizePercent?: number;
+  titleSubtitleGap?: number;
   imageUrl?: string | null;
   /** e.g. "Koncert", "Anmeldelse" – shown as "Koncert | Anmeldelse" or single */
   category?: string;
