@@ -38,6 +38,7 @@ def replace(old, new):
     if s.count(old) != 1: raise ValueError('Source anchor mismatch: '+old[:70])
     s = s.replace(old, new, 1)
 replace('const {randomUUID} = require("node:crypto");', 'const {randomUUID} = require("node:crypto");\nconst audioRecipe = require("./narrationAudioRecipe.cjs");')
+replace('const MODEL_ID = "eleven_v3";', 'const MODEL_ID = audioRecipe.MODEL_ID;')
 replace('  const outroLine = "Tak fordi du lyttede med på Apropos Magazine.";', '  const outroLine = audioRecipe.OUTRO;')
 replace('async function synthesizeChunk(apiKey, voiceId, text, outPath) {\n  const body = {text, model_id: MODEL_ID};', 'async function synthesizeChunk(apiKey, voiceId, text, outPath, fullText) {\n  const body = audioRecipe.speechRequest(text, fullText);')
 replace('async function produceFinal(listPath, outPath, workDir, breakerWindows = []) {', 'async function produceFinal(listPath, outPath, workDir, jingleVersion) {')

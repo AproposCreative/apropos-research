@@ -23,8 +23,8 @@ else{
  const version=recipe.selectJingle(process.argv[3]),expected=Number(process.argv[4]);
  if(!process.argv[3]||!process.argv[4]||!Number.isSafeInteger(expected))throw Error('select requires exact version and expected revision');
  // Require a fresh, independent successful active-source readback from the rollout.
- const release=JSON.parse(await readFile('output/narration-v2-release-20261031/production-verified.json','utf8'));
- if(release.recipeVersion!==recipe.RECIPE_VERSION||release.activeSourceVerified!==true||!release.revision||Date.now()-Date.parse(release.checkedAt)>15*60*1000||Date.parse(release.checkedAt)>Date.now())throw Error('Fresh active-worker verification required');
+ const release=JSON.parse(await readFile('output/narration-v4-release-20261031/production-verified.json','utf8'));
+ if(release.recipeVersion!==recipe.RECIPE_VERSION||release.modelId!==recipe.MODEL_ID||release.activeSourceVerified!==true||!release.revision||Date.now()-Date.parse(release.checkedAt)>15*60*1000||Date.parse(release.checkedAt)>Date.now())throw Error('Fresh active-worker verification required');
  const result=await recipe.setJingleSelection(db,version,expected,{uid:owner.uid,ownerVerified:true});
  const readback=await recipe.readJingleSelection(db);if(readback.version!==result.version||readback.revision!==result.revision)throw Error('Selection changed; read back before any retry');
  console.log(JSON.stringify({checkedAt:new Date().toISOString(),...result,readback,audioRegenerated:false}));

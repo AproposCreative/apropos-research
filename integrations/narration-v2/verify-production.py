@@ -7,7 +7,7 @@ REGION='us-central1'
 FUNCTION='generateNarrationOnQueue'
 SERVICE='generatenarrationonqueue'
 TRIGGER='generatenarrationonqueue-803331'
-ROOT=pathlib.Path(sys.argv[1] if len(sys.argv)>1 else 'output/narration-v2-release-20261031').resolve()
+ROOT=pathlib.Path(sys.argv[1] if len(sys.argv)>1 else 'output/narration-v4-release-20261031').resolve()
 ROOT.mkdir(parents=True,exist_ok=True)
 def command(*args):
     return json.loads(subprocess.check_output(['gcloud',*args,'--project='+PROJECT,'--format=json'],stderr=subprocess.PIPE))
@@ -39,7 +39,7 @@ def file_hashes(data):
         if len(names)!=len(set(names)) or any(pathlib.PurePosixPath(n).is_absolute() or '..' in pathlib.PurePosixPath(n).parts for n in names):raise RuntimeError('Unsafe source ZIP')
         return {n:hashlib.sha256(z.read(n)).hexdigest() for n in names if not n.endswith('/')}
 RECIPE='ellen-continuous-v2-2026-10-31'
-ARCHIVE_SHA256='4def328b2841cbf37f71a19c2e119f9bcd7431b79948314edae457e639bdf19e'
+ARCHIVE_SHA256='00e2482e98f71d2d18e66ff32fbc3cede2d268ccd7725008ac221b385ea90f72'
 CONFIG_SHA256='0b102584f558a9131054fbce018ac02cc3a2d5eaacf168181be08fba9e7639ae'
 def verify_live():
     f,r,t,active=inspect()
@@ -51,7 +51,7 @@ def verify_live():
     if hashlib.sha256(data).hexdigest()!=ARCHIVE_SHA256:raise RuntimeError('Active source differs from the supported released recipe')
     hashes=file_hashes(data)
     if len(hashes)!=13:raise RuntimeError('Unexpected active source file count')
-    proof={'checkedAt':datetime.datetime.now(datetime.timezone.utc).isoformat(),'recipeVersion':RECIPE,'revision':active['revision'],'activeSourceVerified':True,'configurationUnchanged':True,'configurationSha256':CONFIG_SHA256,'activeArchiveSha256':ARCHIVE_SHA256,'traffic':active['traffic'],'readOnlyVerification':True}
+    proof={'checkedAt':datetime.datetime.now(datetime.timezone.utc).isoformat(),'recipeVersion':RECIPE,'modelId':'eleven_v4','revision':active['revision'],'activeSourceVerified':True,'configurationUnchanged':True,'configurationSha256':CONFIG_SHA256,'activeArchiveSha256':ARCHIVE_SHA256,'traffic':active['traffic'],'readOnlyVerification':True}
     (ROOT/'production-verified.json').write_text(json.dumps(proof,indent=2)+'\n')
     print(json.dumps(proof,indent=2))
 if __name__=='__main__':

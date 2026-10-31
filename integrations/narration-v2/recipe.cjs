@@ -6,6 +6,7 @@ const fs = require("node:fs");
 const {createHash} = require("node:crypto");
 
 const RECIPE_VERSION = "ellen-continuous-v2-2026-10-31";
+const MODEL_ID = "eleven_v4";
 const OUTRO = "Tak fordi du lyttede med på Apropos Magazine. Lyt til alle vores artikler gratis, uden reklamer og forstyrrelser.";
 const SAMPLE_RATE = 44100;
 const FIRST_SECONDS = 41.55555555555556;
@@ -97,7 +98,7 @@ function narrationChunks(script, max = 2800) {
 function speechRequest(text, fullText) {
   return {
     text,
-    model_id: "eleven_v3",
+    model_id: MODEL_ID,
     language_code: "da",
     voice_settings: {stability: 1},
     seed: createHash("sha256").update(String(fullText)).digest().readUInt32BE(0),
@@ -152,4 +153,4 @@ function mixArgs(root, version, voicePath, outPath, duration) {
   return args;
 }
 
-module.exports = {RECIPE_VERSION, OUTRO, SAMPLE_RATE, FIRST_SECONDS, selectJingle, readJingleSelection, setJingleSelection, narrationChunks, speechRequest, verifyAssets, mixArgs};
+module.exports = {RECIPE_VERSION, MODEL_ID, OUTRO, SAMPLE_RATE, FIRST_SECONDS, selectJingle, readJingleSelection, setJingleSelection, narrationChunks, speechRequest, verifyAssets, mixArgs};

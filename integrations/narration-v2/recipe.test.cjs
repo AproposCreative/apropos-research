@@ -67,9 +67,9 @@ test("No-rating articles have no invented rating; new outro is identical in both
  const chunks=recipe.narrationChunks({bodyText:"En kulturguide om byen.",outroLine:recipe.OUTRO});
  assert.equal(chunks.length,1);assert.ok(!chunks[0].includes("stjerner"));assert.ok(chunks[0].endsWith(recipe.OUTRO));
 });
-test("Every chunk has the same Danish V3 stability and episode seed, with no unsupported stitching",()=>{
+test("Every chunk uses the approved Danish V4 demo settings and the same episode seed",()=>{
  const a=recipe.speechRequest("Første del.","Samme artikel"),b=recipe.speechRequest(recipe.OUTRO,"Samme artikel");
- assert.deepEqual({...a,text:""},{...b,text:""});assert.equal(a.language_code,"da");assert.equal(a.voice_settings.stability,1);assert.equal(a.model_id,"eleven_v3");
+ assert.deepEqual({...a,text:""},{...b,text:""});assert.equal(a.language_code,"da");assert.equal(a.voice_settings.stability,1);assert.equal(a.model_id,"eleven_v4");
  assert.ok(!("previous_text" in a));assert.ok(!("previous_request_ids" in a));assert.ok(!("speed" in a));assert.notEqual(a.seed,recipe.speechRequest("tekst","Anden artikel").seed);
 });
 test("Missing or changed assets stop before synthesis; original V1 stays byte-identical",()=>{
@@ -128,9 +128,9 @@ test("Actual patched worker includes new closing, uses one Ellen ID and emits ve
   const requests=w.calls.filter(c=>c.options?.method==="POST").map(c=>({url:c.url,body:JSON.parse(c.options.body)}));
   assert.ok(requests.length>=2);assert.ok(requests.every(r=>r.url.includes("/fixture-ellen?")));
   assert.ok(requests.at(-1).body.text.endsWith(recipe.OUTRO));assert.ok(requests.at(-1).body.text.includes("En konkret passage"));
-  assert.ok(requests.every(r=>r.body.voice_settings.stability===1));assert.equal(new Set(requests.map(r=>r.body.seed)).size,1);
+ assert.ok(requests.every(r=>r.body.voice_settings.stability===1&&r.body.model_id==="eleven_v4"));assert.equal(new Set(requests.map(r=>r.body.seed)).size,1);
   const receipt=w.saves.find(s=>s.name.endsWith("narration.json")).payload.audioRecipe;
-  assert.equal(receipt.jingleVersion,"v2");assert.equal(receipt.insertedPauseSeconds,0);assert.equal(receipt.voiceId,"fixture-ellen");
+ assert.equal(receipt.jingleVersion,"v2");assert.equal(receipt.insertedPauseSeconds,0);assert.equal(receipt.voiceId,"fixture-ellen");assert.equal(receipt.modelId,"eleven_v4");
   assert.equal(receipt.outroCopy,"free-ad-free-v1");assert.ok(w.uploads[0].bytes.length>0);
  }finally{rmSync(tmp,{recursive:true,force:true});}
 });
