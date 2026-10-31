@@ -64,3 +64,17 @@ it.each([
   mocks.db.mockReturnValue({ collection: () => ({ doc: () => ({ get: async () => ({ data: () => ({ ...receipt(), ...changed }) }) }) }) });
   expect((await approve(request({ operationId }))).status).toBe(403);
 });
+it('limits direct keyboard batches to owner-bound text, safe keys and viewport coordinates', async () => {
+  const setupId = '00000000-0000-4000-8000-000000000000';
+  expect((await POST(request({ action: 'input', setupId, events: [{ type: 'key', key: 'Control+A' }, { type: 'text', text: 'fixture' }] }))).status).toBe(200);
+  expect((await POST(request({ action: 'input', setupId, events: [{ type: 'key', key: 'Control+L' }] }))).status).toBe(400);
+  expect((await POST(request({ action: 'input', setupId, events: [{ type: 'goto', url: 'https://attacker.test' }] }))).status).toBe(400);
+  expect((await POST(request({ action: 'input', setupId, events: [{ type: 'click', x: 1651, y: 1 }] }))).status).toBe(400);
+  expect((await POST(request({ action: 'input', setupId, events: [{ type: 'text', text: 'a'.repeat(1500) }, { type: 'text', text: 'b'.repeat(1500) }] }))).status).toBe(400);
+  expect((await POST(request({ action: 'input', setupId, events: Array(25).fill({ type: 'key', key: 'Tab' }) }))).status).toBe(400);
+});
+it('exposes only the bounded fresh-context verification result', async () => {
+  mocks.request.mockResolvedValueOnce(Response.json({ connected: true, verified: false, checkedAt: '2026-10-31T20:00:00Z', state: { cookies: ['private'] } }));
+  expect(await (await POST(request({ action: 'verify' }))).json()).toEqual({ connected: true, verified: false, checkedAt: '2026-10-31T20:00:00Z' });
+  expect(JSON.parse(mocks.request.mock.calls[0][1].body)).toEqual({ action: 'verify', ownerUid: 'owner' });
+});

@@ -3,6 +3,7 @@ import { timingSafeEqual } from 'node:crypto';
 import { chromium } from 'playwright';
 import sharp from 'sharp';
 import { createStoryRuntime } from './runtime.mjs';
+import { setupCommand } from './setup-command.mjs';
 
 const secret = process.env.SOCIAL_STORY_BROWSER_SECRET?.trim();
 if (!secret || secret.length < 32) throw Error('story_service_unconfigured');
@@ -39,7 +40,6 @@ const runtime = createStoryRuntime({ browser, store, bucket, sharp,
       throw Error('story_approval_unavailable');
   },
 });
-const allowedKeys = new Set(['Enter', 'Tab', 'Shift+Tab', 'Backspace', 'Escape', 'ArrowUp', 'ArrowDown', 'ArrowLeft', 'ArrowRight']);
 const authorized = value => typeof value === 'string' && Buffer.byteLength(value) === Buffer.byteLength(secret) && timingSafeEqual(Buffer.from(value), Buffer.from(secret));
 http.createServer(async (req, res) => {
   const reply = (body, status = 200) => { res.writeHead(status, { 'Content-Type': 'application/json', 'Cache-Control': 'private, no-store', 'X-Content-Type-Options': 'nosniff' }); res.end(JSON.stringify(body)); };
@@ -56,11 +56,10 @@ http.createServer(async (req, res) => {
       // request lifecycle keeps CPU available; no fire-and-forget background work.
       return reply(await runtime.process(body.operationId));
     }
-    if (!/^[a-zA-Z0-9_-]{1,128}$/.test(body.ownerUid || '') || !['begin', 'refresh', 'click', 'text', 'key', 'instagram', 'finish', 'cancel'].includes(body.action) ||
-      (body.action === 'text' && (typeof body.text !== 'string' || body.text.length > 2000)) ||
-      (body.action === 'key' && !allowedKeys.has(body.key)) ||
-      (body.action === 'click' && (!Number.isFinite(body.x) || !Number.isFinite(body.y) || body.x < 0 || body.x > 1650 || body.y < 0 || body.y > 1045))) return reply({ error: 'invalid_request' }, 400);
-    return reply(await runtime.setup(body.ownerUid, body));
+    const { ownerUid, ...command } = body;
+    const parsed = setupCommand.safeParse(command);
+    if (!/^[a-zA-Z0-9_-]{1,128}$/.test(ownerUid || '') || !parsed.success) return reply({ error: 'invalid_request' }, 400);
+    return reply(await runtime.setup(ownerUid, parsed.data));
   } catch { return reply({ error: 'story_connection_action_unconfirmed' }, 503); }
 }).listen(Number(process.env.PORT || 8080));
 process.on('SIGTERM', () => { void browser.close().finally(() => process.exit(0)); });

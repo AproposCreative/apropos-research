@@ -3,6 +3,7 @@ import { mkdtemp, writeFile, rm } from 'node:fs/promises';
 import { tmpdir } from 'node:os';
 import { join } from 'node:path';
 import { META_HOME, INSTAGRAM_PROFILE, metaConnectionReady, prepareStory, clickPublish, readCurrentStories, verifyStoryLink } from './business-suite.mjs';
+import { setupCommand } from './setup-command.mjs';
 
 const hostAllowed = value => {
   const u = new URL(value);
@@ -25,6 +26,23 @@ export function createStoryRuntime({ browser, store, bucket, sharp, revalidate }
     const viewport = page.viewportSize();
     if (page !== setup.page || viewport?.width !== 1650 || viewport?.height !== 1045) await page.setViewportSize({ width: 1650, height: 1045 });
     setup.page = page;
+  }
+  async function verifySavedConnection() {
+    const state = await store.session();
+    if (!state) return { connected: false, verified: false, checkedAt: new Date().toISOString() };
+    const context = await browser.newContext(contextOptions(state));
+    try {
+      const page = await context.newPage();
+      await page.goto(META_HOME);
+      await page.getByRole('button', { name: 'Opret story', exact: true }).waitFor({ state: 'visible', timeout: 20_000 });
+      if (!await metaConnectionReady(page)) throw Error('meta_login_required');
+      const check = await readCurrentStories(context); await check.page.close();
+      // A fresh browser context must work using only the durable encrypted
+      // state. No temporary setup context or local browser login is reused.
+      return { connected: true, verified: true, checkedAt: new Date().toISOString() };
+    } catch {
+      return { connected: true, verified: false, checkedAt: new Date().toISOString() };
+    } finally { await context.close(); }
   }
   async function matchesImage(page, original) {
     // Read only a rendered Story image asset, not private application state.
@@ -93,6 +111,9 @@ export function createStoryRuntime({ browser, store, bucket, sharp, revalidate }
       }
     },
     async setup(ownerUid, input) {
+      const parsed = setupCommand.safeParse(input);
+      if (!parsed.success) throw Error('invalid_setup_command');
+      input = parsed.data;
       if (input.action === 'cancel') {
         if ((setup && setup.ownerUid !== ownerUid) || (setupRunning && setupOwner !== ownerUid)) throw Error('story_browser_busy');
         setupEpoch++;
@@ -106,6 +127,10 @@ export function createStoryRuntime({ browser, store, bucket, sharp, revalidate }
       const epoch = setupEpoch;
       try {
       if (setup && setup.expiresAt < Date.now()) { await setup.context.close(); setup = null; }
+      if (input.action === 'verify') {
+        if (setup) throw Error('story_browser_busy');
+        return await verifySavedConnection();
+      }
       if (input.action === 'begin') {
         if (setup && setup.ownerUid !== ownerUid) throw Error('story_browser_busy');
         if (!setup) {
@@ -127,6 +152,20 @@ export function createStoryRuntime({ browser, store, bucket, sharp, revalidate }
         }
         else if (input.action === 'text') await setup.page.keyboard.insertText(input.text);
         else if (input.action === 'key') await setup.page.keyboard.press(input.key);
+        else if (input.action === 'input') {
+          for (const event of input.events) {
+            if (epoch !== setupEpoch) throw Error('story_setup_expired');
+            await setupPage();
+            if (!hostAllowed(setup.page.url())) throw Error('story_setup_domain');
+            if (event.type === 'text') await setup.page.keyboard.insertText(event.text);
+            else if (event.type === 'key') await setup.page.keyboard.press(event.key);
+            else if (event.type === 'click') await setup.page.mouse.click(event.x, event.y);
+            else if (event.type === 'scroll') {
+              await setup.page.mouse.move(event.x, event.y);
+              await setup.page.mouse.wheel(0, event.deltaY);
+            }
+          }
+        }
         else if (input.action === 'instagram') await setup.page.goto(INSTAGRAM_PROFILE);
         else if (input.action === 'finish') {
           const meta = await setup.context.newPage();
@@ -138,7 +177,7 @@ export function createStoryRuntime({ browser, store, bucket, sharp, revalidate }
             await store.saveSession(boundedState(await setup.context.storageState()));
           } finally { await meta.close(); }
           await setup.context.close(); setup = null;
-          return { connected: true };
+          return await verifySavedConnection();
         }
       }
       // Setup is human-driven and confined to the two named services. Never
@@ -148,7 +187,7 @@ export function createStoryRuntime({ browser, store, bucket, sharp, revalidate }
       if (!hostAllowed(setup.page.url())) throw Error('story_setup_domain');
       // Human activity renews the idle window. Never discard an active login
       // simply because the first screenshot was opened fifteen minutes ago.
-      setup.expiresAt = Date.now()+15*60_000;
+      if (input.action !== 'poll') setup.expiresAt = Date.now()+15*60_000;
       return { connected: false, setupId: setup.id, expiresAt: setup.expiresAt,
         screenshot: (await setup.page.screenshot({ type: 'jpeg', quality: 70 })).toString('base64'), width: 1650, height: 1045 };
       } finally { setupRunning = false; setupOwner = null; }

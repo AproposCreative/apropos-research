@@ -399,3 +399,36 @@ The hosted linked-Story flow remains unaccepted: no successful Meta login or
 hosted publication is claimed. The infrastructure correction does not establish
 that Meta will accept another attempt. The owner is not asked to repeat more
 CAPTCHAs. No cooldown duration or account-lock diagnosis is invented.
+
+### Direct server login controls and independent session check, 31 October 2026
+
+The owner requested completing server Meta login and hosted Story delivery. One
+normal begin/read at the existing owner-only connection page showed Meta's image
+challenge immediately, before reaching account entry. It was stopped without
+answering a CAPTCHA or submitting an account identifier. This does not establish
+the cause of Meta's challenges. No proxy, challenge solver, alternate client,
+copied local browser profile, passkey export or security bypass is introduced.
+
+The login screen now forwards bounded human keyboard input directly after a
+click, including paste, Tab, correction keys, select-all and scrolling. Ordered
+input is serialized, and updates are polled only while visible and idle. Polling
+does not renew the human idle deadline. Stop invalidates queued input and late
+responses. A failed/unknown input request is never replayed; unsent input is
+dropped and the owner must explicitly refresh or stop. Credentials are not kept
+in React state, local storage, logs or test artifacts. The remote page remains
+confined to Facebook/Instagram and only verified owners may operate it.
+
+“Gem og kontrollér” saves encrypted state, closes the temporary browser context,
+then verifies the durable state in a fresh server browser context against
+Business Suite and the Instagram viewer. “Kontrollér forbindelse” performs the
+same check separately without starting a new login when no state exists. A saved
+session that fails provider readback is shown as unverified. This is not a live
+process-restart acceptance claim, and there is still no successful hosted login
+or hosted linked-Story publication to report. The separate manual Story test
+remains historical evidence with its exhausted one-off publication permission.
+
+65 focused route, runtime, store and duplicate-lock tests passed. Production
+source is based on the fresh live commit be7827b528f3db9a691d714fb30ed633a8794d58,
+preserving the concurrent podcast/newsletter changes. Further release evidence
+is appended only after actual readback. No additional real Meta login attempt or
+Story send is part of the local visual fixtures.

@@ -63,7 +63,8 @@ async function setupFixture(popupHost = 'www.facebook.com') {
       goto: async (value: string) => { url = value; },
       waitForURL: async (match: (url: URL) => boolean) => { if (!match(new URL(url))) throw Error('domain_rejected'); },
       screenshot: async () => Buffer.from(label),
-      mouse: { click: async () => { const popup = page('popup'); await popup.goto('https://'+popupHost+'/login'); opened?.(popup); } },
+      keyboard: { insertText: vi.fn(), press: vi.fn() },
+      mouse: { click: async () => { const popup = page('popup'); await popup.goto('https://'+popupHost+'/login'); opened?.(popup); }, move: vi.fn(), wheel: vi.fn() },
     }; pages.push(p); return p;
   }
   const context = { pages: () => pages, newPage: async () => page('main'), close: vi.fn(),
@@ -89,7 +90,7 @@ it('never displays a login popup outside Facebook and Instagram', async () => {
 it('keeps a hosted login setup bound to its original owner and exact setup ID', async () => {
   const f = await setupFixture(); const start = await f.runtime.setup('owner', { action: 'begin' });
   await expect(f.runtime.setup('other', { action: 'refresh', setupId: start.setupId })).rejects.toThrow('story_setup_expired');
-  await expect(f.runtime.setup('owner', { action: 'refresh', setupId: 'wrong' })).rejects.toThrow('story_setup_expired');
+  await expect(f.runtime.setup('owner', { action: 'refresh', setupId: '00000000-0000-4000-8000-000000000000' })).rejects.toThrow('story_setup_expired');
   expect((await f.runtime.setup('owner', { action: 'refresh', setupId: start.setupId })).setupId).toBe(start.setupId);
 });
 it('renews the idle window during human activity without creating another provider context', async () => {
@@ -126,4 +127,45 @@ it('does not reopen a login after Stop arrives while the first provider page is 
   release();
   await expect(opening).rejects.toThrow('story_setup_expired');
   expect(f.context.close).toHaveBeenCalledOnce(); expect(f.store.saveSession).not.toHaveBeenCalled();
+});
+it('applies direct typing, navigation and scrolling in order without saving credentials', async () => {
+  const f = await setupFixture(); const start = await f.runtime.setup('owner', { action: 'begin' });
+  const result = await f.runtime.setup('owner', { action: 'input', setupId: start.setupId, events: [
+    { type: 'text', text: 'private-fixture-only' }, { type: 'key', key: 'Tab' },
+    { type: 'scroll', x: 400, y: 300, deltaY: 500 },
+  ] });
+  expect(f.pages[0].keyboard.insertText).toHaveBeenCalledWith('private-fixture-only');
+  expect(f.pages[0].keyboard.press).toHaveBeenCalledWith('Tab');
+  expect(f.pages[0].mouse.move).toHaveBeenCalledWith(400, 300);
+  expect(f.pages[0].mouse.wheel).toHaveBeenCalledWith(0, 500);
+  expect(JSON.stringify(result)).not.toContain('private-fixture-only'); expect(f.store.saveSession).not.toHaveBeenCalled();
+});
+it('does not let screen polling keep an unattended login alive', async () => {
+  vi.useFakeTimers();
+  try {
+    vi.setSystemTime(1_000_000); const f = await setupFixture();
+    const start = await f.runtime.setup('owner', { action: 'begin' });
+    vi.advanceTimersByTime(14*60_000);
+    const polled = await f.runtime.setup('owner', { action: 'poll', setupId: start.setupId });
+    expect(polled.expiresAt).toBe(start.expiresAt);
+    vi.advanceTimersByTime(2*60_000);
+    await expect(f.runtime.setup('owner', { action: 'poll', setupId: start.setupId })).rejects.toThrow('story_setup_expired');
+    expect(f.context.close).toHaveBeenCalledOnce();
+  } finally { vi.useRealTimers(); }
+});
+it('checks a missing durable login without opening Meta or starting a login attempt', async () => {
+  const f = await setupFixture();
+  expect(await f.runtime.setup('owner', { action: 'verify' })).toMatchObject({ connected: false, verified: false });
+  expect(f.pages).toHaveLength(0); expect(f.store.saveSession).not.toHaveBeenCalled();
+});
+it('verifies saved state in a fresh context and reports a failed provider check honestly', async () => {
+  const state = { cookies: [], origins: [] }, context = { newPage: vi.fn(), close: vi.fn() };
+  const page = { goto: vi.fn(), getByRole: () => ({ waitFor: vi.fn().mockRejectedValue(Error('login required')) }) };
+  context.newPage.mockResolvedValue(page);
+  const browser = { newContext: vi.fn().mockResolvedValue(context) }, store = { session: async () => state, saveSession: vi.fn() };
+  const runtime = createStoryRuntime({ browser, store, bucket: {}, sharp, revalidate: vi.fn() });
+  const result = await runtime.setup('owner', { action: 'verify' });
+  expect(result).toMatchObject({ connected: true, verified: false });
+  expect(browser.newContext).toHaveBeenCalledWith(expect.objectContaining({ storageState: state }));
+  expect(context.close).toHaveBeenCalledOnce(); expect(store.saveSession).not.toHaveBeenCalled();
 });

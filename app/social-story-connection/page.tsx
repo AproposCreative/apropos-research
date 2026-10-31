@@ -1,68 +1,88 @@
 'use client';
 import { useCallback, useEffect, useRef, useState } from 'react';
 import { useAuth } from '@/lib/auth-context';
-type Frame = { connected: boolean; configured?: boolean; setupId?: string; screenshot?: string; width?: number; height?: number; cancelled?: boolean };
+import RemoteMetaScreen, { type RemoteInput } from './RemoteMetaScreen';
+type Frame = { connected: boolean; configured?: boolean; setupId?: string; screenshot?: string; cancelled?: boolean; verified?: boolean; checkedAt?: string };
+const button = { minHeight: 44, padding: '8px 14px', borderRadius: 12, border: '1px solid #38383a', background: '#1c1c1e', color: '#0a84ff', font: 'inherit' };
 export default function StoryConnectionPage() {
   const { user, capabilities, loading } = useAuth();
-  const [frame, setFrame] = useState<Frame | null>(null), [busy, setBusy] = useState(false), [error, setError] = useState(''), [text, setText] = useState('');
-  const sequence = useRef(0), activeRequest = useRef<AbortController | null>(null);
-  const request = useCallback(async (body?: Record<string, unknown>) => {
-    if (!user) return;
-    const current = ++sequence.current;
-    activeRequest.current?.abort();
-    const controller = new AbortController(); activeRequest.current = controller;
-    const deadline = setTimeout(() => controller.abort(), 115_000);
-    setBusy(true); setError('');
-    try {
-      const response = await fetch('/api/instagram/story-connection', { method: body ? 'POST' : 'GET',
-        headers: { Authorization: `Bearer ${await user.getIdToken()}`, ...(body ? { 'Content-Type': 'application/json' } : {}) },
-        ...(body ? { body: JSON.stringify(body) } : {}), cache: 'no-store', signal: controller.signal });
-      const data = await response.json(); if (!response.ok) throw Error(data.error);
-      if (current === sequence.current) { setFrame(data); if (data.cancelled) setText(''); }
-    } catch (e) {
-      if (current === sequence.current) setError(controller.signal.aborted
-        ? 'Forbindelsen tog for lang tid. Stop login eller opdatér billedet før næste handling.'
-        : e instanceof Error ? e.message : 'Forbindelsen kunne ikke hentes.');
-    } finally {
-      clearTimeout(deadline);
-      if (current === sequence.current) { setBusy(false); activeRequest.current = null; }
+  const [frame, setFrame] = useState<Frame | null>(null), [busy, setBusy] = useState(false), [error, setError] = useState('');
+  const generation = useRef(0), active = useRef<AbortController | null>(null), pending = useRef(0);
+  const tail = useRef<Promise<void>>(Promise.resolve());
+  const request = useCallback((body?: Record<string, unknown>) => {
+    if (!user) return Promise.resolve();
+    if (body?.action === 'cancel') {
+      generation.current++; active.current?.abort(); tail.current = Promise.resolve(); pending.current = 0;
     }
+    const epoch = generation.current; pending.current++; setBusy(true);
+    const run = async () => {
+      if (epoch !== generation.current) return;
+      const controller = new AbortController(); active.current = controller;
+      const deadline = setTimeout(() => controller.abort(), 115_000);
+      try {
+        const response = await fetch('/api/instagram/story-connection', { method: body ? 'POST' : 'GET',
+          headers: { Authorization: `Bearer ${await user.getIdToken()}`, ...(body ? { 'Content-Type': 'application/json' } : {}) },
+          ...(body ? { body: JSON.stringify(body) } : {}), cache: 'no-store', signal: controller.signal });
+        const data = await response.json(); if (!response.ok) throw Error();
+        if (epoch === generation.current) { setFrame(data); setError(''); }
+      } catch {
+        if (epoch === generation.current) {
+          // An unknown input outcome is never replayed. Drop unsent keystrokes
+          // and pause polling until the owner explicitly refreshes or stops.
+          generation.current++; pending.current = 0; setBusy(false);
+          setError('Forbindelsen blev afbrudt. Opdatér visningen før du skriver videre, eller stop login.');
+        }
+      } finally {
+        clearTimeout(deadline);
+        if (active.current === controller) active.current = null;
+        if (epoch === generation.current) { pending.current--; setBusy(pending.current > 0); }
+      }
+    };
+    tail.current = tail.current.then(run); return tail.current;
   }, [user]);
-  useEffect(() => () => { sequence.current++; activeRequest.current?.abort(); }, []);
+  useEffect(() => () => { generation.current++; active.current?.abort(); }, []);
   useEffect(() => { if (user && capabilities.owner) void request(); }, [user, capabilities.owner, request]);
+  useEffect(() => {
+    if (!frame?.setupId || !frame.screenshot || error) return;
+    const timer = setInterval(() => {
+      if (!pending.current && !active.current && document.visibilityState === 'visible')
+        void request({ action: 'poll', setupId: frame.setupId });
+    }, 2000);
+    return () => clearInterval(timer);
+  }, [frame?.setupId, !!frame?.screenshot, error, request]);
   const act = (action: string, values: Record<string, unknown> = {}) => request({ action, setupId: frame?.setupId, ...values });
+  const input = (events: RemoteInput[]) => { void act('input', { events }); };
   if (loading) return <p>Indlæser…</p>;
   if (!user || !capabilities.owner) return <p>Log ind som ejer for at tilslutte Story-forbindelsen.</p>;
-  return <main style={{ maxWidth: 1100, minHeight: '100dvh', margin: 'auto', padding: 16, color: '#f5f5f5', background: '#000' }}>
-    <a href="/design-editor">Tilbage til SoMe</a>
-    <h1 style={{ fontSize: 24, fontWeight: 600, margin: '16px 0' }}>Story-forbindelse</h1>
+  return <main style={{ maxWidth: 1280, minHeight: '100dvh', margin: 'auto', padding: 16, color: '#f5f5f5', background: '#000', fontFamily: 'system-ui, sans-serif' }}>
+    <a href="/design-editor" style={{ color: '#0a84ff' }}>Tilbage til SoMe</a>
+    <header style={{ display: 'flex', alignItems: 'center', justifyContent: 'space-between', gap: 12, margin: '12px 0' }}>
+      <h1 style={{ fontSize: 22, fontWeight: 600 }}>Story-forbindelse</h1>
+      {(frame?.screenshot || busy) && <button type="button" style={button} onClick={() => { void request({ action: 'cancel' }); }}>Stop login</button>}
+    </header>
     {frame?.cancelled && <p role="status">Login er stoppet. Der forsøges ikke igen automatisk.</p>}
-    {(!frame?.connected || frame?.screenshot) && <button type="button" onClick={() => { void request({ action: 'cancel' }); }}>Stop login</button>}
-    {frame?.connected && <p role="status">Meta-login gemt.</p>}
     {!frame?.screenshot && <>
-      {!frame?.connected && <p>Forbind Apropos til Facebook og Instagram på serveren. Login gemmes krypteret til de Stories, du vælger at udgive. Din computer behøver derefter ikke være tændt.</p>}
-      <button type="button" disabled={busy || frame?.configured === false} onClick={() => { void request({ action: 'begin' }); }}>{frame?.connected ? 'Forny Meta-login' : 'Forbind serverbrowser'}</button>
-      {frame?.configured === false && <p>Serverbrowseren er endnu ikke installeret og tilsluttet.</p>}
+      <p>{frame?.connected ? frame.verified === true ? 'Forbindelsen er kontrolleret i en ny serverbrowser.' : 'Et Meta-login er gemt. Kontrollér forbindelsen før brug.' : 'Tilslut Meta én gang. Stories udgives derefter fra serveren, også når din computer er slukket.'}</p>
+      {frame?.verified === false && <p role="status">{frame.connected ? 'Det gemte login kunne ikke bekræftes hos Meta.' : 'Der er endnu ingen gemt Meta-forbindelse.'}</p>}
+      <div style={{ display: 'flex', flexWrap: 'wrap', gap: 8 }}>
+        <button type="button" style={button} disabled={busy || frame?.configured === false} onClick={() => { void request({ action: 'begin' }); }}>{frame?.connected ? 'Forny login' : 'Tilslut Meta'}</button>
+        <button type="button" style={button} disabled={busy || frame?.configured === false} onClick={() => { void request({ action: 'verify' }); }}>Kontrollér forbindelse</button>
+      </div>
+      {frame?.configured === false && <p>Serverforbindelsen er ikke konfigureret.</p>}
     </>}
     {frame?.screenshot && <>
-      <p>Klik i billedet for at bruge login-siden. Ved gentagne sikkerhedskontroller: vælg Stop login.</p>
-      {/* The remote provider UI is an image, never HTML from another origin. */}
-      <button type="button" disabled={busy} aria-label="Klik på login-siden. Brug Tab og Indsæt nedenfor til tastaturbetjening."
-        style={{ display: 'block', width: '100%', padding: 0, border: 0, cursor: busy ? 'wait' : 'pointer' }}
-        onClick={event => { if (busy) return; const r = event.currentTarget.getBoundingClientRect();
-          if (event.detail) void act('click', { x: (event.clientX-r.left)/r.width*1650, y: (event.clientY-r.top)/r.height*1045 }); }}>
-        <img src={'data:image/jpeg;base64,'+frame.screenshot} alt="Login hos Meta i serverbrowseren" draggable={false} style={{ display: 'block', width: '100%' }} />
-      </button>
-      <form onSubmit={event => { event.preventDefault(); const value = text; setText(''); void act('text', { text: value }); }} style={{ display: 'flex', flexWrap: 'wrap', gap: 12, marginTop: 12 }}>
-        <input aria-label="Tekst til det valgte loginfelt" placeholder="Skriv til det valgte felt, og tryk Indsæt" type="password" autoComplete="off" value={text} onChange={event => setText(event.target.value)} maxLength={2000} disabled={busy}
-          style={{ minHeight: 44, padding: '8px 12px', background: '#1c1c1e', border: '1px solid #555', borderRadius: 10, flex: '1 1 220px' }} />
-        <button disabled={busy || !text} type="submit">Indsæt</button>
-        {['Tab', 'Backspace', 'Enter'].map(key => <button key={key} type="button" disabled={busy} onClick={() => { void act('key', { key }); }}>{key}</button>)}
-        <button type="button" disabled={busy} onClick={() => { void act('refresh'); }}>Opdatér billede</button>
-        <button type="button" disabled={busy} onClick={() => { void act('instagram'); }}>Åbn Instagram</button>
-        <button type="button" disabled={busy} onClick={() => { void act('finish'); }}>Gem forbindelse</button>
-      </form>
+      <p style={{ color: '#aaa', margin: '6px 0' }}>Klik i et felt og skriv direkte. Du kan også indsætte tekst og rulle i loginvinduet.</p>
+      <RemoteMetaScreen screenshot={frame.screenshot} disabled={!!error} onEvents={input} />
+      <div style={{ display: 'flex', flexWrap: 'wrap', gap: 8, marginTop: 12 }}>
+        <button type="button" style={button} disabled={busy} onClick={() => { void act('refresh'); }}>Opdatér visning</button>
+        <button type="button" style={button} disabled={busy || !!error} onClick={() => { void act('instagram'); }}>Åbn Instagram</button>
+        <button type="button" style={button} disabled={busy || !!error} onClick={() => { void act('finish'); }}>Gem og kontrollér</button>
+      </div>
+      <details style={{ marginTop: 16, color: '#aaa' }}><summary>Hjælp til login</summary>
+        <p>Dette er serverens egen browser. En passkey på din telefon eller computer bliver ikke automatisk tilgængelig her. Brug en loginmetode, Meta tilbyder i vinduet. Ved gentagne sikkerhedskontroller: vælg Stop login.</p>
+        <p>Indtast oplysninger direkte her, aldrig i chatten. Meta kan senere kræve, at du bekræfter login igen.</p>
+      </details>
     </>}
-    {busy && <p role="status">Arbejder…</p>}{error && <p role="alert">{error}</p>}
+    {busy && <p role="status" style={{ color: '#aaa' }}>Opdaterer…</p>}{error && <p role="alert">{error}</p>}
   </main>;
 }
