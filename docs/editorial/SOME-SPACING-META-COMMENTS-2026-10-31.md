@@ -334,3 +334,15 @@ checks. Local visual fixtures confirmed the Story base has no graphic CTA and
 the square base retains it. The separate hosted connection still needs the
 owner's personal login before a real hosted publication can be verified. No new
 Story has been published for this refinement.
+
+Release readback: source `43cce92c712a82cd8f26e9a4ac1b12e30d6a2f0d` is live at
+`ai.aproposmagazine.com`, deployment `dpl_32dKZdyiAMriXvPD6oGnU99HfdYr`.
+Cloud Build `73da3a37-85e4-400b-9868-32f7819524e6` completed successfully;
+Cloud Run revision `story-browser-00004-q67` is Ready at
+`2026-10-31T18:04:49.481770Z`, image digest
+`sha256:416ed48abafaca4e79bad0560cd4fb5cba790821fa7f473a89e6a62b892efe13`.
+Post-release editor/health reads are 200 and unauthenticated publish is 401.
+The owner connection page still offered “Forbind serverbrowser”. Personal login
+and the first real hosted publication remain unverified. The owner found the
+remote login instructions confusing; a fresh Facebook login is open for a
+step-by-step handoff rather than claiming a saved connection.
