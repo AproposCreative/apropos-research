@@ -189,3 +189,36 @@ preserved in `output/liv-idea-collector/state.json`. A manual metadata pass foun
 all five sources and no timestamp newer than the already-read snapshots, so no
 new imports or repeated deep history reads were performed. This verifies the
 collector checkpoint and schedule configuration, not a future scheduled run.
+
+### Live release receipt
+
+Final production: `02b38b4fdb3085af59fc4c710c6a6fdec872a1a2`, READY deployment
+`dpl_Hpqt1wFWPRqfaMHHbQbz6B7eRhiB`, alias `ai.aproposmagazine.com`.
+Release branch: `codex/liv-ideas-auto-2026-10-31`.
+The exact release incorporates the concurrently published newsletter change
+`ea164e16a07780409f42cf1fb540f17935eb7e9c`; all 19 affected newsletter paths were
+retained as identical Git blobs. Integration used a clean merge tree, without
+replacing unrelated working files. The local implementation branch is not the
+combined production base; future releases must reconcile the latest actual live
+SHA, not deploy an older local branch over concurrent changes.
+
+An initial live visual check caught invisible button text: the project's custom
+`black` palette has no DEFAULT, so `text-black` did not produce the intended
+color. Explicit `text-[#000000]` fixed Start and the handoff link. The fixture now
+loads the actual project palette. Final live computed styles are black text on
+white, and the button was visually inspected without selecting a real idea.
+
+Authenticated live UI verified expansion, the original source links/caveats and
+Start. A retained Carrie idea expands but still requires a review/guide rebrief,
+with no extra Start action. The anonymous ideas endpoint returns 401. The native
+desk now returns stable topic keys and the workflow instructs cross-chat saving.
+All original idea/draft identity, revision, content/source and status tuples in
+the before/after readback are unchanged. Six current suggestions remain unchosen.
+
+Error/fatal scan for the final deployment, 13:40:18.497Z–13:50:18.497Z, returned
+no matching entries; this is not a global/historical runtime claim. Evidence:
+`output/liv-ideas-automatic-20261031/verification.json`,
+`fixture-verification.json`, `fixture-start.png`, `live-expanded-idea.png`.
+The scheduled collector is configured and active; its first future timer run is
+not claimed as verified. No live article was selected, generated or published
+to test the website action, and no producer or original observer was changed.
