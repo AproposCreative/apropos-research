@@ -10,7 +10,8 @@ import { claimSocialPublish, readSocialPublish, saveSocialPublish, reconcileSoci
 import { runSocialPublish, type SocialPublisher } from '@/lib/social/publish-runner';
 import { GET, POST } from '@/app/api/instagram/publish/route';
 import { GET as draftGET, PUT as draftPUT } from '@/app/api/design-editor/draft/route';
-import type { SocialEditorDraft } from '@/lib/social/editor-draft';
+import { sameSocialDraft, socialDraftSchema, type SocialEditorDraft } from '@/lib/social/editor-draft';
+import { facebookCommentNotice, sortSocialReceipts } from '@/lib/social/receipt-feedback';
 import type { SocialPublishInput } from '@/lib/social/publish-types';
 import { MetaRequestError } from '@/lib/social/meta-error';
 const source = 'a'.repeat(64);
@@ -213,4 +214,41 @@ it('uses the approved design identity across Safari/Chrome JPEG byte differences
   const next = await claimSocialPublish('owner', { ...input, requestId: '68ef40d6-159b-446f-8792-511e94de6c62', imageSha256: 'b'.repeat(64), imageUrl: input.imageUrl+'&another-device=1', card: { ...input.card, theme: 'light', titleSizePercent: 100, subtitleSizePercent: 100 } }, '123');
   expect(next.created).toBe(false); expect(next.receipt.id).toBe(first.receipt.id);
   expect(next.receipt.imageSha256).toBe(input.imageSha256);
+});
+it('keeps old draft and publish identities at default spacing, while preserving custom spacing', async () => {
+  expect(sameSocialDraft(draft, { ...draft, titleSubtitleGap: 24 })).toBe(true);
+  expect(sameSocialDraft(draft, { ...draft, titleSubtitleGap: 0 })).toBe(false);
+  const saved = await saveSocialDraft('owner', 'article', source, 0, { ...draft, titleSubtitleGap: 8 });
+  expect((await readSocialDraft('owner', 'article', source)).draft?.titleSubtitleGap).toBe(8);
+  expect(saved.record.revision).toBe(1);
+  const original = await claimSocialPublish('owner', input, '123');
+  const normal = await claimSocialPublish('owner', { ...input, requestId: '68ef40d6-159b-446f-8792-511e94de6c62', card: { ...input.card, titleSubtitleGap: 24 } }, '123');
+  expect(normal.created).toBe(false); expect(normal.receipt.id).toBe(original.receipt.id);
+  const custom = await claimSocialPublish('owner', { ...input, requestId: '68ef40d6-159b-446f-8792-511e94de6c63', card: { ...input.card, titleSubtitleGap: 8 } }, '123');
+  expect(custom.created).toBe(true); expect(custom.receipt.approved.card.titleSubtitleGap).toBe(8);
+  expect((await claimSocialPublish('owner', { ...input, requestId: '68ef40d6-159b-446f-8792-511e94de6c64', card: { ...input.card, titleSubtitleGap: 8 } }, '123')).created).toBe(false);
+});
+it.each([-1, 121, 1.5])('rejects invalid spacing %s before touching Meta', async gap => {
+  const fetch = vi.fn(); vi.stubGlobal('fetch', fetch);
+  expect(socialDraftSchema.safeParse({ ...draft, titleSubtitleGap: gap }).success).toBe(false);
+  expect((await POST(req('/api/instagram/publish', { ...input, card: { ...input.card, titleSubtitleGap: gap } }))).status).toBe(400);
+  expect(fetch).not.toHaveBeenCalled();
+});
+it('preserves both published posts after a denied comment and explains old receipts without replay', async () => {
+  const both = { ...input, channels: { instagram: true as const, facebook: true } };
+  const { receipt } = await claimSocialPublish('owner', both, '123'), publisher = transport();
+  vi.mocked(publisher.comment).mockRejectedValue(new MetaRequestError(true, 200));
+  await runSocialPublish(receipt, both, publisher, saveSocialPublish);
+  expect(receipt.instagram.status).toBe('published'); expect(receipt.facebook.status).toBe('published');
+  expect(receipt.comment).toMatchObject({ status: 'failed', errorCode: 200 });
+  expect(facebookCommentNotice(receipt)).toMatchObject({ settings: true });
+  const old = { ...receipt, comment: { status: 'failed' as const, error: 'Meta afviste handlingen (kode 200).' } };
+  expect(facebookCommentNotice(old)).toEqual(facebookCommentNotice(receipt));
+  expect((await claimSocialPublish('owner', both, '123')).created).toBe(false);
+  expect(publisher.facebook).toHaveBeenCalledOnce(); expect(publisher.comment).toHaveBeenCalledOnce();
+  const newer = { ...receipt, id: 'story', createdAt: '2026-10-31T13:52:29.162Z', channels: { instagram: true as const, facebook: false } };
+  receipt.createdAt = '2026-10-31T13:51:10.183Z';
+  expect(sortSocialReceipts([receipt, newer]).map(r => r.id)).toEqual(['story', receipt.id]);
+  expect(facebookCommentNotice(newer)).toBeNull();
+  expect(facebookCommentNotice({ ...receipt, comment: { status: 'uncertain' } })?.settings).toBe(false);
 });

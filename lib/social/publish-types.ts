@@ -1,8 +1,10 @@
 import { z } from 'zod';
+import { MAX_TITLE_SUBTITLE_GAP } from './card-layout';
 export const socialCardSchema = z.object({
   title: z.string().max(4000), excerpt: z.string().max(12000).optional(),
   theme: z.enum(['light', 'dark']).optional(), imageUrl: z.string().max(3000).nullable().optional(),
   titleSizePercent: z.number().int().min(70).max(150).optional(), subtitleSizePercent: z.number().int().min(70).max(150).optional(),
+  titleSubtitleGap: z.number().int().min(0).max(MAX_TITLE_SUBTITLE_GAP).optional(),
   category: z.string().max(200).optional(), categorySecondary: z.string().max(200).optional(),
   eyebrowLabels: z.array(z.string().max(200)).max(8).optional(), storyBottomMetaLabels: z.array(z.string().max(200)).max(8).optional(),
   rating: z.number().int().min(0).max(6).optional(), caption: z.string().max(12000).optional(),
@@ -16,7 +18,7 @@ export const socialPublishSchema = z.object({
 }).strict().refine(x => !x.isStory || !x.channels.facebook, 'Stories understøtter kun Instagram.');
 export type SocialPublishInput = z.infer<typeof socialPublishSchema>;
 export type PublishStage = 'pending' | 'sending' | 'published' | 'failed' | 'uncertain' | 'skipped';
-export type ChannelReceipt = { status: PublishStage; id?: string; url?: string; error?: string; publishedAt?: string };
+export type ChannelReceipt = { status: PublishStage; id?: string; url?: string; error?: string; errorCode?: number; publishedAt?: string };
 export type SocialPublishReceipt = {
   id: string; ownerUid: string; articleId: string; requestId: string;
   createdAt: string; updatedAt: string; complete: boolean; phase: string;

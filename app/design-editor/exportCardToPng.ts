@@ -1,4 +1,5 @@
 import { sizeCardText, textSizePercent } from './cardTextSize';
+import { DEFAULT_TITLE_SUBTITLE_GAP, titleSubtitleGap } from '@/lib/social/card-layout';
 import type { SocialCardData, SocialCardSize } from './SocialCardCanvas';
 import { DIMENSIONS } from './SocialCardCanvas';
 
@@ -16,7 +17,6 @@ const STORY_META_TO_CTA_GAP = 40;
 // download and publishing all share this renderer (1080px export coordinates).
 const SUBTITLE_BOTTOM_SPACE = 18;
 // Visible ink-to-ink gap, independent of manual title/subtitle enlargement.
-const TITLE_TO_SUBTITLE_GAP = 24;
 
 const SQUARE_LOGO_TOP = 60;
 const SQUARE_LOGO_W = 150;
@@ -331,7 +331,7 @@ async function renderCardToContext(
     ctx.textAlign = 'center';
     const excerptLines = excerptFit.lines;
     const ascent = ctx.measureText(excerptLines[0] || '').actualBoundingBoxAscent;
-    y = titleInkBottom + TITLE_TO_SUBTITLE_GAP + (Number.isFinite(ascent) ? ascent : excerptSize * 0.75);
+    y = titleInkBottom + titleSubtitleGap(data.titleSubtitleGap) + (Number.isFinite(ascent) ? ascent : excerptSize * 0.75);
     const bylineLineHeight = excerptSize * (isStory ? STORY_BYLINE_LINE_HEIGHT : BYLINE_LINE_HEIGHT);
     for (const line of excerptLines) {
       ctx.fillText(line, width / 2, y);
@@ -392,7 +392,8 @@ async function renderCardToContext(
   // Manual text sizes may add lines. Keep room for the image and CTA.
   const imageTop = Math.round(y);
   const imageH = height - imageTop;
-  if ((textSizePercent(data.titleSizePercent) !== 100 || textSizePercent(data.subtitleSizePercent) !== 100) && imageH < height * 0.2) {
+  if ((textSizePercent(data.titleSizePercent) !== 100 || textSizePercent(data.subtitleSizePercent) !== 100 ||
+    titleSubtitleGap(data.titleSubtitleGap) !== DEFAULT_TITLE_SUBTITLE_GAP) && imageH < height * 0.2) {
     throw new Error('Teksten fylder for meget. Vælg Mindre eller forkort teksten.');
   }
 

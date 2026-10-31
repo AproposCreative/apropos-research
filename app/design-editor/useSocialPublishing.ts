@@ -4,6 +4,7 @@ import { useAuth } from '@/lib/auth-context';
 import { auth, storage } from '@/lib/firebase';
 import { ref, uploadBytes, getDownloadURL } from 'firebase/storage';
 import type { SocialPublishInput, SocialPublishReceipt } from '@/lib/social/publish-types';
+import { sortSocialReceipts } from '@/lib/social/receipt-feedback';
 export type SocialPostSpec = Omit<SocialPublishInput, 'requestId' | 'imageUrl' | 'imageSha256'>;
 export function useSocialPublishing(articleId: string) {
   const { user } = useAuth();
@@ -28,12 +29,12 @@ export function useSocialPublishing(articleId: string) {
     void request('/api/instagram/publish?'+new URLSearchParams({ articleId })).then(async response => {
       if (!response.ok) throw Error('Historikken kunne ikke hentes.');
       const data = await response.json();
-      if (!cancelled) setReceipts(data.receipts ?? []);
+      if (!cancelled) setReceipts(sortSocialReceipts(data.receipts ?? []));
     }).catch(() => { if (!cancelled) setError('Udgivelseshistorikken kunne ikke hentes.'); });
     return () => { cancelled = true; };
   }, [scope]);
   const remember = (receipt: SocialPublishReceipt, ownerScope: string) => {
-    if (ownerScope === currentScope.current) setReceipts(rows => [receipt, ...rows.filter(row => row.id !== receipt.id)]);
+    if (ownerScope === currentScope.current) setReceipts(rows => sortSocialReceipts([receipt, ...rows.filter(row => row.id !== receipt.id)]));
   };
   async function check(requestId: string) {
     const ownerScope = scope; setError(null);

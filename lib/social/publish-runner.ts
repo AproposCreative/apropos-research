@@ -42,6 +42,7 @@ export async function runSocialPublish(receipt: SocialPublishReceipt, input: Soc
     const prior = receipt[active];
     const definite = cause instanceof MetaRequestError && cause.definite;
     receipt[active] = { ...prior, status: dispatching ? definite ? 'failed' : 'uncertain' : prior.status === 'published' ? 'published' : 'failed',
+      ...(cause instanceof MetaRequestError && cause.code !== undefined ? { errorCode: cause.code } : {}),
       error: cause instanceof MetaRequestError ? cause.message : dispatching ? 'Kvitteringen mangler. Der sendes ikke igen. Kontrollér status.' : 'Handlingen blev stoppet før afsendelse. Kontrollér status.' };
     receipt.complete = true; receipt.phase = 'stopped';
     for (const channel of ['facebook', 'comment'] as const) {

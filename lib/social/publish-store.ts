@@ -1,6 +1,7 @@
 import { createHash } from 'node:crypto';
 import { getAdminDb } from '@/lib/firebase-admin';
 import type { SocialPublishInput, SocialPublishReceipt } from './publish-types';
+import { DEFAULT_TITLE_SUBTITLE_GAP, titleSubtitleGap } from './card-layout';
 const hash = (value: unknown) => createHash('sha256').update(JSON.stringify(value)).digest('hex');
 function database() { const db = getAdminDb(); if (!db) throw Error('social_publish_storage_unavailable'); return db; }
 const requestKey = (uid: string, requestId: string) => hash([uid, requestId]);
@@ -10,9 +11,13 @@ export function socialPublishIdentity(input: SocialPublishInput, account: string
   const c = input.card;
   // Safari and Chrome may encode different JPEG bytes for the same approved
   // design. Use semantic card identity for the lock; verify the bytes separately.
-  const card = [c.title, c.excerpt ?? '', c.theme ?? 'light', c.imageUrl ?? null,
+  const card: unknown[] = [c.title, c.excerpt ?? '', c.theme ?? 'light', c.imageUrl ?? null,
     c.titleSizePercent ?? 100, c.subtitleSizePercent ?? 100, c.category ?? '', c.categorySecondary ?? '',
     c.eyebrowLabels ?? [], c.storyBottomMetaLabels ?? [], c.rating ?? null, c.caption ?? ''];
+  // Keep the historical/default identity: adding this control must not unlock
+  // another post of an already-published design. Nondefault spacing is a new design.
+  const gap = titleSubtitleGap(c.titleSubtitleGap);
+  if (gap !== DEFAULT_TITLE_SUBTITLE_GAP) card.push(['titleSubtitleGap', gap]);
   return hash(['social-publish-v1', account, input.articleId, card, input.isStory,
     input.isStory ? '' : input.caption, input.articleUrl]);
 }
