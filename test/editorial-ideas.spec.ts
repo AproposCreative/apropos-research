@@ -15,7 +15,7 @@ const save = () => saveEditorialIdeas('owner', { requestId: 'editorial-brief-202
 
 it('persists ideas separately from articles without CMS, AI, approval or delivery writes', async () => {
   const saved = await save(), desk = await getEditorialDesk('owner', {});
-  expect(desk.ideas[0]).toMatchObject({ id: saved.ids[0], status: 'suggested', factsVerified: false, publicationApproval: false, submission: null });
+  expect(desk.ideas[0]).toMatchObject({ id: saved.ids[0], topicKey: idea.topicKey, status: 'suggested', factsVerified: false, publicationApproval: false, submission: null });
   expect(desk.drafts).toEqual([]); expect(desk.paidAiCalls).toBe(0);
   expect([...memory.rows.keys()].every(k => k.startsWith('writerWorkspaces/owner/editorialIdea'))).toBe(true);
 });

@@ -59,7 +59,7 @@ function project(row: Idea, article: Record<string, any> | undefined) {
   const id = ideaSubmissionId(row.uid, row.id);
   const remit = assessLivTopic({ title: row.title, angle: row.angle, kind: row.suggestedKind });
   // Explicit projection. Never return uid, tokens or fabricated readiness.
-  return { id: row.id, title: row.title, angle: row.angle, whyNow: row.whyNow, caveats: row.caveats,
+  return { id: row.id, topicKey: row.topicKey, title: row.title, angle: row.angle, whyNow: row.whyNow, caveats: row.caveats,
     sources: row.sources, editorialRemit: remit, productionInstruction: LIV_EDITORIAL_REMIT.instruction, revision: row.revision, status: article ? 'draft_saved' : row.status,
     createdAt: row.createdAt, selectedAt: row.selectedAt ?? null, sourceRequestId: row.sourceRequestId,
     factsVerified: false, publicationApproval: false, paidAiCalls: 0, untrustedContent: true,

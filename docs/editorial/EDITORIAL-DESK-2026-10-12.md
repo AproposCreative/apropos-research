@@ -108,3 +108,84 @@ opens saved drafts; only the owner's separate personal approval can publish.
 
 The design skill kept this in the existing monochrome preview style with readable
 source caveats and a single explicit start action, rather than a new dashboard.
+
+## Continuous collection and website start action, 31 October 2026
+
+The owner requested automatic collection of future suggestions from other chats
+and completed searches into the existing Liv overview, and expandable ideas with
+a start action. This is collection of existing recommendations, not permission
+to run the paused Liv producer or automatically select/write/publish an article.
+
+All editorial chats use the canonical private `save_editorial_ideas` store. MCP
+instructions require saving recommendations before claiming they are saved.
+Desk responses expose the original `topicKey` so another chat can reuse it.
+A separate scheduled collector in this local conversation checks for changed
+editorial result chats every 30 minutes. Local scheduling requires the Mac and
+ChatGPT desktop app to be running; this is not a server-hosted ChatGPT-history
+subscription or an instant webhook. The independent read-only Liv observer and
+paused producer remain unchanged.
+
+Collector contract:
+
+- Work in this checkout. State is private, local JSON at
+  `output/liv-idea-collector/state.json`; preserve existing watermarks/receipts.
+- List existing threads; inspect only Apropos editorial/idea/review chats and
+  completed editorial searches. Exclude this implementation conversation, SEO
+  repair results, mail, technical operations and unrelated personal projects.
+  Seed sources are `6aa85b2f-7ff8-83eb-bf06-c0f977db85ee`,
+  `6acdcb78-6a40-83ed-a824-7ec067b96f5f`,
+  `6acb2584-2f20-83eb-a335-031a584b8d3b`,
+  `6acc9d84-cf74-83ed-a0a4-11f13e9e36fc` and
+  `6a836b7d-4064-83eb-bc14-849085ca36fb`.
+- Use listing timestamps only to find changed chats. Read actual messages with
+  cursors before importing; titles/summaries are not reading evidence. An active
+  search has no completed recommendation yet. Do not mark unread pages as done.
+- Read the canonical desk before saving. Match the actual work/season and angle,
+  reuse existing topic keys/IDs, and check CMS coverage for proposed new work.
+  Do not create a fresh duplicate because an old idea is retained or selected.
+- Import explicit review/culture-guide recommendations only, never every search
+  hit, status-mail topic, news item, job, announcement or already published work.
+  Retain source chat URL, source date and concrete source links with reading
+  notes. Old ratings, quotes and source claims are unverified until actually
+  checked. Unknown reading coverage remains unknown. No first-hand invention.
+- Use `save_editorial_ideas`, at most five per batch, with stable request/topic
+  keys. Preserve existing ideas, selected work, article revisions, media and
+  approvals. Store message/hash and idea-level progress after confirmed readback;
+  a partial batch must remain queued. After timeout read back before retrying the
+  same request; never use a new request ID to evade a conflict or rate limit.
+- No messages to other chats/people, producer/scheduler changes, paid backend AI,
+  article selection, preparation, CMS writes, publication or budget mutations.
+  Do not call `start_editorial_idea`; the owner starts one chosen idea in the UI.
+
+The website refreshes just the private idea projection once per minute while
+visible and on return/focus. It preserves expanded cards, selections and stored
+work. Connection failure retains old data and displays an honest short message.
+Opening a card lazily reads its full angle, practical reason, sources and caveats
+from authenticated `/api/editorial/ideas?id=...`. A personal Start click calls
+the same revision-bound `startEditorialIdea` function as MCP. No blank article or
+publication approval is created. Lost responses are read back, not blindly posted
+again. Existing submissions link to their original preview.
+
+The website cannot inject a message into an existing ChatGPT conversation. After
+selection it supplies a fixed ID-only start message, a copy action (manual text
+fallback when clipboard access fails), and the existing starred editorial chat.
+The owner pastes that message there to start ChatGPT work. A copied message or
+opened chat is not reported as actual research, generation or publication.
+
+Validation before release: 130 focused tests, application TypeScript and safe
+build configuration. The actual UI in an isolated host verified expansion,
+sources, visible automatic refresh with an open card, double-click protection,
+lost-response readback and continuation with the same idea and one saved
+selection. Fixture polling was accelerated to two seconds; production is 60.
+No real production idea was selected as a button test. Release, live readback
+and schedule receipts are recorded after they complete.
+
+
+Collector schedule receipt: `saml-apropos-id-er`, ACTIVE heartbeat attached to
+this existing local conversation, every hour at :00 and :30. Notifications are
+limited to failed runs. Native view rendered the task; its saved configuration
+confirms the same thread and cadence. Five seed source-message watermarks were
+preserved in `output/liv-idea-collector/state.json`. A manual metadata pass found
+all five sources and no timestamp newer than the already-read snapshots, so no
+new imports or repeated deep history reads were performed. This verifies the
+collector checkpoint and schedule configuration, not a future scheduled run.

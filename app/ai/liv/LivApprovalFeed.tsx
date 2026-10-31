@@ -13,6 +13,7 @@ import LivCoverEditor from './LivCoverEditor';
 import type { LivWorkItem } from '@/lib/liv/work-overview';
 import type { LivIdeaItem } from '@/lib/liv/idea-overview';
 import type { WeeklyStory } from '@/lib/liv/weekly-plan';
+import type { getEditorialIdea } from '@/lib/editorial/ideas';
 
 const decisions = { pending: 'Afventer dit valg', approved: 'Godkendt', rejected: 'Afvist' };
 const fieldNames: Record<string, string> = { title: 'titel', intro: 'intro', subtitle: 'underrubrik', author: 'forfatter',
@@ -114,14 +115,98 @@ function LivSavedWorkCard({ item }: { item: LivWorkItem }) {
   </article>;
 }
 
-function LivIdeaRow({ item }: { item: LivIdeaItem }) {
+type IdeaDetails = Awaited<ReturnType<typeof getEditorialIdea>>;
+export function LivIdeaRow({ item, onStarted }: { item: LivIdeaItem; onStarted?: () => void }) {
+  const { user } = useAuth();
+  const [expanded, setExpanded] = useState(false);
+  const [details, setDetails] = useState<IdeaDetails | null>(null);
+  const [loading, setLoading] = useState(false);
+  const [starting, setStarting] = useState(false);
+  const [error, setError] = useState('');
+  const [handoff, setHandoff] = useState<{ chatUrl: string; prompt: string } | null>(null);
+  const [copied, setCopied] = useState(false);
+  const [copyFallback, setCopyFallback] = useState(false);
+  const serial = useRef(0), selecting = useRef(false);
+  useEffect(() => { setDetails(null); setHandoff(null); setError(''); return () => { serial.current++; }; }, [user?.uid, item.id]);
+  async function request(body?: object) {
+    if (!user) throw Error('Log ind for at åbne idéen.');
+    const token = await user.getIdToken();
+    const response = await fetch(`/api/editorial/ideas${body ? '' : `?id=${item.id}`}`, {
+      method: body ? 'POST' : 'GET', cache: 'no-store',
+      signal: AbortSignal.timeout(20000),
+      headers: { Authorization: `Bearer ${token}`, 'Content-Type': 'application/json' },
+      ...(body ? { body: JSON.stringify(body) } : {}),
+    });
+    const data = await readJsonResponse(response);
+    if (!response.ok) throw Error(data.error || 'Idéen kunne ikke hentes.');
+    return data;
+  }
+  async function open() {
+    setExpanded(!expanded);
+    if (expanded || details || loading) return;
+    const current = ++serial.current; setLoading(true); setError('');
+    try { const data = await request(); if (current === serial.current) setDetails(data); }
+    catch (e) { if (current === serial.current) setError(e instanceof Error ? e.message : 'Prøv igen.'); }
+    finally { if (current === serial.current) setLoading(false); }
+  }
+  async function copy(prompt: string) {
+    try { await navigator.clipboard.writeText(prompt); setCopied(true); setCopyFallback(false); }
+    catch { setCopied(false); setCopyFallback(true); }
+  }
+  async function start() {
+    if (!details || selecting.current) return;
+    selecting.current = true; setStarting(true); setError('');
+    const current = serial.current;
+    try {
+      const result = await request({ ideaId: item.id, expectedRevision: details.revision });
+      if (current !== serial.current) return;
+      setDetails(result.idea); setHandoff(result.handoff);
+      await copy(result.handoff.prompt); onStarted?.();
+    } catch (e) {
+      if (current !== serial.current) return;
+      // A failed response is never an instruction to repeat the selection.
+      try { setDetails(await request()); } catch { setDetails(null); }
+      setError(e instanceof Error ? e.message : 'Åbn idéen igen, før du prøver på ny.');
+    } finally { selecting.current = false; if (current === serial.current) setStarting(false); }
+  }
+  const selected = details?.status === 'selected' || item.status === 'selected';
+  const panelId = `liv-idea-${item.id}`;
   return <li className="border-b border-white/10 py-4 first:pt-0 last:border-b-0">
+    <button type="button" onClick={() => void open()} aria-expanded={expanded} aria-controls={panelId}
+      className="block min-h-11 w-full text-left focus-visible:outline focus-visible:outline-2 focus-visible:outline-offset-4 focus-visible:outline-white">
     <div className="flex flex-wrap items-center justify-between gap-2 text-xs text-white/50">
-      <span>{item.status === 'selected' ? 'Valgt til research · ingen artikeltekst' : 'Idé · ikke valgt'}</span>
+      <span>{selected ? 'Valgt til research' : 'Idé · ikke valgt'}</span>
       <time dateTime={item.createdAt}>{new Intl.DateTimeFormat('da-DK', { day: 'numeric', month: 'short', timeZone: 'Europe/Copenhagen' }).format(new Date(item.createdAt))}</time>
     </div>
-    <h3 className="mt-2 break-words text-base font-medium">{item.title}</h3>
-    <p className="mt-1 line-clamp-2 break-words text-sm leading-relaxed text-white/60">{item.angle}</p>
+    <div className="mt-2 flex items-baseline justify-between gap-3"><h3 className="break-words text-base font-medium">{item.title}</h3><span aria-hidden="true" className="text-white/50">{expanded ? '⌃' : '⌄'}</span></div>
+    {!expanded && <p className="mt-1 line-clamp-2 break-words text-sm leading-relaxed text-white/60">{item.angle}</p>}
+    </button>
+    <div id={panelId} hidden={!expanded} className="space-y-3 pt-3 text-sm leading-relaxed text-white/70">
+      <p>{details?.angle || item.angle}</p>
+      {loading && <p role="status">Henter idéen…</p>}
+      {details && <>
+        <p>{details.whyNow}</p>
+        <details className="text-white/55"><summary className="min-h-11 cursor-pointer py-2">Kilder og forbehold</summary>
+          <p className="pb-2">{details.caveats}</p>
+          <ul className="space-y-2">{details.sources.filter(source => source.url.startsWith('https://')).map(source => <li key={source.url}>
+            <a className="break-words text-sky-400 underline underline-offset-4" href={source.url} target="_blank" rel="noopener noreferrer">{source.title || source.url}</a>
+          </li>)}</ul>
+        </details>
+        {details.submission ? <a className="inline-block min-h-11 py-2 text-sky-400" href={`/connect/chatgpt?submission=${details.submission.id}`}>Åbn gemt artikel →</a> :
+          details.editorialRemit?.eligible === false ? <p>Kræver en ny vinkel som anmeldelse eller kulturguide, før idéen kan startes.</p> :
+          !handoff && <button type="button" disabled={starting} onClick={() => void start()}
+            className="min-h-11 rounded-xl bg-white px-4 py-2 font-medium text-black disabled:opacity-40">{starting ? 'Gemmer valg…' : selected ? 'Fortsæt idé' : 'Start idé'}</button>}
+      </>}
+      {handoff && <div className="space-y-2">
+        <p role="status">{copied ? 'Startbeskeden er kopieret. Indsæt den i redaktionen.' : 'Idéen er valgt. Kopiér startbeskeden og fortsæt i redaktionen.'}</p>
+        <div className="flex flex-wrap items-center gap-4">
+          <a href={handoff.chatUrl} target="_blank" rel="noopener noreferrer" className="min-h-11 rounded-xl bg-white px-4 py-2 font-medium text-black">Åbn redaktionen ↗</a>
+          <button type="button" className="min-h-11 py-2 text-sky-400" onClick={() => void copy(handoff.prompt)}>Kopiér startbesked</button>
+        </div>
+        {copyFallback && <textarea aria-label="Startbesked til redaktionen" readOnly value={handoff.prompt} onFocus={e => e.currentTarget.select()} rows={4} className="w-full rounded-xl border border-white/20 bg-black p-3 text-white" />}
+      </div>}
+      {error && <p role="alert" className="text-amber-200">{error}</p>}
+    </div>
   </li>;
 }
 
@@ -137,6 +222,7 @@ export default function LivApprovalFeed() {
   const [saving, setSaving] = useState<string | null>(null);
   const [error, setError] = useState('');
   const [notice, setNotice] = useState('');
+  const [ideasSyncError, setIdeasSyncError] = useState(false);
   const version = useRef(0);
   const busy = useRef(false);
   const request = useCallback(async (body?: object) => {
@@ -158,10 +244,31 @@ export default function LivApprovalFeed() {
       if (current !== version.current) return;
       setFeed(data);
       setError('');
+      setIdeasSyncError(false);
     } catch (e) { if (current === version.current) setError(e instanceof Error ? e.message : 'Prøv igen.'); }
     finally { if (current === version.current) setLoading(false); }
   }, [request]);
   useEffect(() => { setFeed(null); void refresh(); return () => { version.current++; }; }, [refresh]);
+  useEffect(() => {
+    if (!user || !capabilities.owner) return;
+    let cancelled = false, running = false;
+    async function pollIdeas() {
+      if (document.visibilityState !== 'visible' || running || busy.current) return;
+      running = true;
+      try {
+        const token = await user!.getIdToken();
+        const response = await fetch('/api/editorial/ideas', { cache: 'no-store', signal: AbortSignal.timeout(20000), headers: { Authorization: `Bearer ${token}` } });
+        const ideas = await readJsonResponse(response);
+        if (!response.ok || !Array.isArray(ideas.items)) throw Error('unavailable');
+        if (!cancelled) { setFeed(old => old && ({ ...old, ideas })); setIdeasSyncError(false); }
+      } catch { if (!cancelled) setIdeasSyncError(true); }
+      finally { running = false; }
+    }
+    const interval = window.setInterval(() => void pollIdeas(), 60000);
+    const visible = () => { if (document.visibilityState === 'visible') void pollIdeas(); };
+    window.addEventListener('focus', visible); document.addEventListener('visibilitychange', visible);
+    return () => { cancelled = true; window.clearInterval(interval); window.removeEventListener('focus', visible); document.removeEventListener('visibilitychange', visible); };
+  }, [user, capabilities.owner]);
   async function decide(story: ApprovalStory, decision: 'approved' | 'rejected', feedback?: string) {
     if (busy.current) return;
     const current = version.current;
@@ -209,23 +316,24 @@ export default function LivApprovalFeed() {
           {feed?.ideas && <span className="text-xs text-white/50">{feed.ideas.items.length} gemte idéer</span>}</div>
         <ToolHelp title="Om idéerne">Forslag fra gemte idébriefs. De er ikke researchet færdigt, skrevet eller godkendt til udgivelse. Daglige statusmails med et emne opretter ikke en artikel.</ToolHelp>
         {feed?.ideas?.latestCreatedAt && <p className="text-xs text-white/50">Seneste gemte brief: {new Intl.DateTimeFormat('da-DK', { day: 'numeric', month: 'long', timeZone: 'Europe/Copenhagen' }).format(new Date(feed.ideas.latestCreatedAt))}</p>}
+        {ideasSyncError && <p role="alert" className="text-xs text-amber-200">Automatisk opdatering afventer forbindelse. De senest hentede forslag vises.</p>}
         {feed?.ideas === null && <p role="alert" className="text-sm text-amber-200">Idéarkivet kunne ikke hentes. Overblikket er ufuldstændigt.</p>}
         {feed?.ideas && !feed.ideas.complete && <p role="alert" className="text-sm text-amber-200">Der findes flere gemte idéer end de 30 viste. Åbn redaktionens idéarkiv for resten.</p>}
         {feed?.ideas && (feed.ideas.items.length ? <ul className="rounded-2xl border border-white/15 px-3 py-2">
-          {feed.ideas.items.map(item => <LivIdeaRow key={item.id} item={item} />)}
+          {feed.ideas.items.map(item => <LivIdeaRow key={item.id} item={item} onStarted={() => void refresh()} />)}
         </ul> : <p className="text-sm text-white/50">Ingen nye forslag fra den seneste uge.</p>)}
       </section>}
       {capabilities.owner && historyCount > 0 && <details className="rounded-2xl border border-white/15 p-3">
         <summary className="cursor-pointer text-sm text-white/75">Tidligere kladder og idébriefs ({historyCount})</summary>
         <div className="pt-4">{feed?.work?.history?.map(item => <LivSavedWorkCard key={`${item.source}:${item.id}`} item={item} />)}</div>
-        <ul className="pt-4">{feed?.ideas?.history?.map(item => <LivIdeaRow key={item.id} item={item} />)}</ul>
+        <ul className="pt-4">{feed?.ideas?.history?.map(item => <LivIdeaRow key={item.id} item={item} onStarted={() => void refresh()} />)}</ul>
       </details>}
       {capabilities.owner && (!!feed?.work?.retained?.length || !!feed?.ideas?.retained?.length) &&
         <details className="rounded-2xl border border-white/15 p-3">
           <summary className="cursor-pointer text-sm text-white/75">Tidligere forslag · kræver ny vinkel ({(feed?.work?.retained?.length || 0) + (feed?.ideas?.retained?.length || 0)})</summary>
           <p className="py-3 text-sm leading-relaxed text-white/55">Bevaret med tekst, billeder og kilder. Disse features, kommentarer og nyhedsforslag indgår ikke i den aktive kø. De skal omarbejdes til en anmeldelse eller konkret kulturguide før udgivelse.</p>
           {feed?.work?.retained?.map(item => <LivSavedWorkCard key={item.id} item={item} />)}
-          <ul>{feed?.ideas?.retained?.map(item => <li key={item.id} className="py-2 text-sm text-white/65">{item.title}</li>)}</ul>
+          <ul>{feed?.ideas?.retained?.map(item => <LivIdeaRow key={item.id} item={item} />)}</ul>
         </details>}
       {capabilities.owner && <section aria-labelledby="liv-plan-heading" className="space-y-3 border-t border-white/15 pt-6">
         <h2 id="liv-plan-heading" className="text-lg font-medium">Udgivelsesplan</h2>
