@@ -195,15 +195,15 @@ export function LivIdeaRow({ item, onStarted }: { item: LivIdeaItem; onStarted?:
         {details.submission ? <a className="inline-block min-h-11 py-2 text-sky-400" href={`/connect/chatgpt?submission=${details.submission.id}`}>Åbn gemt artikel →</a> :
           details.editorialRemit?.eligible === false ? <p>Kræver en ny vinkel som anmeldelse eller kulturguide, før idéen kan startes.</p> :
           !handoff && <button type="button" disabled={starting} onClick={() => void start()}
-            className="min-h-11 rounded-xl bg-white px-4 py-2 font-medium text-black disabled:opacity-40">{starting ? 'Gemmer valg…' : selected ? 'Fortsæt idé' : 'Start idé'}</button>}
+            className="min-h-11 rounded-xl bg-white px-4 py-2 font-medium text-[#000000] disabled:opacity-40">{starting ? 'Gemmer valg…' : selected ? 'Fortsæt idé' : 'Start idé'}</button>}
       </>}
       {handoff && <div className="space-y-2">
         <p role="status">{copied ? 'Startbeskeden er kopieret. Indsæt den i redaktionen.' : 'Idéen er valgt. Kopiér startbeskeden og fortsæt i redaktionen.'}</p>
         <div className="flex flex-wrap items-center gap-4">
-          <a href={handoff.chatUrl} target="_blank" rel="noopener noreferrer" className="min-h-11 rounded-xl bg-white px-4 py-2 font-medium text-black">Åbn redaktionen ↗</a>
+          <a href={handoff.chatUrl} target="_blank" rel="noopener noreferrer" className="min-h-11 rounded-xl bg-white px-4 py-2 font-medium text-[#000000]">Åbn redaktionen ↗</a>
           <button type="button" className="min-h-11 py-2 text-sky-400" onClick={() => void copy(handoff.prompt)}>Kopiér startbesked</button>
         </div>
-        {copyFallback && <textarea aria-label="Startbesked til redaktionen" readOnly value={handoff.prompt} onFocus={e => e.currentTarget.select()} rows={4} className="w-full rounded-xl border border-white/20 bg-black p-3 text-white" />}
+        {copyFallback && <textarea aria-label="Startbesked til redaktionen" readOnly value={handoff.prompt} onFocus={e => e.currentTarget.select()} rows={4} className="w-full rounded-xl border border-white/20 bg-[#000000] p-3 text-white" />}
       </div>}
       {error && <p role="alert" className="text-amber-200">{error}</p>}
     </div>
