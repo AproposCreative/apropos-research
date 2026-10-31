@@ -465,3 +465,28 @@ visibly. Bounded evidence and screenshots are retained in
 `output/story-direct-login-20261031/`. Acceptance is still open pending personal
 login, verification after process restart and a separately selected real test
 Story. No Story was published in this release.
+
+### Owner password-manager popup correction, 31 October 2026
+
+The owner supplied a screenshot of the local browser repeatedly suggesting the
+Apropos account's saved password over the remote Meta login. The direct-input
+implementation used a hidden local `input[type=password]`, so clicking the remote
+image focused a local password control and could trigger the browser's credential
+suggestions. The previous instructions to paste directly into the image did not
+address that interaction.
+
+Remove that hidden password input entirely. The remote image receives ordinary
+keyboard/paste events while focused, without a local password form. Restore an
+explicit, visible generic textarea and “Indsæt” button above the image. Text is
+visually masked, held only in the transient element, and transferred only by the
+owner's button/Enter action. Automatic local field changes are not sent. Explicit
+transfer clears the local field first and replaces the currently selected remote
+field via select-all and insert, rather than appending to an already wrong value.
+Normal Tab navigation reaches the visible controls. Existing owner access,
+provider-domain limits, Stop behavior, encryption, jobs and receipts are unchanged.
+No browser password-store or autofill setting is modified, and no credential is
+read, changed, logged or submitted by the agent for this UI correction.
+
+This is a website-only change. It does not restart the Story worker or establish
+successful Meta authentication, a process-restart acceptance or a hosted Story
+publication. The idea collector remains paused at the owner's request.

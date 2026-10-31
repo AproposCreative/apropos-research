@@ -71,7 +71,7 @@ export default function StoryConnectionPage() {
       {frame?.configured === false && <p>Serverforbindelsen er ikke konfigureret.</p>}
     </>}
     {frame?.screenshot && <>
-      <p style={{ color: '#aaa', margin: '6px 0' }}>Klik i et felt og skriv direkte. Du kan også indsætte tekst og rulle i loginvinduet.</p>
+      <p style={{ color: '#aaa', margin: '6px 0' }}>Vælg et Meta-felt. Indsæt teksten herunder, og tryk Indsæt.</p>
       <RemoteMetaScreen screenshot={frame.screenshot} disabled={!!error} onEvents={input} />
       <div style={{ display: 'flex', flexWrap: 'wrap', gap: 8, marginTop: 12 }}>
         <button type="button" style={button} disabled={busy} onClick={() => { void act('refresh'); }}>Opdatér visning</button>
