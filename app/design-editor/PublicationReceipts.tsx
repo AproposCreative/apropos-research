@@ -21,7 +21,7 @@ function Receipt({ receipt, check }: { receipt: SocialPublishReceipt; check: (re
         {receipt[channel].url && <a href={receipt[channel].url} target="_blank" rel="noopener noreferrer">Se opslag</a>}</span>
     </div>)}
     {(['instagram', 'facebook', 'comment'] as const).map(channel => receipt[channel].error && !(channel === 'comment' && commentNotice) ? <p key={channel}>{receipt[channel].error}</p> : null)}
-    {commentNotice && <p>{commentNotice.text}{commentNotice.settings && <> <a href="/settings?tab=social">Ret Facebook-adgang</a></>}</p>}
+    {commentNotice && <p>{commentNotice.text}</p>}
     {receipt.phase === 'stopped' && !commentNotice && <p>Forløbet er stoppet. Der sendes ikke automatisk igen.</p>}
     <button type="button" className={styles.textButton} disabled={checking} onClick={async () => {
       setChecking(true); try { await check(receipt.requestId); } finally { setChecking(false); }

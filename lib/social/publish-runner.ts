@@ -5,14 +5,13 @@ export interface SocialPublisher {
   ready(containerId: string): Promise<void>;
   instagram(containerId: string): Promise<string>;
   facebook(input: SocialPublishInput): Promise<string>;
-  comment(postId: string, articleUrl: string): Promise<string>;
   link(channel: 'instagram' | 'facebook', id: string): Promise<string | null>;
 }
 /** Only the transaction winner runs. Persist intent before every irreversible
  * call. A lost response or write never authorizes another publishing request. */
 export async function runSocialPublish(receipt: SocialPublishReceipt, input: SocialPublishInput,
   publisher: SocialPublisher, save: (receipt: SocialPublishReceipt) => Promise<void>) {
-  let active: 'instagram' | 'facebook' | 'comment' = 'instagram';
+  let active: 'instagram' | 'facebook' = 'instagram';
   let dispatching = false;
   const persist = async () => { receipt.updatedAt = new Date().toISOString(); await save(structuredClone(receipt)); };
   const send = async (channel: typeof active, operation: () => Promise<string>) => {
@@ -33,7 +32,6 @@ export async function runSocialPublish(receipt: SocialPublishReceipt, input: Soc
     await send('instagram', () => publisher.instagram(receipt.containerId!));
     if (receipt.channels.facebook) {
       await send('facebook', () => publisher.facebook(input));
-      await send('comment', () => publisher.comment(receipt.facebook.id!, input.articleUrl));
     }
     receipt.complete = true; receipt.phase = 'done';
     await persist();

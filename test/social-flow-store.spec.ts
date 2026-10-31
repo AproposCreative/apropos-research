@@ -41,7 +41,7 @@ function store() {
     } };
   return rows;
 }
-const transport = (): SocialPublisher => ({ create: vi.fn().mockResolvedValue('100'), ready: vi.fn().mockResolvedValue(undefined), instagram: vi.fn().mockResolvedValue('200'), facebook: vi.fn().mockResolvedValue('30_40'), comment: vi.fn().mockResolvedValue('40_50'), link: vi.fn().mockResolvedValue('https://www.instagram.com/p/example/') });
+const transport = (): SocialPublisher => ({ create: vi.fn().mockResolvedValue('100'), ready: vi.fn().mockResolvedValue(undefined), instagram: vi.fn().mockResolvedValue('200'), facebook: vi.fn().mockResolvedValue('30_40'), link: vi.fn().mockResolvedValue('https://www.instagram.com/p/example/') });
 const req = (path: string, body?: unknown) => new NextRequest('https://example.test'+path, body === undefined ? {} : { method: 'POST', body: JSON.stringify(body) });
 beforeEach(() => {
   vi.clearAllMocks(); store(); mocks.auth.mockResolvedValue({ uid: 'owner', owner: true }); mocks.token.mockResolvedValue({ token: 'SECRET-test-token' });
@@ -86,7 +86,7 @@ it('writes intent before publication and never implicitly cross-posts', async ()
   });
   const result = await runSocialPublish(receipt, input, publisher, saveSocialPublish);
   expect(result.instagram.status).toBe('published'); expect(result.instagram.url).toContain('instagram.com');
-  expect(publisher.facebook).not.toHaveBeenCalled(); expect(publisher.comment).not.toHaveBeenCalled();
+  expect(publisher.facebook).not.toHaveBeenCalled(); expect(result.comment.status).toBe('skipped');
 });
 it('keeps accepted Instagram when Facebook times out, and never sends again on replay', async () => {
   const both = { ...input, channels: { instagram: true as const, facebook: true } };
@@ -94,7 +94,7 @@ it('keeps accepted Instagram when Facebook times out, and never sends again on r
   vi.mocked(publisher.facebook).mockRejectedValue(Error('timeout SECRET-test-token'));
   const result = await runSocialPublish(receipt, both, publisher, saveSocialPublish);
   expect(result.instagram.status).toBe('published'); expect(result.facebook.status).toBe('uncertain');
-  expect(publisher.comment).not.toHaveBeenCalled();
+  expect(result.comment.status).toBe('skipped');
   expect((await claimSocialPublish('owner', both, '123')).created).toBe(false);
   expect(JSON.stringify(await readSocialPublish('owner', input.requestId))).not.toContain('SECRET');
 });
@@ -150,7 +150,7 @@ it('exercises real route, exact JPEG hash, Graph receipts, replay and GET withou
   expect(fetch.mock.calls.filter(([url]) => url.endsWith('/media_publish'))).toHaveLength(1);
   expect(fetch.mock.calls.some(([url]) => /\/photos|\/comments/.test(url))).toBe(false);
 });
-it('publishes the two explicitly selected channels and article comment once with safe token headers', async () => {
+it('publishes only the two explicitly selected posts, with no Facebook comment or article link write', async () => {
   const fetch = vi.fn(async (url: string, options: RequestInit) => {
     expect(url).not.toContain('SECRET');
     if (url.endsWith('/123/media')) return Response.json({ id: '100' });
@@ -159,12 +159,10 @@ it('publishes the two explicitly selected channels and article comment once with
     if (url.includes('fields=access_token')) return Response.json({ access_token: 'page-secret' });
     if (url.endsWith('/456/photos')) {
       expect(new URLSearchParams(options.body as string).get('url')).toBe(input.imageUrl);
+      expect(new URLSearchParams(options.body as string).get('message')).toBe(input.caption);
+      expect(options.body).not.toContain(encodeURIComponent(input.articleUrl));
       expect((options.headers as Record<string, string>)['Content-Type']).toBe('application/x-www-form-urlencoded');
       return Response.json({ id: '888', post_id: '456_999' });
-    }
-    if (url.endsWith('/456_999/comments')) {
-      expect(new URLSearchParams(options.body as string).get('message')).toBe(input.articleUrl);
-      return Response.json({ id: '999_111' });
     }
     if (url.includes('permalink_url')) return Response.json({ permalink_url: 'https://www.facebook.com/example/posts/999' });
     if (url.includes('permalink')) return Response.json({ permalink: 'https://www.instagram.com/p/example/' });
@@ -172,11 +170,13 @@ it('publishes the two explicitly selected channels and article comment once with
   }); vi.stubGlobal('fetch', fetch);
   const both = { ...input, channels: { instagram: true as const, facebook: true } };
   const receipt = (await (await POST(req('/api/instagram/publish', both))).json()).receipt;
-  expect(receipt.facebook.id).toBe('456_999'); expect(receipt.comment.status).toBe('published');
+  expect(receipt.facebook.id).toBe('456_999'); expect(receipt.comment.status).toBe('skipped');
+  expect(receipt.phase).toBe('done');
+  expect(facebookCommentNotice(receipt)).toBeNull();
   expect(receipt.facebook.url).toContain('facebook.com/example/posts/999');
   await POST(req('/api/instagram/publish', both));
   expect(fetch.mock.calls.filter(([url]) => url.endsWith('/photos'))).toHaveLength(1);
-  expect(fetch.mock.calls.filter(([url]) => url.endsWith('/comments'))).toHaveLength(1);
+  expect(fetch.mock.calls.filter(([url]) => url.endsWith('/comments'))).toHaveLength(0);
 });
 it('publishes Stories with no feed caption, Facebook photo or comment', async () => {
   const bodies: any[] = [];
@@ -234,21 +234,26 @@ it.each([-1, 121, 1.5])('rejects invalid spacing %s before touching Meta', async
   expect((await POST(req('/api/instagram/publish', { ...input, card: { ...input.card, titleSubtitleGap: gap } }))).status).toBe(400);
   expect(fetch).not.toHaveBeenCalled();
 });
-it('preserves both published posts after a denied comment and explains old receipts without replay', async () => {
+it('preserves historical denied comments and post locks without prompting for comment access or replay', async () => {
   const both = { ...input, channels: { instagram: true as const, facebook: true } };
-  const { receipt } = await claimSocialPublish('owner', both, '123'), publisher = transport();
-  vi.mocked(publisher.comment).mockRejectedValue(new MetaRequestError(true, 200));
-  await runSocialPublish(receipt, both, publisher, saveSocialPublish);
-  expect(receipt.instagram.status).toBe('published'); expect(receipt.facebook.status).toBe('published');
-  expect(receipt.comment).toMatchObject({ status: 'failed', errorCode: 200 });
-  expect(facebookCommentNotice(receipt)).toMatchObject({ settings: true });
+  const { receipt } = await claimSocialPublish('owner', both, '123');
+  Object.assign(receipt, { complete: true, phase: 'stopped', instagram: { status: 'published', id: '200', url: 'https://www.instagram.com/p/example/' },
+    facebook: { status: 'published', id: '30_40', url: 'https://www.facebook.com/example/posts/40' },
+    comment: { status: 'failed', errorCode: 200, error: 'Meta afviste handlingen (kode 200).' } });
+  await saveSocialPublish(receipt);
+  expect(facebookCommentNotice(receipt)?.text).toContain('Tidligere forsøg');
+  expect(facebookCommentNotice(receipt)).not.toHaveProperty('settings');
   const old = { ...receipt, comment: { status: 'failed' as const, error: 'Meta afviste handlingen (kode 200).' } };
   expect(facebookCommentNotice(old)).toEqual(facebookCommentNotice(receipt));
   expect((await claimSocialPublish('owner', both, '123')).created).toBe(false);
-  expect(publisher.facebook).toHaveBeenCalledOnce(); expect(publisher.comment).toHaveBeenCalledOnce();
+  const fetch = vi.fn(); vi.stubGlobal('fetch', fetch);
+  const replay = await (await POST(req('/api/instagram/publish', both))).json();
+  expect(replay.replay).toBe(true); expect(replay.receipt.comment).toEqual(receipt.comment);
+  expect((await (await GET(req('/api/instagram/publish?requestId='+input.requestId))).json()).receipt.comment).toEqual(receipt.comment);
+  expect(fetch).not.toHaveBeenCalled();
   const newer = { ...receipt, id: 'story', createdAt: '2026-10-31T13:52:29.162Z', channels: { instagram: true as const, facebook: false } };
   receipt.createdAt = '2026-10-31T13:51:10.183Z';
   expect(sortSocialReceipts([receipt, newer]).map(r => r.id)).toEqual(['story', receipt.id]);
   expect(facebookCommentNotice(newer)).toBeNull();
-  expect(facebookCommentNotice({ ...receipt, comment: { status: 'uncertain' } })?.settings).toBe(false);
+  expect(facebookCommentNotice({ ...receipt, comment: { status: 'uncertain' } })?.text).toContain('ikke bekræftet');
 });

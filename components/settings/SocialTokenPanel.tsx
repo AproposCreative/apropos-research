@@ -10,7 +10,6 @@ type VerifyPayload = {
   facebookOk?: boolean;
   facebookPageName?: string;
   facebookError?: string;
-  facebookCommentsReady?: boolean;
   primaryAction?: string | null;
   debug?: {
     isValid: boolean;
@@ -218,7 +217,6 @@ export default function SocialTokenPanel() {
                 {verify.facebookPageName ? ` · FB: ${verify.facebookPageName}` : ''}
               </p>
             )}
-            {verify?.facebookCommentsReady === false && verify.primaryAction && <p className="text-sm text-amber-700 dark:text-amber-200 mt-2">{verify.primaryAction}</p>}
           </>
         )}
         <button
@@ -261,7 +259,7 @@ export default function SocialTokenPanel() {
               {' — '}vælg jeres app.
             </li>
             <li>Vælg <strong>User</strong> (din profil), ikke Page.</li>
-            <li>Tilføj: instagram_basic, instagram_content_publish, pages_show_list, pages_read_engagement, pages_manage_posts og pages_manage_engagement.</li>
+            <li>Tilføj: instagram_basic, instagram_content_publish, pages_show_list, pages_read_engagement og pages_manage_posts.</li>
             <li>Generate Access Token → kopiér ind i feltet nedenfor.</li>
           </ol>
         )}

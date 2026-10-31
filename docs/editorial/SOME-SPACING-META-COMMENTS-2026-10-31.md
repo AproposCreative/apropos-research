@@ -56,4 +56,52 @@ Evidence: `output/social-spacing-meta-20261031/inspection.json` (no credentials)
   exposed unrelated retained scratch TypeScript under `output/`; these files are
   excluded from the isolated application check and are not release source.
 
-Production release/readback evidence is appended after the exact release build.
+## Production verification
+
+- Implementation `9dfdf664ca2fbbfc83ae45a4e0d06397d04cf750`; clean release
+  `06d4578bb722c3a034e0a3aff2b2c99d40872cb3` retains all 19 newsletter files
+  from the preceding live `02b38b4f` release as exact Git blobs. Unrelated local
+  newsletter and observer journal work was not staged, overwritten or deployed.
+- The exact release source snapshot passed the full Next build: compilation,
+  TypeScript and 249 pages. Four pre-existing podcast filesystem-tracing warnings
+  remain. The snapshot did not include local scratch output or credentials.
+- Vercel `dpl_5Sm385qdxiSV11PTRJudcLwGuQPE` is READY for the exact release SHA;
+  the real `ai.aproposmagazine.com` alias was verified on that deployment.
+- Public source readback at 14:18:57 UTC found the spacing controls, saved field,
+  specific comment error and access link in the served JavaScript. Draft and
+  publishing endpoints still reject anonymous access with 401.
+- Actual authenticated browser readback showed the Terminal List season 2 card
+  with **Tættere** and **Mere luft**. `live-controls.png` records that view.
+  Desktop `/ai` without a view parameter still opens AI Writer, the retained
+  Spline background and the original desktop tool catalogue including paused tools.
+  No social publish button or spacing change was used in this live check.
+- Error/fatal runtime scan scoped to this deployment, 14:08:55–14:18:55 UTC,
+  returned no entries. This is a bounded scan, not a claim about all traffic.
+- Production source evidence: `output/social-spacing-meta-20261031/release.json`
+  and `production-assets.json`. Tests, browser fixture and geometry reports are
+  in the same directory. The real Meta permissions remain unchanged; personal
+  authorisation for comment access is pending.
+
+## Owner correction: article links belong only to Instagram Story
+
+The owner's subsequent instruction replaces the proposed Facebook permission
+repair: article-link controls must only be offered for Instagram Story. The
+pending comment-access request is no longer needed and does not authorize any
+permission change. No Meta access or credentials have been changed.
+
+- Removed the automatic Facebook comment operation from the publisher and its
+  transport. Newly claimed operations retain a skipped comment field only for
+  receipt compatibility; successful feed posts complete without a comment.
+- Removed comment-management scope recommendations, capability warnings and
+  permission-repair links. Old rejected or uncertain comments remain identified
+  as historical evidence; their records and duplicate locks are preserved.
+- Story still offers image download and article-link copy for Instagram's link
+  sticker. The feed offers no article-link control. The graphic CTA does not
+  create an interactive sticker, and automatic Story publication does not add one.
+- 42 targeted tests passed, including actual API/Graph fixtures with zero comment
+  requests, historical receipt readback/replay locks and no access escalation.
+  Scoped ESLint and diff checks passed. The editor fixture passed ten checks,
+  including Story-only link controls, reload/conflicts, spacing, explicit channels
+  and lost responses at 320/390/768/1440px. Three local fixture publications;
+  zero real posts, comments or paid calls. Evidence:
+  `output/social-story-links-20261031/ui/report.json`.

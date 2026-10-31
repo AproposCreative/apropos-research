@@ -45,7 +45,6 @@ export function metaPublisher(config: Config): SocialPublisher {
       if (typeof result.post_id !== 'string') throw Error('meta_facebook_post_id_missing');
       return result.post_id;
     },
-    async comment(id, articleUrl) { return (await graph(`${id}/comments`, { message: articleUrl }, await facebookToken(), true)).id; },
     async link(channel, id) {
       const field = channel === 'instagram' ? 'permalink' : 'permalink_url';
       const value = (await graph(`${id}?fields=${field}`, undefined, channel === 'facebook' ? await facebookToken() : config.token))[field];

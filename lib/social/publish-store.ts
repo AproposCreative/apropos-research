@@ -39,7 +39,9 @@ export async function claimSocialPublish(uid: string, input: SocialPublishInput,
     const receipt: SocialPublishReceipt = { id, ownerUid: uid, articleId: input.articleId, requestId: input.requestId,
       createdAt: now, updatedAt: now, complete: false, phase: 'preparing', channels: input.channels,
       instagram: { status: 'pending' }, facebook: { status: input.channels.facebook ? 'pending' : 'skipped' },
-      comment: { status: input.channels.facebook && !input.isStory ? 'pending' : 'skipped' }, imageSha256: input.imageSha256,
+      // Article-link controls belong only to Story export. Retain the comment
+      // receipt field for historical records without scheduling a Facebook write.
+      comment: { status: 'skipped' }, imageSha256: input.imageSha256,
       approved: { card: input.card, caption: input.caption, articleUrl: input.articleUrl, isStory: input.isStory } };
     tx.create(ref, receipt);
     tx.set(requestRef, { ownerUid: uid, operationId: id });

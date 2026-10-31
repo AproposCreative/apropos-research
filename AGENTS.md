@@ -176,3 +176,11 @@ does not change approved website originals. Missing-photo episode artwork uses
 the app's dark background with the same white strip/logo. Keep the separate
 show cover and all episode GUIDs, audio, publication dates and original manifest.
 Version artwork changes so existing episodes reconcile automatically.
+
+## SoMe article links (owner correction 2026-10-31)
+
+Offer article-link controls only for Instagram Story: export the image and copy
+the URL for Instagram's link sticker. Do not automatically post article links as
+Facebook comments or request comment-management permissions. The drawn CTA is
+graphics, not a clickable sticker. Preserve historical receipts and duplicate
+locks; removing the comment step never authorizes resending an existing post.
