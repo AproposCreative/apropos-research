@@ -56,7 +56,7 @@ http.createServer(async (req, res) => {
       // request lifecycle keeps CPU available; no fire-and-forget background work.
       return reply(await runtime.process(body.operationId));
     }
-    if (!/^[a-zA-Z0-9_-]{1,128}$/.test(body.ownerUid || '') || !['begin', 'refresh', 'click', 'text', 'key', 'instagram', 'finish'].includes(body.action) ||
+    if (!/^[a-zA-Z0-9_-]{1,128}$/.test(body.ownerUid || '') || !['begin', 'refresh', 'click', 'text', 'key', 'instagram', 'finish', 'cancel'].includes(body.action) ||
       (body.action === 'text' && (typeof body.text !== 'string' || body.text.length > 2000)) ||
       (body.action === 'key' && !allowedKeys.has(body.key)) ||
       (body.action === 'click' && (!Number.isFinite(body.x) || !Number.isFinite(body.y) || body.x < 0 || body.x > 1650 || body.y < 0 || body.y > 1045))) return reply({ error: 'invalid_request' }, 400);

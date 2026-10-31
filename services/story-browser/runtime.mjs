@@ -14,7 +14,7 @@ function boundedState(state) {
 }
 
 export function createStoryRuntime({ browser, store, bucket, sharp, revalidate }) {
-  let setup = null, running = false, setupRunning = false;
+  let setup = null, running = false, setupRunning = false, setupOwner = null, setupEpoch = 0;
   const contextOptions = state => ({ storageState: state, viewport: { width: 1650, height: 1045 }, locale: 'da-DK', timezoneId: 'Europe/Copenhagen' });
   async function setupPage() {
     // OAuth may open a new provider window or close it after returning. Follow
@@ -93,17 +93,29 @@ export function createStoryRuntime({ browser, store, bucket, sharp, revalidate }
       }
     },
     async setup(ownerUid, input) {
+      if (input.action === 'cancel') {
+        if ((setup && setup.ownerUid !== ownerUid) || (setupRunning && setupOwner !== ownerUid)) throw Error('story_browser_busy');
+        setupEpoch++;
+        const current = setup;
+        setup = null;
+        await current?.context.close();
+        return { ...await store.status(), cancelled: true };
+      }
       if (running || setupRunning) throw Error('story_browser_busy');
-      setupRunning = true;
+      setupRunning = true; setupOwner = ownerUid;
+      const epoch = setupEpoch;
       try {
       if (setup && setup.expiresAt < Date.now()) { await setup.context.close(); setup = null; }
       if (input.action === 'begin') {
         if (setup && setup.ownerUid !== ownerUid) throw Error('story_browser_busy');
         if (!setup) {
           const context = await browser.newContext(contextOptions(await store.session()));
-          const page = await context.newPage();
-          await page.goto(META_HOME);
-          setup = { id: randomUUID(), ownerUid, context, page, expiresAt: Date.now()+15*60_000 };
+          try {
+            const page = await context.newPage();
+            await page.goto(META_HOME);
+            if (epoch !== setupEpoch) throw Error('story_setup_expired');
+            setup = { id: randomUUID(), ownerUid, context, page, expiresAt: Date.now()+15*60_000 };
+          } catch (error) { await context.close(); throw error; }
         }
       } else {
         if (!setup || setup.ownerUid !== ownerUid || setup.id !== input.setupId) throw Error('story_setup_expired');
@@ -132,10 +144,14 @@ export function createStoryRuntime({ browser, store, bucket, sharp, revalidate }
       // Setup is human-driven and confined to the two named services. Never
       // expose cookies, storage, page HTML, arbitrary URLs or evaluation access.
       await setupPage();
+      if (epoch !== setupEpoch) throw Error('story_setup_expired');
       if (!hostAllowed(setup.page.url())) throw Error('story_setup_domain');
+      // Human activity renews the idle window. Never discard an active login
+      // simply because the first screenshot was opened fifteen minutes ago.
+      setup.expiresAt = Date.now()+15*60_000;
       return { connected: false, setupId: setup.id, expiresAt: setup.expiresAt,
         screenshot: (await setup.page.screenshot({ type: 'jpeg', quality: 70 })).toString('base64'), width: 1650, height: 1045 };
-      } finally { setupRunning = false; }
+      } finally { setupRunning = false; setupOwner = null; }
     },
     status: () => store.status(),
   };

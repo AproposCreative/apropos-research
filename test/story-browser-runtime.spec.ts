@@ -68,8 +68,8 @@ async function setupFixture(popupHost = 'www.facebook.com') {
   }
   const context = { pages: () => pages, newPage: async () => page('main'), close: vi.fn(),
     waitForEvent: () => new Promise(resolve => { opened = resolve; }) };
-  const store = { session: async () => undefined, saveSession: vi.fn() };
-  return { runtime: createStoryRuntime({ browser: { newContext: async () => context }, store, bucket: {}, sharp, revalidate: vi.fn() }), pages, store };
+  const store = { session: async () => undefined, saveSession: vi.fn(), status: async () => ({ connected: false, connectedAt: null }) };
+  return { runtime: createStoryRuntime({ browser: { newContext: async () => context }, store, bucket: {}, sharp, revalidate: vi.fn() }), pages, store, context };
 }
 it('follows a real provider login popup and returns to the original page after it closes', async () => {
   const f = await setupFixture(); const start = await f.runtime.setup('owner', { action: 'begin' });
@@ -91,4 +91,39 @@ it('keeps a hosted login setup bound to its original owner and exact setup ID', 
   await expect(f.runtime.setup('other', { action: 'refresh', setupId: start.setupId })).rejects.toThrow('story_setup_expired');
   await expect(f.runtime.setup('owner', { action: 'refresh', setupId: 'wrong' })).rejects.toThrow('story_setup_expired');
   expect((await f.runtime.setup('owner', { action: 'refresh', setupId: start.setupId })).setupId).toBe(start.setupId);
+});
+it('renews the idle window during human activity without creating another provider context', async () => {
+  vi.useFakeTimers();
+  try {
+    vi.setSystemTime(1_000_000);
+    const f = await setupFixture(), start = await f.runtime.setup('owner', { action: 'begin' });
+    vi.advanceTimersByTime(14*60_000);
+    await f.runtime.setup('owner', { action: 'refresh', setupId: start.setupId });
+    vi.advanceTimersByTime(2*60_000);
+    expect((await f.runtime.setup('owner', { action: 'refresh', setupId: start.setupId })).setupId).toBe(start.setupId);
+    expect(f.context.close).not.toHaveBeenCalled(); expect(f.pages).toHaveLength(1);
+  } finally { vi.useRealTimers(); }
+});
+it('lets the same owner stop an unfinished login without saving or deleting the durable session', async () => {
+  const f = await setupFixture(); await f.runtime.setup('owner', { action: 'begin' });
+  await expect(f.runtime.setup('other', { action: 'cancel' })).rejects.toThrow('story_browser_busy');
+  expect(f.context.close).not.toHaveBeenCalled();
+  expect(await f.runtime.setup('owner', { action: 'cancel' })).toMatchObject({ cancelled: true, connected: false });
+  expect(f.context.close).toHaveBeenCalledOnce(); expect(f.store.saveSession).not.toHaveBeenCalled();
+  expect(await f.runtime.setup('owner', { action: 'cancel' })).toMatchObject({ cancelled: true });
+  expect(f.context.close).toHaveBeenCalledOnce();
+});
+it('does not reopen a login after Stop arrives while the first provider page is loading', async () => {
+  const f = await setupFixture(); let release!: () => void, entered!: () => void;
+  const held = new Promise<void>(resolve => { release = resolve; });
+  const reached = new Promise<void>(resolve => { entered = resolve; });
+  const original = f.context.newPage;
+  f.context.newPage = async () => { const page = await original(); page.goto = async () => { entered(); await held; }; return page; };
+  const opening = f.runtime.setup('owner', { action: 'begin' });
+  await reached;
+  await expect(f.runtime.setup('other', { action: 'cancel' })).rejects.toThrow('story_browser_busy');
+  await f.runtime.setup('owner', { action: 'cancel' });
+  release();
+  await expect(opening).rejects.toThrow('story_setup_expired');
+  expect(f.context.close).toHaveBeenCalledOnce(); expect(f.store.saveSession).not.toHaveBeenCalled();
 });

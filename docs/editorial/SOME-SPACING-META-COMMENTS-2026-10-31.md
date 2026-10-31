@@ -346,3 +346,34 @@ The owner connection page still offered “Forbind serverbrowser”. Personal lo
 and the first real hosted publication remain unverified. The owner found the
 remote login instructions confusing; a fresh Facebook login is open for a
 step-by-step handoff rather than claiming a saved connection.
+
+### Repeated Meta security challenges, 31 October 2026
+
+The owner reported more than 30 CAPTCHA tasks without completing hosted login.
+Further login/challenge attempts were stopped. No bypass, proxy, copied local
+profile or automated challenge solver is introduced. The precise cause of Meta's
+challenge decisions is unknown, and successful passkey login on this server has
+not been demonstrated.
+
+The live Cloud Run Scaling screen independently showed request-based billing:
+CPU is limited outside requests. This is unsuitable for the browser's asynchronous
+work between human clicks, although it does not prove the cause of Meta's loop.
+The runtime also used a fixed fifteen-minute window from initial login, expiring
+even while the owner interacted. Both conditions can disrupt an interactive login.
+
+The correction keeps CPU available during the instance lifetime, preserves zero
+minimum instances and limits the service/revision to one instance. Instance-based
+billing can charge the idle part of a live instance; this is not a free or
+continuously running minimum instance. Google Cloud documents the distinction at
+https://docs.cloud.google.com/run/docs/configuring/billing-settings .
+
+Login activity now renews the fifteen-minute idle window without replacing the
+browser context. A verified owner can Stop login, including an in-flight initial
+page load. Cancellation closes only that owner's temporary context and leaves
+saved credentials, publication receipts and jobs intact. Client request deadlines
+and sequence guards prevent a late response from reopening a cancelled screen.
+No request or provider authentication action is automatically repeated.
+
+59 focused tests passed for owner binding, cancellation during page load, idle
+renewal and existing publication controls; scoped lint passed. No new real Story
+has been sent. Deployment and cancellation readback are recorded after completion.

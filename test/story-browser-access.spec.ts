@@ -39,6 +39,15 @@ it('binds setup to the verified UID, rejects arbitrary URLs and never returns ra
   expect((await POST(request({ action: 'goto', url: 'https://attacker.test' }))).status).toBe(400);
   expect((await POST(request({ action: 'text', text: 'no-setup-identity' }))).status).toBe(400);
 });
+it('allows only the verified owner to cancel its hosted login without changing saved credentials', async () => {
+  mocks.request.mockResolvedValueOnce(Response.json({ connected: true, cancelled: true, secret: 'must-not-return' }));
+  const stopped = await POST(request({ action: 'cancel' }));
+  expect(await stopped.json()).toEqual({ connected: true, cancelled: true });
+  expect(JSON.parse(mocks.request.mock.calls[0][1].body)).toEqual({ action: 'cancel', ownerUid: 'owner' });
+  expect((await POST(request({ action: 'cancel', ownerUid: 'other' }))).status).toBe(400);
+  mocks.access.mockResolvedValue({ uid: 'editor', owner: false });
+  expect((await POST(request({ action: 'cancel' }))).status).toBe(403);
+});
 it('revalidates the exact personal approval and current editorial access before publish', async () => {
   const response = await approve(request({ operationId })); expect(response.status).toBe(200);
   expect(await response.json()).toEqual({ approved: true, imageSha256: 'digest', articleUrl: receipt().approved.articleUrl });
