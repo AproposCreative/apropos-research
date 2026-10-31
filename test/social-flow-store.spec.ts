@@ -137,7 +137,7 @@ it('requires personal POST and explicit channels, rejects story Facebook and wro
   expect(fetch).not.toHaveBeenCalled();
 });
 it('atomically queues one browser Story and dispatches only the creation winner with no Graph fallback', async () => {
-  vi.stubEnv('SOCIAL_STORY_BROWSER_URL', 'https://story-worker.example'); vi.stubEnv('INTERNAL_API_SECRET', 'test-internal-secret-at-least-24-characters');
+  vi.stubEnv('SOCIAL_STORY_BROWSER_URL', 'https://story-worker.example'); vi.stubEnv('SOCIAL_STORY_BROWSER_SECRET', 'test-internal-secret-at-least-32-characters');
   const fetch = vi.fn(async (url: URL | string) => {
     if (String(url) === 'https://story-worker.example/status') return Response.json({ connected: true });
     if (String(url) === 'https://story-worker.example/process') return Response.json({ accepted: true });
@@ -158,7 +158,7 @@ it('atomically queues one browser Story and dispatches only the creation winner 
   expect(fetch).not.toHaveBeenCalled();
 });
 it('returns confirmed non-dispatch when hosted login is missing or preflight times out', async () => {
-  vi.stubEnv('SOCIAL_STORY_BROWSER_URL', 'https://story-worker.example'); vi.stubEnv('INTERNAL_API_SECRET', 'test-internal-secret-at-least-24-characters');
+  vi.stubEnv('SOCIAL_STORY_BROWSER_URL', 'https://story-worker.example'); vi.stubEnv('SOCIAL_STORY_BROWSER_SECRET', 'test-internal-secret-at-least-32-characters');
   const fetch = vi.fn().mockResolvedValueOnce(Response.json({ connected: false })).mockRejectedValueOnce(Error('timeout'));
   vi.stubGlobal('fetch', fetch);
   for (let i = 0; i < 2; i++) {
@@ -180,6 +180,15 @@ it('preserves old Graph Story identity after switching delivery to the hosted br
   const response = await (await POST(req('/api/instagram/publish', story))).json();
   expect(response.replay).toBe(true); expect(response.receipt.id).toBe(prior.receipt.id);
   expect(response.receipt.delivery).toBeUndefined(); expect(mocks.after).not.toHaveBeenCalled();
+});
+it.each([0, 1])('settles a crashed hosted worker on readback without retrying dispatch count %s', async dispatchCount => {
+  const story = { ...input, isStory: true }, claim = await claimSocialPublish('owner', story, '123', { browserStory: true });
+  const old = new Date(Date.now()-11*60_000).toISOString();
+  await mocks.db.collection('socialPublishOperations').doc(claim.receipt.id).update({ phase: dispatchCount ? 'story_sending' : 'story_preparing', updatedAt: old });
+  await mocks.db.collection('socialStoryBrowserTasks').doc(claim.receipt.id).update({ status: dispatchCount ? 'sending' : 'preparing', dispatchCount });
+  const result = await readSocialPublish('owner', input.requestId);
+  expect(result?.complete).toBe(true); expect(result?.instagram.status).toBe(dispatchCount ? 'uncertain' : 'failed');
+  expect((await claimSocialPublish('owner', story, '123', { browserStory: true })).created).toBe(false); expect(mocks.after).not.toHaveBeenCalled();
 });
 it('exercises real route, exact JPEG hash, Graph receipts, replay and GET without another POST', async () => {
   const fetch = vi.fn(async (url: string, options: RequestInit) => {

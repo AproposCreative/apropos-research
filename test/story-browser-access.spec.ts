@@ -5,12 +5,13 @@ vi.mock('@/lib/firebase-admin', () => ({ getAdminDb: mocks.db, getAdminAuth: () 
 vi.mock('@/lib/social/story-browser', () => ({ storyBrowserConfigured: () => true, storyBrowserRequest: mocks.request }));
 import { GET, POST } from '@/app/api/instagram/story-connection/route';
 import { POST as approve } from '@/app/api/internal/social-story-approval/route';
+import { POST as worker } from '@/app/api/internal/social-story-worker/route';
 const operationId = 'a'.repeat(64);
 const receipt = () => ({ ownerUid: 'owner', delivery: 'business-suite', createdAt: new Date().toISOString(), phase: 'story_preparing', complete: false,
   imageSha256: 'digest', channels: { instagram: true, facebook: false }, approved: { isStory: true, articleUrl: 'https://www.aproposmagazine.com/articles/tony' } });
-const request = (body: unknown, secret = 'test-secret-at-least-24-characters') => new Request('https://example.test/api', { method: 'POST', headers: { 'x-internal-api-secret': secret }, body: JSON.stringify(body) });
+const request = (body: unknown, secret = 'test-secret-at-least-32-characters') => new Request('https://example.test/api', { method: 'POST', headers: { 'x-story-service-secret': secret }, body: JSON.stringify(body) });
 beforeEach(() => {
-  vi.clearAllMocks(); vi.stubEnv('INTERNAL_API_SECRET', 'test-secret-at-least-24-characters');
+  vi.clearAllMocks(); vi.stubEnv('SOCIAL_STORY_BROWSER_SECRET', 'test-secret-at-least-32-characters');
   mocks.access.mockResolvedValue({ uid: 'owner', owner: true }); mocks.request.mockResolvedValue(Response.json({ connected: true, secret: 'must-not-return' }));
   mocks.db.mockReturnValue({ collection: () => ({ doc: () => ({ get: async () => ({ data: receipt }) }) }) });
   mocks.getUser.mockResolvedValue({ uid: 'owner', email: 'frederik@aproposmagazine.com', emailVerified: true, disabled: false });
@@ -21,6 +22,14 @@ it('requires verified owner access to inspect or control the hosted login', asyn
   mocks.access.mockResolvedValue({ uid: 'editor', owner: false });
   expect((await GET(request({}))).status).toBe(403);
   expect((await POST(request({ action: 'begin' }))).status).toBe(403); expect(mocks.request).not.toHaveBeenCalled();
+});
+it('confines the worker credential to bounded Story commands and Meta session domains', async () => {
+  expect((await worker(request({ action: 'status' }, 'wrong-secret'))).status).toBe(401);
+  expect((await worker(request({ action: 'status' }))).status).toBe(200);
+  expect((await worker(request({ action: 'deleteArticle', articleId: 'one' }))).status).toBe(400);
+  expect((await worker(request({ action: 'claim', operationId: '../other' }))).status).toBe(400);
+  expect((await worker(request({ action: 'saveSession', state: { cookies: [{ domain: '.attacker.test', value: 'bad' }], origins: [] } }))).status).toBe(400);
+  expect((await worker(request({ action: 'finish', operationId, result: { mediaId: '123', storyUrl: 'https://attacker.test/', linkVerified: true } }))).status).toBe(400);
 });
 it('binds setup to the verified UID, rejects arbitrary URLs and never returns raw worker state', async () => {
   const response = await POST(request({ action: 'begin' }));

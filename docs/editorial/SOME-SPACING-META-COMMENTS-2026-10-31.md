@@ -86,8 +86,9 @@ Evidence: `output/social-spacing-meta-20261031/inspection.json` (no credentials)
 
 The owner's subsequent instruction replaces the proposed Facebook permission
 repair: article-link controls must only be offered for Instagram Story. The
-pending comment-access request is no longer needed and does not authorize any
-permission change. No Meta access or credentials have been changed.
+earlier comment-access request is no longer needed. A later answer approved that
+older request; the access is unnecessary for the requested Story flow, so no Meta
+access or credentials have been changed and no comment has been sent.
 
 - Removed the automatic Facebook comment operation from the publisher and its
   transport. Newly claimed operations retain a skipped comment field only for
@@ -105,3 +106,167 @@ permission change. No Meta access or credentials have been changed.
   and lost responses at 320/390/768/1440px. Three local fixture publications;
   zero real posts, comments or paid calls. Evidence:
   `output/social-story-links-20261031/ui/report.json`.
+
+Production receipt: implementation `26b49d020692878805cbb973a640289726092780`,
+release `e5758150a36eb92d4fa4b22c8aa514f16c9ba1e3`, deployment
+`dpl_xWpXZ8iYVBZrH2LgxkTipz1XJCPX` READY on the actual
+`ai.aproposmagazine.com` alias. The exact release passed full compilation,
+TypeScript and 249-page generation. All 20 differing paths in the prior combined
+production tree were preserved as exact Git blobs. No unrelated newsletter or
+observer work was included. Four existing podcast tracing warnings remain.
+
+Public asset readback at 14:29:45 UTC confirms the historical-error wording and
+Story controls are served, while the Facebook comment-access prompt is absent.
+Anonymous draft/publishing reads remain 401. Authenticated browser readback also
+confirmed the 1:1 editor has no article-link control or access-repair prompt.
+No real publishing button, AI button, draft change or permissions change was used.
+A deployment-scoped error/fatal scan through 14:29:43 UTC returned no entries;
+this is a bounded early-release window. Source and public-readback evidence is
+in `output/social-story-links-20261031/{release,production-assets}.json`.
+
+## Verified Business Suite Story link, 31 October 2026
+
+The owner subsequently authorised exactly one additional Instagram test Story for
+Terminal List season 2 on `@aproposmagazineofficial`. It was published through
+the signed-in Meta Business Suite browser editor at 16:59 Europe/Copenhagen.
+Facebook was deselected. Exactly one **Del** click was dispatched; the original
+feed and Story operation receipts and duplicate locks were not changed.
+
+The main **Tilføj link** control remains disabled with Instagram alone selected.
+However, **Rediger → Flere klistermærker → Link** accepted the article URL and
+the custom label **Læs anmeldelsen**. This separate editor path retained a real
+interactive sticker on the published Instagram Story, not merely graphic text.
+
+At 16:04:03 UTC, the live Story was verified from the `aproposcreative` viewer
+account: clicking the sticker opened **Gå til link**, and following that control
+opened the rendered article with heading **Anmeldelse: Terminallisten, sæson 2
+på Prime Video** at the expected article path. Instagram added its ordinary
+`fbclid` query parameter. This confirms the specific Business Suite browser path
+on this account; it does not demonstrate native-app behaviour or unattended
+future publishing.
+
+- Meta media ID: `18017959208953279`.
+- Public Story: https://www.instagram.com/stories/aproposmagazineofficial/4020176256339185742/
+- Destination: https://www.aproposmagazine.com/articles/terminallisten-saeson-2-anmeldelse
+- Evidence: `output/meta-story-link-20261031/publication-attempt.json` plus
+  `published-meta-receipt.png`, `published-instagram-story.png`,
+  `live-clickable-link.png` and `clicked-article-destination.png`.
+
+Meta's Instagram publishing API still documents Story stickers as unsupported:
+https://developers.facebook.com/documentation/instagram-platform/instagram-graph-api/reference/ig-user/media
+The existing Apropos **Udgiv** flow still uses that API and has not been connected
+to this browser workflow. No app code, permissions, credentials, background
+producer, budget or deployment was changed for the one-Story test. The test
+Story remains published; no deletion or second publication was authorised.
+
+## Requested one-button hosted integration: unresolved acceptance
+
+After the successful single-Story test, the owner explicitly requested the
+existing SoMe workflow: select **Story**, press **Udgiv**, and automatically
+include the clickable article link. No chat handoff or extra task-copy step is
+acceptable. It must operate on the server with the owner's computer off and no
+open chat. The clickable button must look exactly like the existing black pill
+with white **Læs nu på Apropos Magazine** text. This is a requirement, not a
+claim that the integration is implemented or hosted.
+
+An additional unpublished Business Suite inspection found a concrete mismatch:
+the native link label has `maxlength=25`, while the requested label has 26
+characters. Normal entry truncates it to **Læs nu på Apropos Magazin**. The
+sticker renders black text, a white background, a chain icon and Meta's own font.
+The separate text tool's font/color controls and a double click did not change
+the sticker style. No supported transparent hotspot or custom image overlay
+control was found in the inspected editor. This is bounded UI evidence, not a
+claim about every possible Instagram app or integration.
+
+Evidence: `output/story-native-design-20261031/inspection.json`, `text-limit.png`
+and `native-style.png`. The shortened label **Læs på Apropos Magazine** was used
+only in the unpublished inspection. No new Story was published, and no app code,
+permissions, credentials or hosting was changed. No server-hosted social browser
+worker has been provisioned or verified. The existing podcast processor is a
+separate workload and was not repurposed. The exact-design and unattended-hosting
+requirements remain unresolved; do not describe the earlier local browser test
+as satisfying them or silently ship a different button.
+
+## GitHub research: alternative server transport
+
+The owner explicitly asked for existing GitHub implementations. Research found
+an alternative to the Business Suite browser editor; the editor's observed
+25-character/style restrictions must not be described as universal technical
+limits on all possible Story publishing methods.
+
+- `subzeroid/instagrapi`: the maintained project's Story documentation supports
+  `photo_upload_to_story(..., links=[StoryLink(...)])`. Source read at immutable
+  commit `1265dff41ec43e08b5ccf3aea31c1b5185302fae` confirms that the photo
+  configuration serialises the link's x/y/width/height into a `story_link` tap
+  model. The JPEG upload and interactive metadata are separate operations.
+  This suggests retaining the existing drawn black CTA and binding its exact
+  rectangle to the article URL. Exact visual output and click behaviour on
+  Apropos have NOT been verified for this transport.
+- The maintainer closed issue 2320 on 16 April 2026 after fixes retaining all
+  sticker IDs and extracting link-sticker URLs. Their reported live test uploaded
+  a temporary Story and read its parsed links back. That is maintainer evidence,
+  not our account test or proof of a viewer clicking the intended rectangle.
+- `subzeroid/aiograpi-rest`, the renamed successor of `instagrapi-rest`, provides
+  a Docker/HTTP service around the async private API client. Its README and
+  Dockerfile were read. This is a potential independently hosted architecture,
+  not an already configured Apropos service. It does not require the owner's
+  computer to stay on once deployed and authenticated; deployment, persistent
+  session handling and operation still need to be built and verified.
+- `dilame/instagram-private-api` was also inspected. Its public README points to
+  a paid/private newer version, and the old link-sticker issue 1518 was closed as
+  not planned. No evidence establishes it as a better choice for this requirement.
+
+These are unofficial/private Instagram clients, not extensions to the existing
+official Page token. The instagrapi maintainer explicitly describes private API
+automation as fragile under account challenges, device/session changes and rate
+limits. Do not silently replace the official publishing transport or copy browser
+cookies. The default upload helper also contains a configure loop; any eventual
+adapter must preserve the existing durable one-operation lock, record dispatch
+intent, disable unsafe automatic resends and reconcile ambiguous results first.
+
+No third-party package was installed or executed, no credentials/session were
+read/exported, no account was connected and no Story was published for this
+research. Sources actually read:
+
+- https://github.com/subzeroid/instagrapi
+- https://subzeroid.github.io/instagrapi/latest/usage-guide/story/
+- https://github.com/subzeroid/instagrapi/blob/1265dff41ec43e08b5ccf3aea31c1b5185302fae/instagrapi/mixins/photo.py
+- https://github.com/subzeroid/instagrapi/blob/1265dff41ec43e08b5ccf3aea31c1b5185302fae/tests/regression/test_story_configure.py
+- https://github.com/subzeroid/instagrapi/issues/2320
+- https://github.com/subzeroid/aiograpi-rest
+- https://github.com/subzeroid/aiograpi-rest/blob/main/Dockerfile
+- https://github.com/dilame/instagram-private-api
+- https://github.com/dilame/instagram-private-api/issues/1518
+
+### Hosted Business Suite implementation, 31 October 2026
+
+The owner accepted retaining the existing black drawn CTA and adding Meta's
+native clickable sticker. Exact visual identity of the native sticker is no
+longer an acceptance blocker. The requested entry point remains Story → Udgiv;
+no open chat or running owner computer may be required after personal approval.
+
+A separate Chromium worker and the existing editor/API are implemented locally.
+The exact approved JPEG digest, existing semantic duplicate identity, immutable
+channels and personal request receipt are retained. Creating the browser task
+and publication receipt is one transaction. The worker persists a one-click
+intent before Del; ambiguous outcomes retain the account lock. There is no Graph
+fallback or automatic second publication. A minute-based server drain handles
+only queued tasks which have never dispatched. Approval expires after 30 minutes;
+current verified Firebase identity, suspension and revocation are checked again
+before the publish click. Host crashes become stopped/uncertain receipts instead
+of endless pending indicators. Existing Graph receipts replay unchanged.
+
+The worker has a dedicated service credential limited to two bounded Story
+endpoints, not the general INTERNAL_API_SECRET. It receives only the approved
+job/image URL and its own Meta session. It needs no Firebase private key,
+Firestore IAM role or unrelated provider credentials. Its login is completed by
+the owner in an authenticated, owner-only screenshot interface. Session state is
+restricted to Facebook/Instagram and encrypted at rest with AES-256-GCM. Local
+browser profiles/cookies are never copied. A saved connection is a dated login
+observation, not a promise that Meta will never request renewed verification.
+
+At this checkpoint 69 focused tests pass, covering transactions, duplicate locks,
+expired/revoked approvals, missing login, tampered image identity, service scope,
+unknown publication results and historical Graph behavior. The implementation is
+not yet a verified deployed server flow. No additional real Story has been sent.
+The prior one-off test receipt remains the only verified live clickable Story.

@@ -49,7 +49,7 @@ export function createStoryRuntime({ browser, store, bucket, sharp, revalidate }
         if (task.objectPath !== `instagram-publish/${task.ownerUid}-${task.imageSha256}.jpg`) throw Error('invalid_story_image');
         const file = bucket.file(task.objectPath), [metadata] = await file.getMetadata();
         if (Number(metadata.size) > 8*1024*1024 || metadata.contentType !== 'image/jpeg') throw Error('invalid_story_image');
-        const [bytes] = await file.download();
+        const [bytes] = await file.download(task.imageUrl);
         if (bytes.length > 8*1024*1024 || createHash('sha256').update(bytes).digest('hex') !== task.imageSha256) throw Error('invalid_story_image');
         const image = await sharp(bytes).metadata();
         if (image.width !== 1080 || image.height !== 1920) throw Error('invalid_story_image_dimensions');

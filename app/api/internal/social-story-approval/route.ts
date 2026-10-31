@@ -5,7 +5,7 @@ import { editorialRole } from '@/lib/auth-policy';
 import { readEditorialAccessEntry } from '@/lib/editorial-access';
 export const runtime = 'nodejs';
 export async function POST(request: Request) {
-  const secret = process.env.INTERNAL_API_SECRET, value = request.headers.get('x-internal-api-secret');
+  const secret = process.env.SOCIAL_STORY_BROWSER_SECRET, value = request.headers.get('x-story-service-secret');
   if (!secret || !value || Buffer.byteLength(secret) !== Buffer.byteLength(value) || !timingSafeEqual(Buffer.from(secret), Buffer.from(value)))
     return NextResponse.json({ approved: false }, { status: 401 });
   try {

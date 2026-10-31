@@ -50,7 +50,7 @@ export async function claimSocialPublish(uid: string, input: SocialPublishInput,
       tx.create(db.collection('socialStoryBrowserTasks').doc(id), { id, ownerUid: uid, createdAt: now,
         requestId: input.requestId, status: 'queued', dispatchCount: 0, imageSha256: input.imageSha256,
         objectPath: `instagram-publish/${uid}-${input.imageSha256}.jpg`,
-        articleUrl: input.articleUrl, stickerLabel: 'Læs anmeldelsen' });
+        imageUrl: input.imageUrl, articleUrl: input.articleUrl, stickerLabel: 'Læs anmeldelsen' });
     }
     tx.create(ref, receipt);
     tx.set(requestRef, { ownerUid: uid, operationId: id });
@@ -64,7 +64,24 @@ export async function readSocialPublish(uid: string, requestId: string): Promise
   const db = database();
   const pointer = (await db.collection('socialPublishRequests').doc(requestKey(uid, requestId)).get()).data();
   if (!pointer || pointer.ownerUid !== uid) return null;
-  const row = (await db.collection('socialPublishOperations').doc(pointer.operationId).get()).data();
+  let row = (await db.collection('socialPublishOperations').doc(pointer.operationId).get()).data();
+  if (row?.ownerUid === uid && row.delivery === 'business-suite' && !row.complete &&
+    ['story_preparing', 'story_sending'].includes(row.phase) && Date.now()-Date.parse(row.updatedAt) > 10*60_000) {
+    // The executor has a 230s deadline. A host crash must leave a visible final
+    // receipt, never an endless spinner or a second send. Keep ambiguous locks.
+    row = await db.runTransaction(async tx => {
+      const ref = db.collection('socialPublishOperations').doc(pointer.operationId);
+      const task = db.collection('socialStoryBrowserTasks').doc(pointer.operationId);
+      const [latest, queued] = await Promise.all([tx.get(ref), tx.get(task)]);
+      const current = latest.data(), job = queued.data();
+      if (!current || current.complete || current.delivery !== 'business-suite' || !job ||
+        Date.now()-Date.parse(current.updatedAt) <= 10*60_000 || !['preparing', 'sending'].includes(job.status)) return current;
+      const status = job.dispatchCount === 1 ? 'uncertain' : 'failed', at = new Date().toISOString();
+      const next = { ...current, complete: true, phase: 'stopped', updatedAt: at, instagram: { status,
+        error: status === 'uncertain' ? 'Serverforbindelsen blev afbrudt efter afsendelse. Kontrollér Storyen. Der sendes ikke igen.' : 'Serverforbindelsen blev afbrudt før afsendelse. Intet blev sendt.' } };
+      tx.update(task, { status, finishedAt: at }); tx.update(ref, next); return next;
+    });
+  }
   return row?.ownerUid === uid ? row as SocialPublishReceipt : null;
 }
 export async function readSocialPublishIdentity(uid: string, input: SocialPublishInput, account: string): Promise<SocialPublishReceipt | null> {
