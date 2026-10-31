@@ -24,10 +24,10 @@ export default function StoryConnectionPage() {
   return <main style={{ maxWidth: 1100, margin: 'auto', padding: 16, color: '#f5f5f5' }}>
     <a href="/design-editor">Tilbage til SoMe</a>
     <h1>Story-forbindelse</h1>
-    {frame?.connected && <p role="status">Tilsluttet. Story → Udgiv kan nu bruge serverforbindelsen.</p>}
-    {!frame?.screenshot && !frame?.connected && <>
-      <p>Forbind Apropos til Facebook og Instagram på serveren. Login gemmes krypteret til de Stories, du vælger at udgive. Din computer behøver derefter ikke være tændt.</p>
-      <button type="button" disabled={busy || frame?.configured === false} onClick={() => { void request({ action: 'begin' }); }}>Forbind serverbrowser</button>
+    {frame?.connected && <p role="status">Meta-login gemt.</p>}
+    {!frame?.screenshot && <>
+      {!frame?.connected && <p>Forbind Apropos til Facebook og Instagram på serveren. Login gemmes krypteret til de Stories, du vælger at udgive. Din computer behøver derefter ikke være tændt.</p>}
+      <button type="button" disabled={busy || frame?.configured === false} onClick={() => { void request({ action: 'begin' }); }}>{frame?.connected ? 'Forny Meta-login' : 'Forbind serverbrowser'}</button>
       {frame?.configured === false && <p>Serverbrowseren er endnu ikke installeret og tilsluttet.</p>}
     </>}
     {frame?.screenshot && <>
