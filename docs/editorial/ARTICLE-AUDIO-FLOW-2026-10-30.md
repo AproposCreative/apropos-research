@@ -1,5 +1,33 @@
 # Artikel til automatisk lydepisode
 
+## Privat Ellen v3/v4-lytteprøve 31. oktober kl. 12:14
+
+Ejeren bestilte en kort v4-demo før et eventuelt modelskift. Ét faktisk v4-kald
+blev afsluttet kl. 11:10:54 UTC med HTTP 200, request-ID
+`LQMOrU8KCya6zFqRZ5HR`, Ellen `BIvP0GN1cAtSRTxNHnWS` og 529 teksttegn.
+Den anden v3-indtaling fra den tidligere, bevarede Ellen-prøve genbruges som
+baseline. Tekst, dansk sprogvalg, stability 1 og seed er ens; kun model-ID er
+ændret i den nye anmodning. Prøven indeholder ejerens nye afslutningstekst.
+
+Der er leveret to separate MP3-filer samt en samlet A/B-fil på 1:07,29. V3
+afspilles først; v4 starter omkring 0:36 efter ét sekunds sammenligningspause.
+Musik er udeladt. Kun konstant gain er justeret, og begge leveringsfiler måles
+til -22,52 LUFS. Talehastighed, artikulation og naturlige pauser er bevaret.
+Alle filer er fuldt dekodet uden fejl, og output har god peak-margin.
+
+Der er ingen modelaktivering eller produktionsændring. Den aktive v3/V.2-worker
+var fortsat revision `generatenarrationonqueue-00010-vik` ved preflight. Dette
+er en kort lytteprøve, ikke accept af lange v4-episoders kvalitet eller kontinuitet.
+Eksisterende 80 %-kvotekontrol, scopes og budget er bevaret. Providerens
+`character-cost`-header var 233; det umiddelbare før/efter-kvotetal var uændret
+19.102/137.442, så prøven må ikke beskrives som gratis eller som en endelig
+afstemt konto-/fakturadifference.
+
+Filer og originale receipts: `output/ellen-v3-v4-demo-20261031/` med
+`v3-baseline.json`, `v4-demo-state.json`, `preflight.json`, `audio-validation.json`
+og `Apropos-Ellen-{v3,v4}-demo.mp3` samt
+`Apropos-Ellen-v3-foerst-v4-derefter.mp3`. Ingen nye v3-kald eller blindretry.
+
 ## ElevenLabs-forbrugslæsning rettet 31. oktober kl. 11:55
 
 Efter ejerens særskilte godkendelse er kun `User` ændret fra `No Access` til
