@@ -23,8 +23,8 @@ export async function GET(request: NextRequest) {
       if (!/^[a-f0-9-]{36}$/i.test(requestId)) return json({ error: 'Ugyldigt kvitterings-ID.' }, 400);
       let receipt = await readSocialPublish(access.uid, requestId);
       if (!receipt) return json({ error: 'Intet publiceringsforsøg registreret.' }, 404);
-      const { token } = await resolveInstagramAccessToken();
-      if (token && receipt.delivery !== 'business-suite') {
+      const { token } = receipt.delivery === 'business-suite' ? { token: null } : await resolveInstagramAccessToken();
+      if (token) {
         const publisher = metaPublisher({ token, instagramId: process.env.INSTAGRAM_ACCOUNT_ID || '', facebookPageId: process.env.FACEBOOK_PAGE_ID });
         const published = !!(receipt.containerId && ['sending', 'uncertain'].includes(receipt.instagram.status) &&
           await instagramContainerPublished(receipt.containerId, token).catch(() => false));
@@ -61,8 +61,9 @@ export async function POST(request: NextRequest) {
   if (article.protocol !== 'https:' || !['www.aproposmagazine.com', 'aproposmagazine.com'].includes(article.hostname) ||
     !/^\/articles\/[^/]+$/.test(article.pathname) || article.search || article.hash) return json({ error: 'Ugyldigt artikellink.' }, 400);
   const instagramId = process.env.INSTAGRAM_ACCOUNT_ID?.trim(), facebookPageId = process.env.FACEBOOK_PAGE_ID?.trim();
-  const { token } = await resolveInstagramAccessToken();
-  if (!instagramId || !token || (input.channels.facebook && !facebookPageId)) return json({ error: 'En valgt kanal er ikke konfigureret. Intet er sendt.' }, 503);
+  const hostedStory = input.isStory && storyBrowserRequested();
+  const { token } = hostedStory ? { token: null } : await resolveInstagramAccessToken();
+  if (!instagramId || (!hostedStory && !token) || (input.channels.facebook && !facebookPageId)) return json({ error: 'En valgt kanal er ikke konfigureret. Intet er sendt.' }, 503);
   try {
     await verifyPublishImage(access.uid, input);
     if (await readSocialPublishIdentity(access.uid, input, instagramId)) {

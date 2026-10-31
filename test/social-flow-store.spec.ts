@@ -168,6 +168,15 @@ it('returns confirmed non-dispatch when hosted login is missing or preflight tim
   }
   expect(mocks.after).not.toHaveBeenCalled();
 });
+it('uses the independent Business Suite connection without requiring a Graph API token', async () => {
+  vi.stubEnv('SOCIAL_STORY_BROWSER_URL', 'https://story-worker.example'); vi.stubEnv('SOCIAL_STORY_BROWSER_SECRET', 'test-internal-secret-at-least-32-characters');
+  mocks.token.mockResolvedValue({ token: null });
+  const fetch = vi.fn().mockResolvedValue(Response.json({ connected: true })); vi.stubGlobal('fetch', fetch);
+  expect((await POST(req('/api/instagram/publish', { ...input, isStory: true }))).status).toBe(202);
+  expect(mocks.token).not.toHaveBeenCalled();
+  expect((await GET(req('/api/instagram/publish?requestId='+input.requestId))).status).toBe(200);
+  expect(mocks.token).not.toHaveBeenCalled();
+});
 it('never silently sends a Story without its link when hosted mode is requested but unconfigured', async () => {
   vi.stubEnv('SOCIAL_STORY_DELIVERY', 'business-suite'); vi.stubEnv('SOCIAL_STORY_BROWSER_URL', '');
   const fetch = vi.fn(); vi.stubGlobal('fetch', fetch);
