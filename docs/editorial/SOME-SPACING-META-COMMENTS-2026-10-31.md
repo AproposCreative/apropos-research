@@ -270,3 +270,45 @@ expired/revoked approvals, missing login, tampered image identity, service scope
 unknown publication results and historical Graph behavior. The implementation is
 not yet a verified deployed server flow. No additional real Story has been sent.
 The prior one-off test receipt remains the only verified live clickable Story.
+
+### Hosted release and personal-login checkpoint, 31 October 2026
+
+The owner explicitly approved creation of the persistent Story service connection
+and its separate service credential in Google Cloud and Vercel. The connection is
+now deployed. No local Meta cookies/profile were transferred. Temporary credential
+transfer files were removed after authenticated service readback; no credential
+values are retained in evidence or Git.
+
+- Web source `1f373c1b5883c43060d217b3c886e4ea3ce5fad7`, production deployment
+  `dpl_3xjTgRa2yUHrH9XJgucywN12C2Lk`, alias `ai.aproposmagazine.com`.
+- Worker source `014b0225b803c2c41981732aa85ab118883a5f61`, Cloud Build
+  `f9eab2bf-760f-46b2-9bde-9014c888f71a` succeeded; image digest
+  `sha256:8590c9ef1672f5964c52935902c2cdf459381ed08e457987c0024b4861821877`.
+  Cloud Run revision `story-browser-00003-v46` became Ready at
+  `2026-10-31T17:53:52.144478Z` with the dedicated service account. This account
+  has no project IAM roles. The worker has no Firebase key.
+- Active Firestore whitelist rules already deny client access to private Story
+  collections; rules were read and not replaced. Existing iOS preference rules
+  remain intact.
+- 73 focused tests passed, followed by 8 runtime tests for the final popup-scale
+  correction. Scoped lint/typecheck and the full local webpack build passed.
+  The actual production build also compiled, typechecked and generated 254 pages.
+- Production connection page returns 200 with frame denial and private/no-store;
+  unauthenticated publish and worker calls return 401; worker health returns 200.
+  An authenticated service status read at `2026-10-31T17:48:34.159Z` was 200 with
+  `connected=false`. This was before revision 3 and remains dated evidence.
+- The owner login page now renders the real Facebook popup at 1650 by 1045,
+  matching click coordinates. Popup following and viewport normalization were
+  verified without entering credentials. Screenshot:
+  `output/story-server-20261031/ui/server-meta-login-ready.png`.
+- Desktop `/ai` without a view query was visually checked: Writer opens over the
+  large robot and the original desktop menu remains available. Existing black
+  Story CTA remains part of the supplied design.
+
+The server's personal Facebook/Instagram login is still pending. The owner-only
+`/social-story-connection` page is open for that action. The hosted publication
+path has not yet produced a real Story, so Ready deployments and tests are not
+reported as completed end-to-end delivery. No new publication permission is
+inferred from the exhausted one-off test approval. Historical receipts and
+duplicate locks remain unchanged. After personal login, verify the saved
+connection and obtain a concrete new test publication choice before a real send.
