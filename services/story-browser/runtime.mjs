@@ -16,6 +16,14 @@ function boundedState(state) {
 export function createStoryRuntime({ browser, store, bucket, sharp, revalidate }) {
   let setup = null, running = false, setupRunning = false;
   const contextOptions = state => ({ storageState: state, viewport: { width: 1650, height: 1045 }, locale: 'da-DK', timezoneId: 'Europe/Copenhagen' });
+  async function setupPage() {
+    // OAuth may open a new provider window or close it after returning. Follow
+    // only actual pages in this setup context, always on Facebook/Instagram.
+    const pages = setup.context.pages().filter(page => !page.isClosed());
+    const page = pages[pages.length-1]; if (!page) throw Error('story_setup_expired');
+    await page.waitForURL(url => hostAllowed(url.href), { timeout: 20_000 });
+    setup.page = page;
+  }
   async function matchesImage(page, original) {
     // Read only a rendered Story image asset, not private application state.
     const images = await page.locator('img').evaluateAll(els => els.map(el => {
@@ -97,8 +105,12 @@ export function createStoryRuntime({ browser, store, bucket, sharp, revalidate }
         }
       } else {
         if (!setup || setup.ownerUid !== ownerUid || setup.id !== input.setupId) throw Error('story_setup_expired');
+        await setupPage();
         if (!hostAllowed(setup.page.url())) throw Error('story_setup_domain');
-        if (input.action === 'click') await setup.page.mouse.click(input.x, input.y);
+        if (input.action === 'click') {
+          const popup = setup.context.waitForEvent('page', { timeout: 1200 }).catch(() => null);
+          await setup.page.mouse.click(input.x, input.y); await popup;
+        }
         else if (input.action === 'text') await setup.page.keyboard.insertText(input.text);
         else if (input.action === 'key') await setup.page.keyboard.press(input.key);
         else if (input.action === 'instagram') await setup.page.goto(INSTAGRAM_PROFILE);
@@ -117,6 +129,7 @@ export function createStoryRuntime({ browser, store, bucket, sharp, revalidate }
       }
       // Setup is human-driven and confined to the two named services. Never
       // expose cookies, storage, page HTML, arbitrary URLs or evaluation access.
+      await setupPage();
       if (!hostAllowed(setup.page.url())) throw Error('story_setup_domain');
       return { connected: false, setupId: setup.id, expiresAt: setup.expiresAt,
         screenshot: (await setup.page.screenshot({ type: 'jpeg', quality: 70 })).toString('base64'), width: 1650, height: 1045 };

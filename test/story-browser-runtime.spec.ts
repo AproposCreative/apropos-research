@@ -52,3 +52,39 @@ it('stops when current personal approval is revoked, without a second publish at
   expect(await f.runtime.process('one')).toMatchObject({ accepted: false });
   expect(f.store.beforePublish).not.toHaveBeenCalled(); expect(ui.publish).toHaveBeenCalledOnce(); expect(f.context.close).toHaveBeenCalledOnce();
 });
+
+async function setupFixture(popupHost = 'www.facebook.com') {
+  const pages: any[] = []; let opened: ((page: any) => void) | undefined;
+  function page(label: string) {
+    let url = 'https://business.facebook.com/latest/home', closed = false;
+    const p = { url: () => url, isClosed: () => closed, close: async () => { closed = true; },
+      goto: async (value: string) => { url = value; },
+      waitForURL: async (match: (url: URL) => boolean) => { if (!match(new URL(url))) throw Error('domain_rejected'); },
+      screenshot: async () => Buffer.from(label),
+      mouse: { click: async () => { const popup = page('popup'); await popup.goto('https://'+popupHost+'/login'); opened?.(popup); } },
+    }; pages.push(p); return p;
+  }
+  const context = { pages: () => pages, newPage: async () => page('main'), close: vi.fn(),
+    waitForEvent: () => new Promise(resolve => { opened = resolve; }) };
+  const store = { session: async () => undefined, saveSession: vi.fn() };
+  return { runtime: createStoryRuntime({ browser: { newContext: async () => context }, store, bucket: {}, sharp, revalidate: vi.fn() }), pages, store };
+}
+it('follows a real provider login popup and returns to the original page after it closes', async () => {
+  const f = await setupFixture(); const start = await f.runtime.setup('owner', { action: 'begin' });
+  const popup = await f.runtime.setup('owner', { action: 'click', setupId: start.setupId, x: 1, y: 1 });
+  expect(Buffer.from(popup.screenshot, 'base64').toString()).toBe('popup');
+  await f.pages[1].close();
+  const back = await f.runtime.setup('owner', { action: 'refresh', setupId: start.setupId });
+  expect(Buffer.from(back.screenshot, 'base64').toString()).toBe('main'); expect(f.store.saveSession).not.toHaveBeenCalled();
+});
+it('never displays a login popup outside Facebook and Instagram', async () => {
+  const f = await setupFixture('attacker.test'); const start = await f.runtime.setup('owner', { action: 'begin' });
+  await expect(f.runtime.setup('owner', { action: 'click', setupId: start.setupId, x: 1, y: 1 })).rejects.toThrow('domain_rejected');
+  expect(f.store.saveSession).not.toHaveBeenCalled();
+});
+it('keeps a hosted login setup bound to its original owner and exact setup ID', async () => {
+  const f = await setupFixture(); const start = await f.runtime.setup('owner', { action: 'begin' });
+  await expect(f.runtime.setup('other', { action: 'refresh', setupId: start.setupId })).rejects.toThrow('story_setup_expired');
+  await expect(f.runtime.setup('owner', { action: 'refresh', setupId: 'wrong' })).rejects.toThrow('story_setup_expired');
+  expect((await f.runtime.setup('owner', { action: 'refresh', setupId: start.setupId })).setupId).toBe(start.setupId);
+});

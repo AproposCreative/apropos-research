@@ -21,9 +21,9 @@ export default function StoryConnectionPage() {
   const act = (action: string, values: Record<string, unknown> = {}) => request({ action, setupId: frame?.setupId, ...values });
   if (loading) return <p>Indlæser…</p>;
   if (!user || !capabilities.owner) return <p>Log ind som ejer for at tilslutte Story-forbindelsen.</p>;
-  return <main style={{ maxWidth: 1100, margin: 'auto', padding: 16, color: '#f5f5f5' }}>
+  return <main style={{ maxWidth: 1100, minHeight: '100dvh', margin: 'auto', padding: 16, color: '#f5f5f5', background: '#000' }}>
     <a href="/design-editor">Tilbage til SoMe</a>
-    <h1>Story-forbindelse</h1>
+    <h1 style={{ fontSize: 24, fontWeight: 600, margin: '16px 0' }}>Story-forbindelse</h1>
     {frame?.connected && <p role="status">Meta-login gemt.</p>}
     {!frame?.screenshot && <>
       {!frame?.connected && <p>Forbind Apropos til Facebook og Instagram på serveren. Login gemmes krypteret til de Stories, du vælger at udgive. Din computer behøver derefter ikke være tændt.</p>}
@@ -40,7 +40,8 @@ export default function StoryConnectionPage() {
         <img src={'data:image/jpeg;base64,'+frame.screenshot} alt="Login hos Meta i serverbrowseren" draggable={false} style={{ display: 'block', width: '100%' }} />
       </button>
       <form onSubmit={event => { event.preventDefault(); const value = text; setText(''); void act('text', { text: value }); }} style={{ display: 'flex', flexWrap: 'wrap', gap: 12, marginTop: 12 }}>
-        <input aria-label="Tekst til det valgte loginfelt" type="password" autoComplete="off" value={text} onChange={event => setText(event.target.value)} maxLength={2000} disabled={busy} />
+        <input aria-label="Tekst til det valgte loginfelt" type="password" autoComplete="off" value={text} onChange={event => setText(event.target.value)} maxLength={2000} disabled={busy}
+          style={{ minHeight: 44, padding: '8px 12px', background: '#1c1c1e', border: '1px solid #555', borderRadius: 10, flex: '1 1 220px' }} />
         <button disabled={busy || !text} type="submit">Indsæt</button>
         {['Tab', 'Backspace', 'Enter'].map(key => <button key={key} type="button" disabled={busy} onClick={() => { void act('key', { key }); }}>{key}</button>)}
         <button type="button" disabled={busy} onClick={() => { void act('refresh'); }}>Opdatér billede</button>
