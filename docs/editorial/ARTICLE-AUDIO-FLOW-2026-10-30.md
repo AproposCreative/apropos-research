@@ -1,5 +1,24 @@
 # Artikel til automatisk lydepisode
 
+## Første faktiske v4-episode, kontrolleret 31. oktober kl. 13:54
+
+Terminallisten sæson 2 har nu en reel afsluttet `narration_queue`-kvittering på
+CMS-item `6ae5df9e1a88dda9a0b30ba2`. Den oprindelige lydmetadata fra kl. 12:34:14
+UTC angiver Ellen `BIvP0GN1cAtSRTxNHnWS`, `eleven_v4`, V.2-jingle/revision 1,
+stability 1, ingen indsatte musikpauser og `free-ad-free-v1`-afslutningen.
+Filen er 12.053.291 bytes med metadata-varighed 450 sekunder. Episoden findes
+under samme GUID og lyd-URL i den aktuelle RSS og på Spotify som
+`6MJx333ff4uj49RHE0l2IT`. Dette er faktiske produktions-/distributionsreceipts;
+der er ikke udført en ny fuld menneskelig lytteaccept af de 7:30 minutter.
+
+Det oprindelige sorte cover skyldtes en separat RSS-rækkefølgefejl: lyden blev
+annonceret før det færdige artikelcover. Både feedet og Spotifys offentlige
+episodevisning har nu det rigtige cover. Den forebyggende RSS-rettelse er
+udgivet og verificeret separat; se
+`PODCAST-EPISODE-METADATA-2026-10-30.md` og
+`output/podcast-artwork-terminal2-20261031/verification.json`.
+Lyd, worker, episodeidentitet og oprindelige receipts blev bevaret i coverforløbet.
+
 ## Ellen v4 aktiveret til nye lydartikler 31. oktober kl. 12:32
 
 Efter ejerens valg af v4-prøven er den eksisterende lydworker opdateret med

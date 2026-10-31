@@ -70,3 +70,55 @@ Production verified **2026-10-30T16:20:19.330Z** on the alias for code `443ad145
 
 These are actual feed/image readbacks. Spotify's separate cached display has not been claimed as refreshed by this verification.
 Evidence: `output/podcast-app-artwork-20261030/`.
+# Terminallisten sæson 2: første RSS-cover, 31 October 2026
+
+The owner reported the new episode with a black app-branded placeholder in
+Spotify. The retained narration receipt for
+`ai-terminallisten-saeson-2-anmeldelse` was written at 12:34:14 UTC with the
+show-cover fallback. Its article-specific artwork metadata was written by the
+existing reconciliation at 12:45:35 UTC. The feed exposed the new audio between
+these stages, letting Spotify cache the placeholder. This was an ordering defect,
+not a corrupt image encoder or a new ElevenLabs problem.
+
+At 12:51 UTC the canonical feed already carried the correct 1400px image,
+SHA-256 `2c5da73589af932ee23b28a89c400abc30a60530ed129d5509e802eb1f88fc1e`,
+112931 bytes. The actual public Spotify episode embed, episode
+`6MJx333ff4uj49RHE0l2IT`, then showed the correct Dar Salim/Chris Pratt image.
+Its displayed 640px Spotify CDN derivative was downloaded, visually inspected
+and compared with the feed image (mean RGB difference 0.628 at 300px).
+This establishes the corrected public Spotify cover; a previously delivered
+phone notification is a dated snapshot and was not resent.
+
+Release `2372b071b502078b8f3da00a45582eae6dcb93ab`, deployment
+`dpl_9oj43NrWuxTKANi3c4tX8TJPmaVq`, became READY on the production alias at
+13:00:46 UTC. RSS now waits for an identity-bound, verified artwork record with
+the approved app style, artifact hash and actual byte size before announcing a
+new episode. A failed metadata read returns a retryable 503/no-store response,
+rather than a successful degraded or apparently empty feed. An authoritative
+live CMS read confirming no photo may still create the owner's branded missing-
+photo artwork. Unknown identity, pending synchronization and failed photo fetches
+cannot create that fallback. Existing last-good metadata remains preserved.
+
+All 92 podcast tests, app TypeScript and build security configuration checks
+passed. Tests cover the actual sequence of ready old episode, pending new
+episode, verified new cover and subsequent release under the original GUID,
+audio URL and publication date; they also cover metadata outage and retained
+last-good artwork. Read-only checks against all 131 actual selected episodes
+confirmed that every existing episode already meets the artwork gate.
+
+Production readback at 13:01:28 UTC returned HTTP 200/synced and all 131 original
+items with identical identity, title, copy, cover, enclosure, author, date and
+duration fields. The target audio object's generation/size/MD5/CRC32C, original
+raw manifest generation/hash and retained narration/metadata receipts are
+unchanged. There were no new TTS calls, CMS writes, queue retries, credential
+changes or notification sends. No error/fatal runtime logs were returned for
+this exact deployment in the inspected ten-minute window.
+
+Evidence: `output/podcast-artwork-terminal2-20261031/` with verification.json,
+source-before.json, source-after.json, readiness-preflight.json, deployment.json,
+rss-before.xml, rss-after.xml, spotify-visible-artwork.json,
+spotify-artwork-verification.json, spotify-cover-current.jpg, podcast-tests.log
+and typecheck.log. The original encoder, approved logo, audio worker and sources
+were preserved. The existing metadata timer still determines when a new episode
+becomes ready; this release adds no paid pipeline or public write route.
+
