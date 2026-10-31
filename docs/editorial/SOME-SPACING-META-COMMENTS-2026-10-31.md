@@ -432,3 +432,36 @@ source is based on the fresh live commit be7827b528f3db9a691d714fb30ed633a8794d5
 preserving the concurrent podcast/newsletter changes. Further release evidence
 is appended only after actual readback. No additional real Meta login attempt or
 Story send is part of the local visual fixtures.
+
+Release readback: source `33648cda4033634de69df31e4cc49fd388ca8d8a`, Vercel
+`dpl_8242ZCDhnG58RQSV9XKeHbFaQmNT`, live alias `ai.aproposmagazine.com`.
+The staged production build compiled, typechecked and generated 254 pages before
+promotion. Fresh alias readback matched the exact release. Cloud Build
+`81938781-853b-4456-9307-8d1a263d4473` succeeded; Cloud Run revision
+`story-browser-00006-t89` became Ready at `2026-10-31T19:00:06.938738Z`, image
+`sha256:e02c94eef4d369bf5b104a045c6a414099e2c4f6c429637cb5537ae647e5b275`.
+The existing service identity, credentials, CPU allocation and maximum one
+instance were preserved; minimum remains zero. No new dependencies, permission
+expansion, browser engine substitution, proxy or challenge-solving service.
+
+The production verification command correctly returned no saved connection. A
+second normal begin/read, now on the new server revision, showed Meta's standard
+Business Tools login choices. Choosing Facebook showed the ordinary email and
+password form, without a CAPTCHA on that displayed step. The owner-provided
+Facebook email was entered through the new direct input control; Tab correctly
+selected the provider password field. No password, passkey, authentication code
+or login submission was supplied by the agent. The exact reason the earlier
+challenge appeared is still unknown; this is not proof all subsequent challenges
+are resolved. The personal login page was handed to the owner, who was asked to
+complete login directly or identify a passkey-only account. No passkey export or
+credential change was attempted.
+
+Local visual fixtures confirmed eight characters and Tab arrived in order,
+remote scrolling did not scroll the surrounding page, and a delayed input reply
+did not reopen a stopped login. Those are fixtures, not Meta authentication.
+Actual production connection/health reads were 200, unauthenticated publish and
+connection reads were 401, and the owner-only verification command was read back
+visibly. Bounded evidence and screenshots are retained in
+`output/story-direct-login-20261031/`. Acceptance is still open pending personal
+login, verification after process restart and a separately selected real test
+Story. No Story was published in this release.
