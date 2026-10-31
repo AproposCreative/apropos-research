@@ -104,6 +104,18 @@ The retained key lacks user_read, while voices and TTS work. No key scope,
 credential, budget or quota was changed. The active worker's existing nullable
 usage-check behavior is preserved; no current provider balance is claimed.
 
+Follow-up at 10:55 UTC: after the owner's specific approval, the existing
+Herculean Mountain Lion key (…4cd1) received only User access (`user_read`).
+Reopening the saved dialog and comparing snapshots confirms every other setting
+is unchanged. A read-only call with the worker's same secret version/fingerprint
+now returns subscription HTTP 200: 19,102 used / 137,442 limit, 118,340 remaining
+(13.9%). These are shared ElevenLabs account quota units, not Apropos-only cost.
+Voices also returns HTTP 200 and includes existing Ellen ID
+`BIvP0GN1cAtSRTxNHnWS`. The 80% guard is unchanged. No new TTS, model switch,
+credential rotation, budget change or deployment was performed for this fix.
+Evidence: `elevenlabs-usage-after.json`, `elevenlabs-scope-{before,after}.txt`
+and `elevenlabs-user-read-after.jpg` in the release evidence directory.
+
 Owner-controlled V.2 selection is stored at revision 1, with transaction audit
 and matching readback at 10:23 UTC. The maintained operator is
 `integrations/narration-v2/select-jingle.mjs`: read status first, run the read-only `verify-production.py` with existing gcloud access to obtain

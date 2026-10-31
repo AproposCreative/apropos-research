@@ -1,5 +1,34 @@
 # Artikel til automatisk lydepisode
 
+## ElevenLabs-forbrugslæsning rettet 31. oktober kl. 11:55
+
+Efter ejerens særskilte godkendelse er kun `User` ændret fra `No Access` til
+`Access` på den eksisterende Apropos-nøgle “Herculean Mountain Lion” (…4cd1)
+under `fka@azide.dk`. ElevenLabs kvitterede for gemningen. Dialogen blev åbnet
+igen; før/efter-sammenligningen viser kun denne ændring. Alle andre scopes,
+udløb, forbrugsloft, IP-indstilling og automatisk lækagebeskyttelse er bevaret.
+
+En læsende kontrol kl. 10:55:03 UTC med generatorens faktiske secret-version 1
+giver nu HTTP 200 fra `/v1/user/subscription`, hvor den tidligere gav 401 og
+`missing_permissions/user_read`. Nøglens SHA-256 er uændret:
+`9c33be54086c06a4b053a4612766f777d54bf6c8745f75097295b94bff904766`.
+API'et viser 19.102 brugte af 137.442 enheder, 118.340 tilbage og 13,9 % brugt.
+Tallene gælder den fælles ElevenLabs-konto, ikke isoleret Apropos-forbrug eller
+en udgift i kroner. Generatorens eksisterende 80 %-grænse er bevaret; det
+aktuelle forhold ligger under grænsen. Samme nøgle giver HTTP 200 fra stemmelisten
+med den eksisterende Ellen-identitet `BIvP0GN1cAtSRTxNHnWS`.
+
+Ingen lyd er genereret i denne kontrol. Nøgleværdi, model, V.2-opskrift, budget
+og deployment er bevaret. Den tidligere prøveversions kontrol på navnet “Ellen”
+gav et falsk negativt resultat, fordi stemmen har et længere navn; kontrollen
+bruger nu den eksisterende voice-ID. Det er ikke et dokumenteret stemmetab.
+Første reelle nye artikels samlede produktionsreadback er stadig afventende.
+
+Evidens i `output/narration-v2-release-20261031/`:
+`elevenlabs-scope-{before,after}.txt`, `elevenlabs-user-read-after.jpg` og
+`elevenlabs-usage-after.json`. Den daterede aktiveringsreceipt og ældre 401-resultat
+er bevaret som historik. Afsnittet nedenfor beskriver aktiveringen før dette fix.
+
 ## V.2 aktiveret 31. oktober 2026
 
 Den nye lydopskrift er i produktion som `generatenarrationonqueue-00010-vik`,
