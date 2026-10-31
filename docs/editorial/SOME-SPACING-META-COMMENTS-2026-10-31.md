@@ -86,8 +86,9 @@ Evidence: `output/social-spacing-meta-20261031/inspection.json` (no credentials)
 
 The owner's subsequent instruction replaces the proposed Facebook permission
 repair: article-link controls must only be offered for Instagram Story. The
-pending comment-access request is no longer needed and does not authorize any
-permission change. No Meta access or credentials have been changed.
+earlier comment-access request is no longer needed. A later answer approved that
+older request; the access is unnecessary for the requested Story flow, so no Meta
+access or credentials have been changed and no comment has been sent.
 
 - Removed the automatic Facebook comment operation from the publisher and its
   transport. Newly claimed operations retain a skipped comment field only for
@@ -105,3 +106,20 @@ permission change. No Meta access or credentials have been changed.
   and lost responses at 320/390/768/1440px. Three local fixture publications;
   zero real posts, comments or paid calls. Evidence:
   `output/social-story-links-20261031/ui/report.json`.
+
+Production receipt: implementation `26b49d020692878805cbb973a640289726092780`,
+release `e5758150a36eb92d4fa4b22c8aa514f16c9ba1e3`, deployment
+`dpl_xWpXZ8iYVBZrH2LgxkTipz1XJCPX` READY on the actual
+`ai.aproposmagazine.com` alias. The exact release passed full compilation,
+TypeScript and 249-page generation. All 20 differing paths in the prior combined
+production tree were preserved as exact Git blobs. No unrelated newsletter or
+observer work was included. Four existing podcast tracing warnings remain.
+
+Public asset readback at 14:29:45 UTC confirms the historical-error wording and
+Story controls are served, while the Facebook comment-access prompt is absent.
+Anonymous draft/publishing reads remain 401. Authenticated browser readback also
+confirmed the 1:1 editor has no article-link control or access-repair prompt.
+No real publishing button, AI button, draft change or permissions change was used.
+A deployment-scoped error/fatal scan through 14:29:43 UTC returned no entries;
+this is a bounded early-release window. Source and public-readback evidence is
+in `output/social-story-links-20261031/{release,production-assets}.json`.
