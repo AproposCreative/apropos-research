@@ -81,3 +81,27 @@ Evidence: `output/social-spacing-meta-20261031/inspection.json` (no credentials)
   and `production-assets.json`. Tests, browser fixture and geometry reports are
   in the same directory. The real Meta permissions remain unchanged; personal
   authorisation for comment access is pending.
+
+## Owner correction: article links belong only to Instagram Story
+
+The owner's subsequent instruction replaces the proposed Facebook permission
+repair: article-link controls must only be offered for Instagram Story. The
+pending comment-access request is no longer needed and does not authorize any
+permission change. No Meta access or credentials have been changed.
+
+- Removed the automatic Facebook comment operation from the publisher and its
+  transport. Newly claimed operations retain a skipped comment field only for
+  receipt compatibility; successful feed posts complete without a comment.
+- Removed comment-management scope recommendations, capability warnings and
+  permission-repair links. Old rejected or uncertain comments remain identified
+  as historical evidence; their records and duplicate locks are preserved.
+- Story still offers image download and article-link copy for Instagram's link
+  sticker. The feed offers no article-link control. The graphic CTA does not
+  create an interactive sticker, and automatic Story publication does not add one.
+- 42 targeted tests passed, including actual API/Graph fixtures with zero comment
+  requests, historical receipt readback/replay locks and no access escalation.
+  Scoped ESLint and diff checks passed. The editor fixture passed ten checks,
+  including Story-only link controls, reload/conflicts, spacing, explicit channels
+  and lost responses at 320/390/768/1440px. Three local fixture publications;
+  zero real posts, comments or paid calls. Evidence:
+  `output/social-story-links-20261031/ui/report.json`.

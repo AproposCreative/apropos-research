@@ -22,6 +22,10 @@ it('confirms Instagram and Facebook independently', () => {
 it('keeps actual rejection visible', () => {
   expect(socialPublishFeedback(400, { error: 'Ugyldigt billede' }, false, false).error).toBe('Ugyldigt billede');
 });
+it('does not ask for article-link comments on successful feed posts', () => {
+  expect(socialPublishFeedback(200, { success: true, mediaId: 'ig', facebookPublished: true, facebookCommentPublished: false }, false, true))
+    .toEqual({ success: 'Publiceret på Instagram og Facebook.', warning: null, error: null });
+});
 it('does not claim an unconfirmed story succeeded', () => {
   expect(socialPublishFeedback(200, {}, true, false).success).toBeNull();
   expect(socialPublishFeedback(200, { success: true, mediaId: 'ig' }, true, false).success).toBe('Story er publiceret på Instagram.');

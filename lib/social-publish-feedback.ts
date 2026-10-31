@@ -5,7 +5,7 @@ export function uncertainSocialPublish(): SocialPublishFeedback {
   return { success: null, error: null, warning: 'Kvitteringen mangler. Opslaget kan være publiceret. Kontrollér Instagram og Facebook, før du sender igen, så du undgår et dobbeltopslag.' };
 }
 
-export function socialPublishFeedback(status: number, payload: unknown, isStory: boolean, hasArticleUrl: boolean): SocialPublishFeedback {
+export function socialPublishFeedback(status: number, payload: unknown, isStory: boolean, _hasArticleUrl?: boolean): SocialPublishFeedback {
   const data = payload && typeof payload === 'object' ? payload as Record<string, unknown> : {};
   if (status < 200 || status >= 300) {
     // A transport/server timeout can occur after Meta accepted the request.
@@ -15,9 +15,7 @@ export function socialPublishFeedback(status: number, payload: unknown, isStory:
   if (data.success !== true || typeof data.mediaId !== 'string' || !data.mediaId.trim()) return uncertainSocialPublish();
   if (isStory) return { success: 'Story er publiceret på Instagram.', warning: null, error: null };
   const success = data.facebookPublished === true ? 'Publiceret på Instagram og Facebook.' : 'Publiceret på Instagram.';
-  const warning = data.facebookPublished === true && data.facebookCommentPublished !== true && hasArticleUrl
-    ? 'Artikellinket blev ikke lagt som første kommentar på Facebook. Tilføj linket manuelt; selve opslaget er publiceret.'
-    : data.facebookPublished === false
+  const warning = data.facebookPublished === false
       ? (typeof data.facebookError === 'string' && data.facebookError.trim() ? `Facebook: ${data.facebookError.trim()}` : 'Facebook-opslaget blev ikke bekræftet. Kontrollér Facebook før et nyt forsøg.')
       : null;
   return { success, warning, error: null };

@@ -13,21 +13,22 @@ function setup(scopes: string[], targets?: string[]) {
     throw Error('Unexpected endpoint');
   }); vi.stubGlobal('fetch', fetch); return fetch;
 }
-it('distinguishes a working posting connection from missing Facebook comment permission', async () => {
+it('keeps a working posting connection without asking for unused Facebook comment access', async () => {
   const fetch = setup(['instagram_basic', 'instagram_content_publish', 'pages_read_engagement', 'pages_manage_posts']);
   const result = await runInstagramTokenDiagnostics('page-token');
   expect(result.ok).toBe(true); expect(result.facebookOk).toBe(true);
-  expect(result.facebookCommentsReady).toBe(false);
-  expect(result.primaryAction).toContain('pages_manage_engagement');
-  expect(result.debug?.missingScopes).toContain('pages_manage_engagement');
+  expect(result.primaryAction).toBeNull();
+  expect(result.debug?.missingScopes).not.toContain('pages_manage_engagement');
   expect(fetch).toHaveBeenCalledTimes(3);
 });
-it('recognizes comment permission for the actual Page and keeps the existing token flow', async () => {
+it('does not alter or request existing comment grants for the actual Page', async () => {
   setup(['pages_manage_engagement'], ['page']);
   const result = await runInstagramTokenDiagnostics('page-token');
-  expect(result.facebookCommentsReady).toBe(true); expect(result.primaryAction).toBeNull();
+  expect(result.ok).toBe(true); expect(result.primaryAction).toBeNull();
+  expect(result.debug?.missingScopes).not.toContain('pages_manage_engagement');
 });
-it('does not claim access when permission only covers another Page', async () => {
+it('ignores irrelevant comment grants for another Page', async () => {
   setup(['pages_manage_engagement'], ['another-page']);
-  expect((await runInstagramTokenDiagnostics('page-token')).facebookCommentsReady).toBe(false);
+  const result = await runInstagramTokenDiagnostics('page-token');
+  expect(result.ok).toBe(true); expect(result.primaryAction).toBeNull();
 });

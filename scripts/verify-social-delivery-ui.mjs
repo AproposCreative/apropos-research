@@ -91,8 +91,8 @@ const server=createServer(async(req,res)=>{
   const key=JSON.stringify([body.articleId,body.card,body.caption,body.isStory]);
   if(receipts.has(key)){const receipt=receipts.get(key);attempts.set(body.requestId,receipt);return json({receipt,replay:true});}
   publishCalls++;
-  const receipt={id:'receipt-'+publishCalls,ownerUid:'fixture-owner',articleId:body.articleId,requestId:body.requestId,createdAt:new Date().toISOString(),updatedAt:new Date().toISOString(),complete:true,phase:body.channels.facebook?'stopped':'done',channels:body.channels,
-   instagram:{status:'published',id:'123',url:'https://www.instagram.com/p/fixture/'},facebook:{status:body.channels.facebook?'published':'skipped',...(body.channels.facebook?{id:'123_456',url:'https://www.facebook.com/fixture/posts/456'}:{})},comment:body.channels.facebook?{status:'failed',error:'Meta afviste handlingen (kode 200).'}:{status:'skipped'}};
+  const receipt={id:'receipt-'+publishCalls,ownerUid:'fixture-owner',articleId:body.articleId,requestId:body.requestId,createdAt:new Date().toISOString(),updatedAt:new Date().toISOString(),complete:true,phase:'done',channels:body.channels,
+   instagram:{status:'published',id:'123',url:'https://www.instagram.com/p/fixture/'},facebook:{status:body.channels.facebook?'published':'skipped',...(body.channels.facebook?{id:'123_456',url:'https://www.facebook.com/fixture/posts/456'}:{})},comment:{status:'skipped'}};
   receipts.set(key,receipt);attempts.set(body.requestId,receipt);return json({receipt});
  }
  if(buildDir && /^\/media\/[a-zA-Z0-9._-]+\.woff2$/.test(req.url)){res.setHeader('Content-Type','font/woff2');return res.end(await readFile(buildDir+'/static'+req.url));}
@@ -119,6 +119,8 @@ async function saved(page){await page.waitForFunction(()=>Array.from(document.qu
 try{
  const context=await browser.newContext({viewport:{width:390,height:844},permissions:['clipboard-read','clipboard-write'],acceptDownloads:true});
  const page=await open(context);
+ assert.equal(await page.getByRole('button',{name:'Kopiér artikellink',exact:true}).count(),0);
+ assert.equal(await page.getByLabel('Artikellink til Story',{exact:true}).count(),0);
  await expand(page,'subtitle');await page.waitForFunction(()=>document.querySelector('textarea[aria-label="Undertekst på billedet"]')?.value==='En sommer i Provincetown former Bourdain.');
  await expand(page,'title');await page.getByRole('textbox',{name:'Overskrift på billedet',exact:true}).fill('Bourdain før berømmelsen');
  await expand(page,'subtitle');await page.getByRole('textbox',{name:'Undertekst på billedet',exact:true}).fill('En sommer former Bourdain.');
@@ -153,6 +155,8 @@ try{
  await page.waitForFunction(()=>document.querySelector('textarea[aria-label="Overskrift på billedet"]')?.value==='En ny titel fra en anden enhed');
  report.push('fresh device restores server draft; stale edit requires explicit conflict resolution');
  await page.getByRole('button',{name:'1:1',exact:true}).click();await saved(page);
+ assert.equal(await page.getByRole('button',{name:'Kopiér artikellink',exact:true}).count(),0);
+ report.push('article-link controls are offered only for Instagram Story');
  await page.getByRole('button',{name:'Post til Instagram',exact:true}).click();
  assert.equal(await page.getByRole('checkbox',{name:'Facebook',exact:true}).isChecked(),false);
  await page.screenshot({path:outputDir+'/390-explicit-channels.png'});
@@ -166,17 +170,24 @@ try{
  await page.getByRole('button',{name:'Post til Instagram',exact:true}).click();await page.getByRole('checkbox',{name:'Facebook',exact:true}).check();
  await page.getByRole('button',{name:'Udgiv nu',exact:true}).click();
  await page.waitForFunction(()=>document.querySelectorAll('a[href*="facebook.com/fixture/posts"]').length===1);
- await page.getByText('Artikellinket blev ikke tilføjet som Facebook-kommentar. Facebook mangler adgang til kommentarer.',{exact:false}).waitFor();
+ assert.equal(await page.getByText('kommentaren',{exact:false}).count(),0);
+ assert.equal(await page.getByRole('link',{name:'Ret Facebook-adgang',exact:true}).count(),0);
  assert.equal(await page.getByText('Meta afviste handlingen (kode 200).',{exact:true}).count(),0);
  assert.equal(publishCalls,2);report.push('Facebook only receives an explicitly checked version; independent post links retained');
  await page.screenshot({path:outputDir+'/390-publication-receipts.png'});
+ // Keep a genuinely old denied-comment record visible as history, without
+ // scheduling that removed step on any new fixture publication.
+ const legacy=[...receipts.values()].find(row=>row.channels.facebook);
+ legacy.phase='stopped';legacy.comment={status:'failed',error:'Meta afviste handlingen (kode 200).'};
  await page.reload();await page.getByRole('button',{name:'Luk',exact:true}).first().click();await page.waitForFunction(()=>!document.querySelector('fieldset')?.disabled);
+ await page.getByText('Tidligere forsøg: Facebook-kommentaren med artikellinket blev afvist. Opslaget er udgivet.',{exact:true}).waitFor();
+ assert.equal(await page.getByRole('link',{name:'Ret Facebook-adgang',exact:true}).count(),0);
  await page.getByText('Tidligere udgivelser (1)',{exact:true}).click();assert.equal(await page.getByRole('link',{name:'Se opslag',exact:true}).count(),3);assert.equal(publishCalls,2);
  const latestTime=await page.locator('section[aria-label="Udgivelseskvittering"] time').first().getAttribute('datetime');
  await page.getByRole('button',{name:'Kontrollér status',exact:true}).last().click();
  await page.waitForFunction(()=>!Array.from(document.querySelectorAll('button')).some(b=>b.textContent==='Kontrollerer…'));
  assert.equal(await page.locator('section[aria-label="Udgivelseskvittering"] time').first().getAttribute('datetime'),latestTime);
- report.push('old permission error is explained specifically; checking older receipt preserves latest-publication order');
+ report.push('historical comment rejection remains readable without an access request; checking older receipt preserves latest-publication order');
  report.push('receipt history survives reload');
  await page.getByLabel('Opslagstekst',{exact:true}).fill('Et forsøg med tabt kvittering.');await saved(page);
  await page.goto(origin+'/?lost=1');await page.getByRole('button',{name:'Luk',exact:true}).first().click();await page.waitForFunction(()=>!document.querySelector('fieldset')?.disabled);

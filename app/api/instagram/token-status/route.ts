@@ -34,7 +34,6 @@ export async function GET() {
       issue: status.issue,
       primaryAction: status.primaryAction,
       tokenSource,
-      facebookCommentsReady: status.facebookCommentsReady ?? null,
       debug: status.debug
         ? {
             isValid: status.debug.isValid,

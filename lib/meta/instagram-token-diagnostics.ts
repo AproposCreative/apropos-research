@@ -13,7 +13,6 @@ const RECOMMENDED_SCOPES = [
   'pages_show_list',
   'pages_read_engagement',
   'pages_manage_posts',
-  'pages_manage_engagement',
 ] as const;
 
 export type InstagramTokenDiagnostics = {
@@ -24,7 +23,6 @@ export type InstagramTokenDiagnostics = {
   facebookOk: boolean;
   facebookPageName?: string;
   facebookError?: string;
-  facebookCommentsReady?: boolean;
   summary: string;
   debug?: {
     isValid: boolean;
@@ -132,13 +130,7 @@ export async function runInstagramTokenDiagnostics(
   }
 
   const ok = isValid && instagramOk && facebookOk;
-  const grants = Array.isArray(d.granular_scopes) ? d.granular_scopes as Array<{ scope?: string; target_ids?: string[] }> : [];
-  const commentGrant = grants.find(grant => grant.scope === 'pages_manage_engagement');
-  const facebookCommentsReady = !!facebookPageId && isValid && facebookOk && scopes.includes('pages_manage_engagement') &&
-    (!commentGrant?.target_ids || commentGrant.target_ids.includes(facebookPageId));
-  const primaryAction = ok && facebookPageId && !facebookCommentsReady
-    ? 'Forbind Facebook igen med pages_manage_engagement for at tilføje artikellink som kommentar. Eksisterende opslag bliver ikke sendt igen.'
-    : issueUserMessage(ok ? 'ok' : issue);
+  const primaryAction = issueUserMessage(ok ? 'ok' : issue);
 
   let summary: string;
   if (ok) {
@@ -159,7 +151,6 @@ export async function runInstagramTokenDiagnostics(
     facebookOk,
     facebookPageName,
     facebookError,
-    facebookCommentsReady,
     summary,
     debug: {
       isValid,
