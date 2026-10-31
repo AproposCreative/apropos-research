@@ -1,0 +1,229 @@
+# Artikel til automatisk lydepisode
+
+## V.2-kandidat klargjort 31. oktober, ikke aktiveret
+
+Ejeren har nu bestilt hele opdateringen til kommende lydartikler. Den isolerede
+adapter i `integrations/narration-v2/` er klargjort og består 25/25 lokale prøver.
+Den bruger originalens sammenhængende overgang fra 41,39 til 47,39 sekunder,
+seks sekunders intro, demoens 3 dB højere beat og bløde loopovergange. De
+indsatte tresekunders musikpauser er fjernet. Normal talehastighed og naturlige
+sætningspauser bevares. Musikken fortsætter 6,5 sekunder efter hele afslutningen.
+
+Stjerner og den længere tak samles med slutningen af artikelteksten i samme
+Ellen-kald. Alle chunks bruger samme stemme, eleven_v3, dansk, robust stabilitet
+og fælles episode-seed. V3 understøtter ikke request stitching, så der sendes
+ingen sådanne felter. Det er en konkret kontinuitetsrettelse, ikke en dokumenteret
+garanti for identisk stemme eller en faktisk ny lytteaccept. Den nye tak er
+præcis den nedenstående ejerformulering og gælder begge jinglevalg.
+
+V.1 bevares bytepræcist. Et Admin SDK-only versionsvalg læses én gang pr. ny
+episode og har forventet revision, audit og readback. Ingen klientregler eller
+offentlig kontrolrute tilføjes. Ældre lyd ændres ikke; ingen køjobs genstartes.
+Testene kører faktisk FFmpeg og den patchede generator med falsk TTS/storage.
+Der er ikke foretaget nye providerkald, faktisk outro-indtaling eller deployment.
+
+Produktion er fortsat blokeret: browserværktøjet svarer "Local browser use is
+disabled in Work settings"; en afgrænset GET af den aktive Cloud Function via
+eksisterende serviceauth returnerer 403. Eksisterende Vercel OAuth blev fornyet
+normalt; ingen credentials blev vist, og ingen IAM-/adgangsændring blev foretaget.
+Ejeren er én gang bedt aktivere browserstyring. Før release skal den eksisterende
+ejer-session genlæse den faktiske funktion/kilde/konfiguration, tage præcis
+rollbackkopi og optage en afgrænset rigtig Ellen-prøve. Deploy kun lydadapteren
+mod den friske kilde, aldrig den brede lokale backend eller historiske fixture.
+
+Evidens: `output/narration-v2-release-20261031/verification.json`,
+`tests-release.tap`, `patch-verification-release.json`, `assets-verification.json`
+og `active-function-read.json`. Adapterpakken `narration-v2-adapter.zip` indeholder
+kun adapter/validering/nye assets, ikke en historisk produktionsfunktion.
+Den aktive kildes readback og første legitime nye episodes kvittering/fil/feed
+er stadig åbne. Næste artikel må derfor endnu ikke loves V.2.
+
+Kortlagt 30. oktober 2026. Produktionsflowet er uændret. Ejeren har siden
+leveret V.2-masteren, bestilt lokale A/B-demoer og valgt ny afslutningstekst.
+Demoer og kandidatrettelser er samlet i `output/jingle-demo-2026-10-30/`.
+Ingen TTS-kald eller ændringer af CMS, jobs, push eller deployment er foretaget.
+
+## Ejerens nye afslutningstekst, 30. oktober
+
+“Tak fordi du lyttede med på Apropos Magazine. Lyt til alle vores artikler
+gratis, uden reklamer og forstyrrelser.”
+
+Denne tekst skal bruges med Ellen i både V.1 og V.2. Jinglevalget må ikke
+ændre formuleringen. Den længere talte afslutning kommer før den eksisterende
+6,5-sekunders musik-outro; talen skal kunne afsluttes helt før musikken fades ud.
+Teksten skal indgå i samme stemmekontekst som den øvrige afslutning ved den
+senere stemmerettelse. Ældre episoder og de allerede leverede musikdemoer
+er uændrede. En minimal patch til generatorens dokumenterede produktionskilde
+er klargjort og syntakskontrolleret, men ikke deployet eller indtalt:
+`output/jingle-demo-2026-10-30/approved-outro-copy.patch`.
+
+## Hvad der er verificeret, og hvad der er historik
+
+- Frisk offentlig kontrol kl. 09:39 Copenhagen: The Terminal List, Nogen der
+  kender nogen og Barsel findes alle i episode-API'et (HTTP 200/found=true).
+  Deres faktiske lydfiler leverer HTTP 206/audio/mp4 med korrekt 1.024-byte range.
+  RSS svarer HTTP 200 med 120 items. Dette er tilgængelighedsverifikation, ikke
+  en ny fuld lytteprøve eller bevis for en ny automatisk produktion i dag.
+- Produktionsarkitekturen nedenfor bygger på de bevarede, tidligere downloadede
+  Cloud Functions-kildearkiver og den verificerede 21./23. oktober-receipt i
+  iOS-projektets `Docs/Reviews/BarselAudioLanguageFix-2026-10-21.md`.
+- Arkivernes SHA-256 blev genkontrolleret i dag og matcher den tidligere receipt.
+  Generatorens arkiv er `Downloads/generateNarrationOnQueue_function-source.zip`,
+  SHA-256 `933e138811ba03cc6729fc6c8e1ceac4f38a7688ccf35be4fad9cd0f542d2678`.
+  Generatorens `narration.js` har SHA-256
+  `3e1334999e0f536f15829ac8957388bdd6ca20bed86d7529a16c92f4a97337cf`.
+- Det er arkiver fra før den isolerede danske sprogklassifikationsrettelse.
+  Oktober-receipten dokumenterer, at kun `notificationPolicy.js` ændredes ved
+  udrulningen; generator og jingle blev bevaret. Senest dokumenterede generator:
+  `generatenarrationonqueue-00009-2zb`. Dagens undersøgelse har ikke genlæst
+  Cloud Run-trafik eller downloadet en ny aktiv deployment. Før enhver ændring
+  skal den faktisk aktive version kontrolleres igen.
+- Den nuværende arbejdskopi af iOS-projektet indeholder meget nyere, ikke
+  produktionsverificeret kø-/manifest-/pushkode. Den må IKKE deployes samlet
+  som del af en lille jingleændring. Git HEAD alene er heller ikke en komplet
+  kopi af de tre historiske funktioners forskellige produktionspakker.
+
+Frisk evidens: `output/audio-flow-2026-10-30/public-readback.json`.
+
+## Det automatiske forløb
+
+```mermaid
+flowchart TD
+  A[Artikel publiceres i Webflow] --> B[Firebase webflowWebhook]
+  B --> C[Artikel og metadata i Firestore]
+  C --> D[narration_queue med artikelens slug]
+  D --> E[generateNarrationOnQueue]
+  E --> F[Artikeltekst, forfatter og stjerner]
+  F --> G[ElevenLabs: Ellen / eleven_v3]
+  G --> H[ffmpeg: tale, jingle, musikpauser og afslutning]
+  H --> I[Firebase Storage: færdig M4A og narration.json]
+  I --> J[podcasts/manifest.json og RSS-spejl]
+  J --> K[Hjemmesidens afspiller]
+  J --> L[iOS-appens afspiller]
+  J --> M[Offentligt RSS-feed]
+  E --> N[Afslutningsstatus og deduplikeret artikel-push]
+```
+
+1. **Start:** Webflow-publicering giver webhook til Firebase-projektet
+   `apropos-magazine-6004a`. Kun relevante publiceringshændelser og
+   artikelcollection behandles. Publicering af forfattere/kategorier synkroniserer
+   metadata separat. En kladde i ChatGPT er ikke lydstart.
+2. **Artikeldata:** Webhook synkroniserer Webflow-artikler til Firestore, så
+   generatoren kan hente artiklen. Forfatter og stjerneskala hentes fra egne
+   metadata. Den planlagte artikelsynk er en separat funktion; den er ikke i sig
+   selv en dokumenteret ny lydproduktion.
+3. **Kø:** Den dokumenterede produktionsvej er `narration_queue/{slug}` med
+   pending-status. Engelsk indhold frasorteres. Eksisterende lyd i enten
+   `podcasts/articles/` eller `podcasts/narration/` genbruges; et done-job
+   genkøres ikke automatisk. Den danske `-en-`-slugfejl blev rettet i oktober.
+4. **Worker:** Firestore-create udløser `generateNarrationOnQueue`.
+   Dokumenteret runtime: 2 GiB, 540 sekunder, højst tre instanser. Den tidligere
+   Eventarc-retryindstilling blev bevaret. En fejlet proces er ikke et løfte om
+   automatisk genoptagelse. `backfillNarration` er særskilt administratorrecovery.
+5. **Oplæsning:** HTML renses til tekst. Billeder, figure/billedtekster, scripts,
+   styles og iframes læses ikke op. Manuskriptet samles af talt titel/forfatter/
+   AI-oplysning, eventuelle stjerner, subtitle, intro og artikelens content.
+   Afslutningen gentager eventuelle stjerner og siger tak for lytningen.
+   Der er ingen separat sprogmodel, der først omskriver hele artiklen til en
+   samtale mellem værter. Dette er en oplæsning med indpakning.
+6. **Tale:** ElevenLabs-stemmen findes under navnet Ellen. Model `eleven_v3`,
+   TTS-format MP3, 44,1 kHz, 192 kbit/s. Teksten deles efter afsnit/sætninger med
+   et mål på 2.800 tegn pr. chunk. Stjerner ved afslutningen og tak er egne kald.
+   En enkelt usædvanligt lang sætning kan i denne splitter overstige målet;
+   grænsen er ikke en dokumenteret garanti for ethvert input.
+7. **Kvoter/fejl:** Eksisterende ElevenLabs-guard stopper ved mindst 80 procent
+   registreret forbrug eller hvis det forventede tekstforbrug overstiger kvoten.
+   Ukendt/fejlet kvoteopslag er ikke et bevis for tilstrækkelig saldo.
+   TTS-kald har op til tre forsøg ved relevante fejl; 4xx afbryder. Dette er ikke
+   en garanti for præcis én providerafregning ved et tvetydigt timeout.
+8. **Mix/fil:** ffmpeg samler talen, laver EQ/stereobredde og blander den
+   loopede jingle ind. Resultatet er AAC i M4A, 44,1 kHz, stereo, 192 kbit/s,
+   med faststart. Midlertidige talechunks ryddes efter serverjobbet.
+9. **Udgivelse:** Den dokumenterede generator gemmer
+   `podcasts/narration/{slug}/{slug}.m4a` og `narration.json` med titel, credits,
+   varighed, byteantal, beskrivelse og billede. Manifestet samles igen; en
+   separat manuelt uploadet episode har forrang for samme slug. RSS-spejl
+   skrives også. Nyt navn/tekst i CMS er ikke automatisk bevis for opdateret lyd.
+10. **Push:** Køkvittering og afsendelse er forskellige trin. Når lyd er klar,
+    bruges artikelpush med narration-type; ved lydfejl/kvote kan almindelig
+    artikelpush bruges. Historiske dedupe-/suppression-receipts kan forhindre
+    ny push. At lyden findes betyder ikke, at der netop er sendt en notifikation.
+
+## Den nuværende jingleopskrift
+
+| Del | Indstilling i generatorarkivet |
+| --- | --- |
+| Asset | `assets/narration-jingle.wav` |
+| Original | Stereo WAV, 48 kHz, ca. 22,588 sekunder |
+| Intro før stemmen | 6 sekunder, gain -5 dB |
+| Fade ind | 1 sekund |
+| Ned under stemmen | 1,5 sekunders overgang til gain -18 dB |
+| Musik under tale | Samme jingle loopet gennem episoden |
+| Mellem talesegmenter | 3 sekunders pause, musik gain -12 dB |
+| Outro efter stemmen | 6,5 sekunder, stiger til gain -5 dB på 1,2 sekunder |
+| Fade ud | Sidste 3 sekunder |
+
+Disse dB-tal er gain på inputfilen, ikke målte LUFS eller en loudnessgaranti.
+En ny, kraftigere master kan derfor lyde markant højere ved samme indstillinger.
+Pauserne følger TTS-segmenter, inklusive afslutningssegmenter, ikke redaktionelt
+valgte kapitelgrænser.
+
+Generatorarkivets jingle og de to lokale kopier under `functions/assets/` og
+`scripts/assets/` matcher bytepræcist:
+`ba2545a42cca7a90822340c2908c5a1d8681800211eaad9b402ee16c7f67f82d`.
+Det er den faktiske eksisterende reference til en A/B-test.
+
+## Hjemmeside, app og manuel upload
+
+**Apropos Research** ejer webafspilleren `public/podcast-player.js`, de offentlige
+episode-endpoints og RSS på `https://ai.aproposmagazine.com/api/podcast/rss`.
+Webafspilleren slår artiklens slug op i manifestet, henter den direkte lydfil og
+viser artiklens artwork. CMS-switch `lydversion` og faktisk lydtilgængelighed er
+separate ting; den dokumenterede legacy-generator satte ikke altid switchen.
+
+**iOS-projektet** ejer Firebase-generatoren og appens native AVPlayer,
+manifestindlæsning, afspilningsstatus og offlineforløb. Der er separate nyere
+apprettelser, som ikke må forveksles med en ny lydmotor-deployment.
+
+**Manuel upload** via `/ai?view=podcast` er en anden indgang: brugeren uploader
+færdig MP3/M4A, Vercel eller valgfri Cloud Run-processor laver AAC 96 kbit/s,
+manifest og notifikation. Den køber ikke automatisk ElevenLabs-tale og mixer
+ikke denne jingleopskrift. Begge indgange mødes i samme episodekatalog.
+
+RSS er verificeret tilgængeligt. Faktisk optagelse/opdatering hos Spotify eller
+Apple Podcasts blev ikke kontrolleret her.
+
+## Observerede afgrænsninger, ikke bestilte rettelser
+
+- Nogen der kender nogens offentlige lydpost har stadig den ældre titel med
+  boligspørgsmålet. Det ændrer ikke dagens vellykkede filadgang, men illustrerer,
+  at lydmetadata og senere CMS-tekstrettelser ikke nødvendigvis følges ad.
+- Den offentlige seneste-liste viser to Placebo-slugs fra forskellige dage.
+  De er ikke ændret eller slettet under denne kortlægning.
+- Den nyere lokale kø hedder `narration_jobs` og bruger revisionsbundne jobs,
+  leases, recovery og nye manifest-/pushkontrakter. Den er dokumenteret som
+  særskilt migrationsarbejde. Den må ikke beskrives som aktuelt produktionsflow
+  alene fordi filerne ligger i arbejdskopien.
+
+## Afprøvning af ny jingle uden ændring af produktionen
+
+1. Modtag den originale nye WAV/MP3 og ejerens konkrete feedback.
+2. Bevar gammel fil/hash og nuværende opskrift. Mål ny fils varighed, kanaler,
+   niveau, peaks og loopovergang. Afprøv både intro, tale-underlæg og outro.
+3. Lav lokal A/B-lytteprøve med samme tørre stemme i begge versioner. Eksisterende
+   `scripts/narration-poc.mjs --reencode --jingle=...` understøtter genmix uden
+   nye ElevenLabs-kald, HVIS de originale chunks/concat/source-filer findes.
+   Ingen brugbar rå stemmecache blev dokumenteret i denne undersøgelse. En
+   allerede færdigmixet episode er ikke en ren stemmefil, og gammel musik må
+   ikke blot lægges oven i den nye.
+4. Lytteprøven bliver en separat lokal fil uden upload, manifestwrite eller push.
+   Hvis ny tale er nødvendig, afgræns først prøve og forbrug. Ingen blind
+   genkørsel af gamle køjobs og ingen ændring af kvoteværn.
+5. Før en senere udrulning: læs den aktive Cloud Functions-version, tag præcis
+   rollbackkopi og ændr kun den aftalte lydopskrift/asset. Bevar den fungerende
+   webhook/kø/notifikationsvej. Deploy ikke den brede lokale iOS-backend.
+6. Kontrollér den aftalte nye episode fra jobreceipt til fil, manifest, web og
+   iPhone. Gamle episoder regenereres ikke som en bivirkning af jingleændringen.
+
+Ingen af disse test-/udrulningstrin er udført endnu. Kortlægningen er klar til
+ejerens feedback og nye jingle.
