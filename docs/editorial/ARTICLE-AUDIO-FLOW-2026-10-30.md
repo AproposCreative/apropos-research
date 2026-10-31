@@ -1,6 +1,84 @@
 # Artikel til automatisk lydepisode
 
-## V.2-kandidat klargjort 31. oktober, ikke aktiveret
+## V.2 aktiveret 31. oktober 2026
+
+Den nye lydopskrift er i produktion som `generatenarrationonqueue-00010-vik`,
+100 % trafik. Google afsluttede opdateringen kl. 11:18 Copenhagen. Faktisk aktiv
+kilde blev efterfølgende downloadet og verificeret bytepræcist mod den testede
+pakke. Runtime, entrypoint, 2 GiB, timeout 540 sekunder, højst tre instanser,
+secrets, artikeltrigger og retryindstilling er bevaret. Kun `narration.js` og de
+fem nye helper-/assetfiler indgår i ændringen. Ingen bred backend-/webrelease.
+
+V.2 er gemt som ejerens aktive jinglevalg, revision 1, med audit og readback
+kl. 11:23. Ny lyd bruger seks sekunders sammenhængende overgang fra originalen,
+beat på demoens +3 dB-niveau, ingen indsatte tresekunders musikpauser og normal
+talehastighed. Afslutningen samles med artikelens sidste tekst i samme Ellen-kald;
+samme model, dansk, robust stabilitet og fælles seed bruges i hele episoden.
+Det mindsker konkrete årsager til stemmeskift uden at love identisk TTS-performance.
+
+Den ønskede længere afslutning gælder både V.1 og V.2:
+“Tak fordi du lyttede med på Apropos Magazine. Lyt til alle vores artikler gratis,
+uden reklamer og forstyrrelser.” Derefter følger 6,5 sekunders musik-outro.
+
+En rigtig Ellen-prøve er indtalt med to afsluttede providerkald, samlet 1.025
+teksttegn. Den samlede V.2-prøve er 1:20,66, valideret ved fuld dekodning og
+målt peak på -2,6 dB. MP3 og M4A ligger i
+`output/narration-v2-release-20261031/Apropos-V2-Ellen-og-ny-outro.*`.
+Den eksisterende nøgle mangler adgang til forbrugstal (`user_read`); stemmeliste
+og TTS virker. Generatorens hidtidige nullable kvotekontrol er bevaret. Ingen
+rettigheder, credentials, kvote eller budget er ændret, og saldo er ikke målt.
+
+De 130 eksisterende RSS-episoders GUID'er og lyd-URL'er er uændrede i før/efter-
+readback. Ingen gamle jobs eller episoder er genkørt. Den næste reelle nye
+artikel skal stadig verificeres gennem kø, audioRecipe-metadata, fil, manifest,
+web og RSS/Spotify efter ejerens normale publicering. Der er ikke oprettet en
+kunstig testartikel for at påstå dette. Jinglevalg kan fremover ændres gennem
+`integrations/narration-v2/select-jingle.mjs` efter ejerens eksplicitte V.1/V.2-valg,
+frisk workerverifikation og forventet indstillingsrevision.
+
+Releaseevidens: `output/narration-v2-release-20261031/production-verified.json`,
+`production-evidence.zip`, `jingle-selection.json`, `activation-status.json`,
+`ellen-mixed-sample.json`, `ellen-audio-validation.json`, `rss-{before,after}.json`
+og `cloud-run-v2-active.jpg`. Den oprindelige kilde/receipts bevares. En forkert
+valgt lokal mappedownload nåede at blive gemt trods annullering; den blev ikke
+åbnet eller sendt videre og er flyttet til papirkurven med mulighed for gendannelse.
+
+Afsnittene nedenfor er dateret klargøringshistorik og den tidligere kortlægning.
+Oplysninger om gamle adgangsblokeringer, separate afslutningskald og indsatte
+musikpauser beskriver tilstanden før aktiveringen ovenfor.
+
+## Historisk klargøring 31. oktober, før aktiveringen
+
+Nyeste efter ejerens “klar”: Google-bekræftelsen er gennemført, og Cloud Shells
+indbyggede autorisation giver nu en vellykket metadata-GET af lydfunktionen.
+Den er ACTIVE, nodejs22/generateNarrationOnQueue, med source generation
+1792597625222586 og samme kildeobjekt som den bevarede download. Den manuelle
+SDK-loginrunde blev ikke brugt videre, efter clipboard havde leveret en gammel
+værdi; den indbyggede godkendte forbindelse virker uden nyt login.
+
+Den aktuelle blokering er filoverførslen: Chromes filvælger afviste både den
+afgrænsede kandidatpakke og kontrolscriptet, fordi ChatGPT-udvidelsens “Allow
+access to file URLs” er slået fra. Ingen fil blev overført. Browserens
+sikkerhedskontrol afviste også chrome://extensions; ingen anden overflade eller
+omgåelse blev forsøgt. Ejeren er bedt aktivere indstillingen direkte i Chrome.
+V.2, faktisk Ellen-prøve og ny outro er stadig ikke aktiveret eller indtalt.
+
+Seneste interaktive kontrol 31. oktober: Chrome og ejerens Cloud Run-konsol
+virker igen. Den faktisk aktive kilde er downloadet til
+`output/narration-v2-release-20261031/active-source-before.zip`, SHA-256
+`70a2c7cb1672a2db8efcb123ae0db03de0952e2a49327a6a470b5ef7cd90ba5d`.
+Den isolerede kandidat er lavet ud fra denne kilde, og alle 25 tests består mod
+netop den. Entrypoint, den aktive danske notification-policy, package-filer og
+den oprindelige V.1-jingle er bevaret. Se `active-patch-verification.json`,
+`active-source-tests.tap` og `active-source-release-package.json` i samme mappe.
+
+Cloud Shell har dog ingen aktiv SDK-konto. Det normale Google Cloud SDK-login
+kræver en særskilt adgangskodebekræftelse af `frederik@aproposcreative.com`.
+Ejerens bekræftelse i selve Cloud Run-konsollen fuldførte ikke denne kontrol.
+Den konkrete Google-fane er bevaret til personlig bekræftelse. Ingen IAM-regler
+eller credentials er ændret, og ingen faktisk Ellen-prøve, deployment eller
+jinglevalg er udført. V.2 er fortsat ikke aktiveret. Den ældre browserblokering
+beskrevet længere nede er dermed historik, ikke den aktuelle fejl.
 
 Ejeren har nu bestilt hele opdateringen til kommende lydartikler. Den isolerede
 adapter i `integrations/narration-v2/` er klargjort og består 25/25 lokale prøver.
