@@ -22,6 +22,8 @@ export function createStoryRuntime({ browser, store, bucket, sharp, revalidate }
     const pages = setup.context.pages().filter(page => !page.isClosed());
     const page = pages[pages.length-1]; if (!page) throw Error('story_setup_expired');
     await page.waitForURL(url => hostAllowed(url.href), { timeout: 20_000 });
+    const viewport = page.viewportSize();
+    if (viewport?.width !== 1650 || viewport?.height !== 1045) await page.setViewportSize({ width: 1650, height: 1045 });
     setup.page = page;
   }
   async function matchesImage(page, original) {

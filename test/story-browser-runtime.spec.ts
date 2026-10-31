@@ -57,7 +57,9 @@ async function setupFixture(popupHost = 'www.facebook.com') {
   const pages: any[] = []; let opened: ((page: any) => void) | undefined;
   function page(label: string) {
     let url = 'https://business.facebook.com/latest/home', closed = false;
+    let viewport = label === 'popup' ? { width: 720, height: 1280 } : { width: 1650, height: 1045 };
     const p = { url: () => url, isClosed: () => closed, close: async () => { closed = true; },
+      viewportSize: () => viewport, setViewportSize: async (value: { width: number; height: number }) => { viewport = value; },
       goto: async (value: string) => { url = value; },
       waitForURL: async (match: (url: URL) => boolean) => { if (!match(new URL(url))) throw Error('domain_rejected'); },
       screenshot: async () => Buffer.from(label),
@@ -73,6 +75,8 @@ it('follows a real provider login popup and returns to the original page after i
   const f = await setupFixture(); const start = await f.runtime.setup('owner', { action: 'begin' });
   const popup = await f.runtime.setup('owner', { action: 'click', setupId: start.setupId, x: 1, y: 1 });
   expect(Buffer.from(popup.screenshot, 'base64').toString()).toBe('popup');
+  expect(f.pages[1].viewportSize()).toEqual({ width: 1650, height: 1045 });
+  expect({ width: popup.width, height: popup.height }).toEqual(f.pages[1].viewportSize());
   await f.pages[1].close();
   const back = await f.runtime.setup('owner', { action: 'refresh', setupId: start.setupId });
   expect(Buffer.from(back.screenshot, 'base64').toString()).toBe('main'); expect(f.store.saveSession).not.toHaveBeenCalled();
