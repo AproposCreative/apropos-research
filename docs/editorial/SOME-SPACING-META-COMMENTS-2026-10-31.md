@@ -484,9 +484,34 @@ transfer clears the local field first and replaces the currently selected remote
 field via select-all and insert, rather than appending to an already wrong value.
 Normal Tab navigation reaches the visible controls. Existing owner access,
 provider-domain limits, Stop behavior, encryption, jobs and receipts are unchanged.
-No browser password-store or autofill setting is modified, and no credential is
-read, changed, logged or submitted by the agent for this UI correction.
+No browser password-store or autofill setting is modified. No password, passkey
+or authentication code is read, changed, logged or submitted by the agent.
 
 This is a website-only change. It does not restart the Story worker or establish
 successful Meta authentication, a process-restart acceptance or a hosted Story
 publication. The idea collector remains paused at the owner's request.
+
+Release readback: source `f1c7ef01231fb50ea495b00dd42bbdc3af1b9e56`, deployment
+`dpl_3gdNLgja6me7xUcfis2KkgBK3Hqz`, live alias `ai.aproposmagazine.com`.
+The local and staged production builds compiled, typechecked and generated 254
+pages. Scoped lint and diff checks passed. Fresh alias readback matched the exact
+release; the connection page returned 200 with private/no-store and frame denial.
+No Cloud Run, service-key, worker, policy or dependency change was deployed.
+
+The real React fixture showed zero password inputs, zero transfers while the
+explicit box was being filled, and replacement of a seven-character remote
+fixture value by a three-character value after Indsæt. The local transfer box
+then emptied and disabled its button. Thirty selected characters remained
+visually masked. These checks did not contact Meta or authenticate an account.
+
+Production readback resumed the existing owner's Meta context rather than
+restarting the worker. The provider form contained an earlier incorrect-login
+message and an incorrect email entry. The previously owner-supplied Facebook
+email was restored with the new explicit transfer control, and actual image
+readback confirmed the replacement. This was an account-identifier transfer,
+not an authentication submission. The provider password field was selected and
+the empty local transfer box focused; no saved-password popup appeared in the
+observed view. No password was supplied or login submitted by the agent. The
+prior provider error is not a new failure caused by this release. The owner
+still completes personal authentication. Evidence is retained under
+`output/story-paste-fix-20261031/`. Hosted Story acceptance remains open.
