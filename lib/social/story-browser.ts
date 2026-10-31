@@ -11,7 +11,7 @@ export async function storyBrowserRequest(path: string, init: RequestInit = {}) 
   if (!storyBrowserConfigured() || base.protocol !== 'https:' || base.username || base.password || base.search || base.hash || base.pathname !== '/')
     throw Error('social_story_browser_unavailable');
   return fetch(new URL(path, base), { ...init, headers: { 'Content-Type': 'application/json', 'x-story-service-secret': process.env.SOCIAL_STORY_BROWSER_SECRET.trim() }, redirect: 'error', cache: 'no-store',
-    signal: AbortSignal.timeout(path === '/process' ? 250_000 : 15_000) });
+    signal: AbortSignal.timeout(path === '/process' ? 250_000 : path === '/setup' ? 110_000 : 15_000) });
 }
 
 export async function dispatchBrowserStory(id: string) {
