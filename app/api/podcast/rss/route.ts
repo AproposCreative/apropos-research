@@ -18,7 +18,9 @@ export async function GET(req: NextRequest) {
     const manifest = await readPodcastManifest();
     let metadataAvailable = true;
     const [metadata, facts] = await Promise.all([
-      readPodcastFeedMetadata(manifest).catch(() => { metadataAvailable = false; return {}; }),
+      // A temporary metadata outage must not replace known covers with fallbacks
+      // or return an apparently valid empty feed. Podcast clients can retry 503.
+      readPodcastFeedMetadata(manifest),
       readPodcastDeliveryFacts(manifest).catch(() => { metadataAvailable = false; return {}; }),
     ]);
     const xml = buildPodcastRssXml({
@@ -42,8 +44,8 @@ export async function GET(req: NextRequest) {
     return NextResponse.json(
       { ok: false, error: 'Kunne ikke bygge RSS-feed' },
       {
-        status: 500,
-        headers: { ...podcastCorsHeaders(req), 'Cache-Control': 'no-store' },
+        status: 503,
+        headers: { ...podcastCorsHeaders(req), 'Cache-Control': 'no-store', 'Retry-After': '60' },
       }
     );
   }

@@ -35,11 +35,11 @@ const liveItem = { id: 'cms-id', fieldData: { slug: 'deep-purple---royal-arena',
   intro: '<p>Rocken <em>lever</em> stadig &amp; orglet gløder.</p>', thumb: { url: 'https://cdn.example.test/approved.webp' }, 'foto-credit': 'Foto: Fotografen' } };
 const article = publishedPodcastArticle(liveItem)!;
 const metadata: PodcastFeedMetadata = { ...article, guid: episode.guid!, articleIdentity: 'deep-purple-royal-arena',
-  sourceHash: podcastSourceHash(article), imageURL: 'https://example.test/square.jpg', artworkSha256: 'sha', artworkBytes: 12345, updatedAt: '2026-10-30T10:00:00Z' };
+  sourceHash: podcastSourceHash(article), imageURL: 'https://example.test/square.jpg', artworkSha256: 'a'.repeat(64), artworkStyle: PODCAST_ARTWORK_STYLE, artworkBytes: 12345, updatedAt: '2026-10-30T10:00:00Z' };
 
 beforeEach(() => {
   mocks.records.clear(); mocks.store.mockReset(); mocks.fetch.mockReset(); vi.stubGlobal('fetch', mocks.fetch);
-  mocks.store.mockResolvedValue({ imageURL: metadata.imageURL, artworkSha256: 'sha', artworkBytes: 12345 });
+  mocks.store.mockResolvedValue({ imageURL: metadata.imageURL, artworkSha256: 'a'.repeat(64), artworkBytes: 12345 });
   mocks.fetch.mockImplementation(async () => new Response(JSON.stringify({ items: [liveItem] }), { status: 200 }));
 });
 
@@ -180,12 +180,16 @@ describe('metadata synchronization', () => {
     expect((await syncPodcastFeedMetadata(manifest)).updated).toEqual([episode.guid]);
     expect((await syncPodcastFeedMetadata(manifest)).updated).toEqual([]);
   });
-  it('does not create art for missing/ambiguous articles or a missing published cover', async () => {
+  it('waits for a known CMS identity; only a verified absent photo can produce the branded fallback', async () => {
     mocks.fetch.mockResolvedValueOnce(new Response(JSON.stringify({ items: [] })));
     expect((await syncPodcastFeedMetadata(manifest)).unmatched).toEqual([episode.guid]);
-    mocks.fetch.mockResolvedValueOnce(new Response(JSON.stringify({ items: [{ ...liveItem, fieldData: { ...liveItem.fieldData, thumb: null } }] })));
-    expect((await syncPodcastFeedMetadata(manifest)).failed).toEqual([{ guid: episode.guid, reason: 'podcast_published_cover_missing' }]);
     expect(mocks.store).not.toHaveBeenCalled();
+    mocks.fetch.mockResolvedValueOnce(new Response(JSON.stringify({ items: [{ ...liveItem, fieldData: { ...liveItem.fieldData, thumb: null } }] })));
+    const synced = await syncPodcastFeedMetadata(manifest);
+    expect(synced.updated).toEqual([episode.guid]);
+    expect(synced.failed).toEqual([]);
+    expect(mocks.store).toHaveBeenCalledWith(null);
+    expect((await readPodcastFeedMetadata(manifest))[episode.guid!].coverUrl).toBe('');
   });
   it('respects a running lease; an interrupted operation can resume after its lease expires', async () => {
     mocks.records.set('podcastFeedOperations/metadata-sync', { lease: 'another-worker', leaseUntil: Date.now() + 240000 });

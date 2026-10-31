@@ -28,14 +28,14 @@ it('requires the real cron bearer, including in development', async () => {
   expect(mock.refresh).toHaveBeenCalledTimes(1);
   vi.unstubAllEnvs();
 });
-it('serves existing audio during metadata outages, without caching a degraded feed or exposing errors', async () => {
+it('returns a retryable failure during metadata outages instead of announcing fallback covers or an empty RSS', async () => {
   mock.manifest.mockResolvedValue({ version: 1, episodes: [{ id: 'original', articleSlug: 'boganmeldelse', title: 'Boganmeldelse', hosts: [], audioURL: 'https://example.test/audio.m4a', publishedAt: '2026-10-01T10:00:00Z' }] });
   mock.metadata.mockRejectedValue(Error('credential details'));
   const response = await rss(new NextRequest('https://example.test/api/podcast/rss'));
-  expect(response.status).toBe(200);
+  expect(response.status).toBe(503);
   expect(response.headers.get('cache-control')).toBe('no-store');
-  expect(response.headers.get('x-podcast-metadata')).toBe('temporarily-unavailable');
+  expect(response.headers.get('retry-after')).toBe('60');
   const xml = await response.text();
-  expect(xml).toContain('https://example.test/audio.m4a');
+  expect(xml).not.toContain('<rss');
   expect(xml).not.toContain('credential details');
 });

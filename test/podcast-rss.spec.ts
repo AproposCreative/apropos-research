@@ -3,14 +3,39 @@ import { XMLParser, XMLValidator } from 'fast-xml-parser';
 import { buildPodcastRssXml } from '../lib/podcast/rss';
 import { selectPodcastRssEpisodes } from '../lib/podcast/rss-episodes';
 import type { PodcastManifestEpisode } from '../lib/podcast/types';
+import { PODCAST_ARTWORK_STYLE } from '../lib/podcast/artwork-style';
+import { slugToManifestId } from '../lib/podcast/manifest-format';
+import type { PodcastFeedMetadata } from '../lib/podcast/feed-metadata-format';
 
 function episode(patch: Partial<PodcastManifestEpisode> = {}): PodcastManifestEpisode {
   return { id: 'ai-placebo-sluk-telefonen', guid: 'ai-placebo-sluk-telefonen', articleSlug: 'placebo-sluk-telefonen', title: 'Anmeldelse: Placebo i København', subtitle: 'Lyt til artiklen', hosts: ['Peter Milo'], audioURL: 'https://example.test/latest.m4a', publishedAt: '2026-10-27T10:25:13Z', kind: 'ai', audioBytes: 123456, durationSeconds: 348, ...patch };
 }
-const feed = (episodes: PodcastManifestEpisode[]) => buildPodcastRssXml({ manifest: { version: 1, updatedAt: '2026-10-30T13:00:00Z', episodes }, feedUrl: 'https://example.test/api/podcast/rss', showCoverUrl: 'https://example.test/cover.jpg' });
+function artwork(ep: PodcastManifestEpisode): PodcastFeedMetadata {
+  return { id: 'cms-'+ep.id, slug: ep.articleSlug, title: ep.title, description: ep.description || '', coverUrl: 'https://example.test/photo.webp', credit: '',
+    guid: ep.guid!, articleIdentity: slugToManifestId(ep.articleSlug), sourceHash: 'source', artworkStyle: PODCAST_ARTWORK_STYLE,
+    imageURL: ep.imageURL || 'https://example.test/verified-artwork.jpg', artworkSha256: 'a'.repeat(64), artworkBytes: 1000, updatedAt: '2026-10-30T13:00:00Z' };
+}
+const feed = (episodes: PodcastManifestEpisode[], metadata = Object.fromEntries(episodes.map(ep => [ep.guid!, artwork(ep)]))) => buildPodcastRssXml({ manifest: { version: 1, updatedAt: '2026-10-30T13:00:00Z', episodes }, metadata, feedUrl: 'https://example.test/api/podcast/rss', showCoverUrl: 'https://example.test/cover.jpg' });
 function items(xml: string) { const item = new XMLParser({ ignoreAttributes: false }).parse(xml).rss.channel.item; return Array.isArray(item) ? item : item ? [item] : []; }
 
 describe('Spotify podcast feed', () => {
+  it('waits for a new episode cover and keeps established episodes while artwork is pending', () => {
+    const established = episode({ id: 'old', guid: 'old', articleSlug: 'old' }), next = episode();
+    const ready = { old: artwork(established) };
+    expect(items(feed([next, established], ready)).map(i => i.guid['#text'])).toEqual(['old']);
+    const released = items(feed([next, established], { ...ready, [next.guid!]: artwork(next) }));
+    const item = released.find(i => i.guid['#text'] === next.guid);
+    expect(item['itunes:image']['@_href']).toBe('https://example.test/verified-artwork.jpg');
+    expect(item.enclosure['@_url']).toBe(next.audioURL);
+    expect(new Date(item.pubDate).toISOString()).toBe(next.publishedAt.replace('Z', '.000Z'));
+  });
+  it('does not announce raw photos, missing records, outdated artwork or another article identity', () => {
+    const ep = episode({ imageURL: 'https://example.test/raw-wide-cover.jpg' }), good = artwork(ep);
+    for (const metadata of [undefined, { ...good, artworkStyle: 'old' }, { ...good, articleIdentity: 'another-article' },
+      { ...good, artworkSha256: '' }, { ...good, artworkBytes: 0 }]) {
+      expect(items(feed([ep], metadata ? { [ep.guid!]: metadata } : {}))).toEqual([]);
+    }
+  });
   it('publishes one latest revision for the observed legacy Placebo GUID collision', () => {
     const older = episode({ articleSlug: 'placebo---sluk-telefonen', title: 'Placebo før rettelsen', audioURL: 'https://example.test/older.m4a', publishedAt: '2026-10-26T14:37:10Z' });
     for (const source of [[older, episode()], [episode(), older]]) {

@@ -85,3 +85,13 @@ export function applyPodcastFeedMetadata(episode: PodcastManifestEpisode, metada
   return { ...episode, title: metadata.title, description: metadata.description || episode.description,
     articleUrl: articleUrlFromSlug(metadata.slug), imageURL: metadata.imageURL };
 }
+
+/** The raw audio manifest can arrive before the artwork worker. Do not announce
+ * that new episode to RSS readers with a temporary cover they may cache. */
+export function hasReadyPodcastArtwork(episode: PodcastManifestEpisode, metadata?: PodcastFeedMetadata): boolean {
+  return Boolean(metadata && metadata.guid === podcastEpisodeGuid(episode) &&
+    metadata.articleIdentity === slugToManifestId(episode.articleSlug) &&
+    metadata.artworkStyle === PODCAST_ARTWORK_STYLE &&
+    /^https:\/\//i.test(metadata.imageURL) && /^[a-f0-9]{64}$/.test(metadata.artworkSha256) &&
+    Number.isFinite(metadata.artworkBytes) && metadata.artworkBytes > 0);
+}

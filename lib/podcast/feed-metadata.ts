@@ -81,11 +81,12 @@ export async function syncPodcastFeedMetadata(manifest: PodcastManifest, limit =
     // Small concurrency bounds memory, bandwidth and the server request duration.
     for (let i = 0; i < batch.length; i += 2) await Promise.all(batch.slice(i, i + 2).map(async ({ episode, guid, article, sourceHash }) => {
       try {
-        if (!article.coverUrl) throw Error('podcast_published_cover_missing');
         const prior = previous[guid];
+        // Only a successful live CMS read can establish that no photo exists.
+        // A pending sync or failed image fetch must never become that fallback.
         const artwork = prior?.coverUrl === article.coverUrl && prior.artworkStyle === PODCAST_ARTWORK_STYLE ? {
           imageURL: prior.imageURL, artworkSha256: prior.artworkSha256, artworkBytes: prior.artworkBytes,
-        } : await storePodcastArtwork(article.coverUrl);
+        } : await storePodcastArtwork(article.coverUrl || null);
         const metadata: PodcastFeedMetadata = { ...article, ...artwork, artworkStyle: PODCAST_ARTWORK_STYLE, guid, sourceHash,
           articleIdentity: slugToManifestId(episode.articleSlug), updatedAt: new Date().toISOString() };
         if (queueBindings.has(guid) || prior?.identitySource === 'narration_queue') {

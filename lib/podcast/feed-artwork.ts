@@ -33,8 +33,8 @@ export async function encodePodcastArtwork(input: Buffer | null): Promise<Buffer
   throw Error('podcast_artwork_size_limit');
 }
 
-export async function storePodcastArtwork(sourceUrl: string): Promise<{ imageURL: string; artworkSha256: string; artworkBytes: number }> {
-  const bytes = await encodePodcastArtwork(await readPublicMedia(sourceUrl, 'image'));
+export async function storePodcastArtwork(sourceUrl: string | null): Promise<{ imageURL: string; artworkSha256: string; artworkBytes: number }> {
+  const bytes = await encodePodcastArtwork(sourceUrl ? await readPublicMedia(sourceUrl, 'image') : null);
   const artworkSha256 = createHash('sha256').update(bytes).digest('hex');
   const bucket = getPodcastBucket();
   const path = `podcasts/artwork/episodes/${artworkSha256}.jpg`, file = bucket.file(path);
