@@ -1,8 +1,24 @@
 import { expect, it } from 'vitest';
-import { addLivCmsDrafts, projectLivWork } from '@/lib/liv/work-overview';
+import { addLivCmsDrafts, partitionLivWork, projectLivWork, type LivWorkItem } from '@/lib/liv/work-overview';
 
 const text = { title: 'Christopher', content: '<p>En bevaret artikeltekst.</p>', author: 'Liv Brandt' };
 const row = (id: string, data: Record<string, unknown>) => ({ id, data });
+it('retains old drafts in history while keeping recent, prepared, processing and future work visible', () => {
+  const base: LivWorkItem = { id: 'old', title: 'Bevaret kladde', source: 'chatgpt-submission', cmsItemId: null,
+    kind: 'scheduled', scheduledDay: null, revision: 3, updatedAt: '2026-10-06T12:00:00Z',
+    researchCount: 7, status: 'draft', missing: ['cover'], previewUrl: '/connect/chatgpt?submission=old' };
+  const saved = [base,
+    { ...base, id: 'recent', updatedAt: '2026-10-30T12:00:00Z' },
+    { ...base, id: 'prepared', status: 'prepared' as const },
+    { ...base, id: 'processing', status: 'processing' as const },
+    { ...base, id: 'future', scheduledDay: '2026-11-01' },
+    { ...base, id: 'today', scheduledDay: '2026-10-31' }];
+  const before = structuredClone(saved);
+  const overview = partitionLivWork(saved, new Date('2026-10-30T23:30:00Z'));
+  expect(overview.items.map(item => item.id)).toEqual(['recent', 'prepared', 'processing', 'future', 'today']);
+  expect(overview.history).toEqual([base]);
+  expect(saved).toEqual(before);
+});
 it('includes only genuine Liv submissions, including a reserve, not plans, published work or other writers', () => {
   const items = projectLivWork([
     row('a'.repeat(64), { livProduction: { kind: 'reserve', day: '2026-09-28' }, article: text,

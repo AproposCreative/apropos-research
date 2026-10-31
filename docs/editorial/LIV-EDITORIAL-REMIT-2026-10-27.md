@@ -106,3 +106,37 @@ Receipts: `output/liv-remit-live-receipt-20261027.json` and
 `output/liv-editorial-remit-live-20261027.png` (local).
 The code change is deployed and observed; the automatic next-article/reserve
 acceptance is still open, with no fabricated ready inventory.
+
+## Owner-requested overview refresh, 31 October 2026
+
+The screenshot showed the 6 October Fire & Ice draft and a 19 October Louisiana
+idea. Native desk readback at 13:08:29.934Z confirmed that the saved brief really
+had not been refreshed; this was not a client cache problem. The existing
+redaction result thread contained no newer brief. Refresh remains a read-only
+GET and does not start the paused producer or paid research.
+
+Five new private suggestions were saved through `save_editorial_ideas` at
+13:14:44.151Z with stable request `liv-editorial-brief-20261031-fresh-v1`:
+Favoritterne, East of Eden, Animals, Tracey Emin at Louisiana and C.B. Evans at
+Louisiana. Their official source pages were actually read and title searches
+returned no matching CMS articles. They are leads with explicit research and
+availability caveats, not finished articles, ratings or publication approvals.
+The three proposed reviews still need complete reading/review evidence; the two
+museum proposals are guides without stars or claimed attendance.
+
+The Liv overview separates recent suggestions (seven days) and current saved
+work (14 days) from expandable history. Selected ideas, prepared/processing work
+and current/future dated work stay visible regardless of age. Historical records
+are neither deleted nor rewritten. The brief date comes from saved source dates,
+including briefs whose ideas already have articles, rather than the time of GET.
+Existing bounded-query coverage and warnings remain intact.
+
+Native readback at 13:15:53.386Z confirmed all five new suggestions, unchanged
+old ideas and the unchanged Fire & Ice revision 3 / 6 October timestamp. Evidence:
+`output/liv-overview-freshness-20261031/ideas-readback.json`. No article, approval,
+CMS write, scheduler change, paid backend generation or budget change occurred.
+This interactive refresh does not satisfy Liv's automatic-delivery acceptance.
+
+Validation: 84 focused tests across idea storage, idea/work projection and the
+approval feed; application TypeScript and safe-build configuration checks.
+Production/UI readback follows the exact release deployment below.

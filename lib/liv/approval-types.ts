@@ -23,7 +23,7 @@ export type ApprovalStory = {
 export type ApprovalFeed = { stories: ApprovalStory[]; total: number; nextOffset: number | null;
   queueUnavailable?: boolean;
   week?: import('./weekly-plan').WeeklyStory[];
-  work?: { items: LivWorkItem[]; retained?: LivWorkItem[]; complete: boolean; checkedAt: string;
+  work?: { items: LivWorkItem[]; history?: LivWorkItem[]; retained?: LivWorkItem[]; complete: boolean; checkedAt: string;
     sources: { submissions: number; livCheckpoints: number; editorialDesk: number; cmsRows: number } } | null;
-  ideas?: { items: LivIdeaItem[]; retained?: LivIdeaItem[]; complete: boolean; checkedAt: string } | null;
+  ideas?: { items: LivIdeaItem[]; history?: LivIdeaItem[]; latestCreatedAt?: string | null; retained?: LivIdeaItem[]; complete: boolean; checkedAt: string } | null;
   queueEnabled: boolean; preparationEnabled: boolean; cost?: LivCostSummary; preparation?: LivNextPreparationStatus };

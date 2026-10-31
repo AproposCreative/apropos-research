@@ -181,6 +181,7 @@ export default function LivApprovalFeed() {
   const readyCmsIds = new Set(feed?.stories.map(story => story.itemId) || []);
   const savedWork = feed?.work?.items.filter(item => !item.cmsItemId || !readyCmsIds.has(item.cmsItemId)) || [];
   const publicationDays = feed?.week?.filter(day => day.status !== 'off_day') || [];
+  const historyCount = (feed?.work?.history?.length || 0) + (feed?.ideas?.history?.length || 0);
   return <div data-liv-story-scroll style={{ paddingTop: 'var(--liv-tabs-height, 0px)' }} className="min-h-0 flex-1 overflow-y-auto overscroll-contain">
     <LivContentColumn className="space-y-5 py-3">
       <header className="space-y-3">
@@ -204,15 +205,21 @@ export default function LivApprovalFeed() {
       {feed && !feed.stories.length && feed.work?.items.length === 0 &&
         <p className="rounded-2xl border border-white/15 p-3 text-sm text-white/60">Ingen aktive anmeldelser eller kulturguider i de gennemgåede kilder. Planer uden artikeltekst vises ikke her.</p>}
       {capabilities.owner && <section aria-labelledby="liv-ideas-heading" className="space-y-3 border-t border-white/15 pt-6">
-        <div className="flex flex-wrap items-baseline justify-between gap-2"><h2 id="liv-ideas-heading" className="text-lg font-medium">Idéer til senere</h2>
+        <div className="flex flex-wrap items-baseline justify-between gap-2"><h2 id="liv-ideas-heading" className="text-lg font-medium">Seneste forslag</h2>
           {feed?.ideas && <span className="text-xs text-white/50">{feed.ideas.items.length} gemte idéer</span>}</div>
         <ToolHelp title="Om idéerne">Forslag fra gemte idébriefs. De er ikke researchet færdigt, skrevet eller godkendt til udgivelse. Daglige statusmails med et emne opretter ikke en artikel.</ToolHelp>
+        {feed?.ideas?.latestCreatedAt && <p className="text-xs text-white/50">Seneste gemte brief: {new Intl.DateTimeFormat('da-DK', { day: 'numeric', month: 'long', timeZone: 'Europe/Copenhagen' }).format(new Date(feed.ideas.latestCreatedAt))}</p>}
         {feed?.ideas === null && <p role="alert" className="text-sm text-amber-200">Idéarkivet kunne ikke hentes. Overblikket er ufuldstændigt.</p>}
         {feed?.ideas && !feed.ideas.complete && <p role="alert" className="text-sm text-amber-200">Der findes flere gemte idéer end de 30 viste. Åbn redaktionens idéarkiv for resten.</p>}
         {feed?.ideas && (feed.ideas.items.length ? <ul className="rounded-2xl border border-white/15 px-3 py-2">
           {feed.ideas.items.map(item => <LivIdeaRow key={item.id} item={item} />)}
-        </ul> : <p className="text-sm text-white/50">Ingen særskilte idéer gemt i de gennemgåede briefs.</p>)}
+        </ul> : <p className="text-sm text-white/50">Ingen nye forslag fra den seneste uge.</p>)}
       </section>}
+      {capabilities.owner && historyCount > 0 && <details className="rounded-2xl border border-white/15 p-3">
+        <summary className="cursor-pointer text-sm text-white/75">Tidligere kladder og idébriefs ({historyCount})</summary>
+        <div className="pt-4">{feed?.work?.history?.map(item => <LivSavedWorkCard key={`${item.source}:${item.id}`} item={item} />)}</div>
+        <ul className="pt-4">{feed?.ideas?.history?.map(item => <LivIdeaRow key={item.id} item={item} />)}</ul>
+      </details>}
       {capabilities.owner && (!!feed?.work?.retained?.length || !!feed?.ideas?.retained?.length) &&
         <details className="rounded-2xl border border-white/15 p-3">
           <summary className="cursor-pointer text-sm text-white/75">Tidligere forslag · kræver ny vinkel ({(feed?.work?.retained?.length || 0) + (feed?.ideas?.retained?.length || 0)})</summary>

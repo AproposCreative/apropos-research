@@ -203,7 +203,9 @@ it('renders saved articles without presenting empty calendar slots or promising 
   expect(source).not.toContain('Uden et valg fortsætter Liv automatisk');
   expect(source).not.toContain('data.stories.slice');
   expect(source).not.toContain('Én historie til i morgen.');
-  expect(source).toContain('Idéer til senere');
+  expect(source).toContain('Seneste forslag');
+  expect(source).toContain('Seneste gemte brief:');
+  expect(source).toContain('Tidligere kladder og idébriefs');
   expect(source).toContain('Udgivelsesplan');
   expect(source).toContain("day.status !== 'off_day'");
 });

@@ -93,6 +93,17 @@ export function addLivCmsDrafts(items: LivWorkItem[], cms: Awaited<ReturnType<ty
   return [...items, ...extra].sort((a, b) => String(b.updatedAt || '').localeCompare(String(a.updatedAt || '')) || a.id.localeCompare(b.id));
 }
 
+/** Presentation only. Old saved text remains available without occupying the
+ * current work list. Unresolved processing and prepared/future work stay visible. */
+export function partitionLivWork(items: LivWorkItem[], now = new Date()) {
+  const since = now.getTime() - 14 * 86400000;
+  const day = new Intl.DateTimeFormat('sv-SE', { timeZone: 'Europe/Copenhagen' }).format(now);
+  const active = (item: LivWorkItem) => ['processing', 'prepared'].includes(item.status) ||
+    Boolean(item.scheduledDay && item.scheduledDay >= day) ||
+    Boolean(item.updatedAt && Date.parse(item.updatedAt) >= since);
+  return { items: items.filter(active), history: items.filter(item => !active(item)) };
+}
+
 export async function readLivWorkOverview(uid: string) {
   const db = getAdminDb(); if (!db) throw Error('liv_work_store_unavailable');
   const recentSince = new Date(Date.now() - 14 * 86400000).toISOString();
@@ -110,7 +121,7 @@ export async function readLivWorkOverview(uid: string) {
   const publishedIds = new Set(submissions.docs.filter(doc => doc.data().status === 'published')
     .map(doc => doc.data().publishedTarget?.itemId || doc.data().prepared?.itemId).filter((id): id is string => typeof id === 'string'));
   const all = cmsResult && livAuthors.length ? addLivCmsDrafts(items, cmsResult[0], livAuthors, publishedIds, recentSince) : items;
-  return { items: all.filter(item => item.editorialRemit?.eligible), retained: all.filter(item => !item.editorialRemit?.eligible),
+  return { ...partitionLivWork(all.filter(item => item.editorialRemit?.eligible)), retained: all.filter(item => !item.editorialRemit?.eligible),
     complete: submissions.size < 100 && runs.size < 100 && desk.size < 100 && !!cmsResult?.[0].complete && livAuthors.length > 0,
     checkedAt: new Date().toISOString(),
     sources: { submissions: submissions.size, livCheckpoints: runs.size, editorialDesk: desk.size,
