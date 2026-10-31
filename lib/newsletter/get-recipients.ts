@@ -1,5 +1,6 @@
 import { mergeSignups, type NewsletterSignup } from './signup-details';
 import { env } from '@/lib/config/env';
+import { readNativeNewsletterSignups } from '@/lib/newsletter/native-audience';
 import { fetchNewsletterEmails } from '@/lib/newsletter/webflow-forms';
 import { fetchNewsletterSignupEmails } from '@/lib/newsletter/webflow-sources';
 import {
@@ -72,10 +73,12 @@ export async function getNewsletterRecipients(): Promise<RecipientResult> {
   let source: RecipientResult['source'] = 'none';
   let formName: string | undefined;
   let fetchErr: string | undefined;
+  let webflowComplete = true;
 
   if (colId) {
     const emailSlug = env.WEBFLOW_SIGNUP_EMAIL_FIELD_SLUG || 'email';
     const r = await fetchNewsletterSignupEmails(colId, emailSlug);
+    webflowComplete = webflowComplete && r.complete === true;
     if (r.emails.length > 0) {
       rawEmails = r.emails;
       signupDetails = r.subscribers ?? [];
@@ -91,6 +94,7 @@ export async function getNewsletterRecipients(): Promise<RecipientResult> {
 
   if (rawEmails.length === 0) {
     const r = await fetchNewsletterEmails(formId || undefined);
+    webflowComplete = webflowComplete && r.complete === true;
     if (r.emails.length > 0) {
       rawEmails = r.emails;
       signupDetails = r.subscribers ?? [];
@@ -108,7 +112,20 @@ export async function getNewsletterRecipients(): Promise<RecipientResult> {
 
   fetchErr = clarifyFetchError(fetchErr, { hadSignupCollectionId });
 
-  if (rawEmails.length === 0) {
+  let native: Awaited<ReturnType<typeof readNativeNewsletterSignups>>;
+  try { native = await readNativeNewsletterSignups(); }
+  catch {
+    return { emails: [], total: 0, unsubscribedCount: 0, source, formName,
+      verified: false, subscribers: [], error: 'Appens modtagere kunne ikke kontrolleres. Ingen modtagere er godkendt til afsendelse.' };
+  }
+  // When native membership is enabled, incomplete Webflow enumeration cannot
+  // become a partial combined audience. Legacy disabled behavior stays intact.
+  if (native.enabled && (fetchErr || !webflowComplete)) {
+    return { emails: [], total: 0, unsubscribedCount: 0, source, formName,
+      verified: false, subscribers: [], error: fetchErr || 'Webflow-modtagere kunne ikke hentes fuldstændigt. Ingen modtagere er godkendt til afsendelse.' };
+  }
+
+  if (rawEmails.length === 0 && native.signups.length === 0) {
     return {
       emails: [],
       total: 0,
@@ -120,7 +137,7 @@ export async function getNewsletterRecipients(): Promise<RecipientResult> {
     };
   }
 
-  const signups = mergeSignups([...signupDetails, ...rawEmails.map(email => ({ email, signedUpAt: null }))]);
+  const signups = mergeSignups([...signupDetails, ...rawEmails.map(email => ({ email, signedUpAt: null })), ...native.signups]);
   let unsub: Set<string>;
   try { unsub = await filterUnsubscribedFromList(signups.map(row => row.email)); }
   catch {
