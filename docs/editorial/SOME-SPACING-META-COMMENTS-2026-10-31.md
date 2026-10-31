@@ -377,3 +377,25 @@ No request or provider authentication action is automatically repeated.
 59 focused tests passed for owner binding, cancellation during page load, idle
 renewal and existing publication controls; scoped lint passed. No new real Story
 has been sent. Deployment and cancellation readback are recorded after completion.
+
+Release readback: source `6f985fac923e4d2ce015dba7782ecc60a7f80401`, deployment
+`dpl_8DuZvng92G4DdRqZrueK7bJAcV6j`, live alias `ai.aproposmagazine.com`.
+Cloud Build `56b13d73-66fb-4f32-b0ae-459db48e0ece` succeeded. Cloud Run revision
+`story-browser-00005-sz9` became Ready at `2026-10-31T18:38:40.255321Z`, image
+`sha256:66d0a4cc6da4f46de587edf3849d4c49f6e864f50a8a02d530733d3ca72610c4`.
+CLI readback confirmed `cpu-throttling=false` and max one instance at both service
+and revision level. The refreshed Scaling screen confirmed instance-based billing,
+minimum zero and maximum one. Identity and existing secrets were preserved.
+
+The production owner page's Stop login action returned a visible stopped state,
+with no saved Meta connection. No begin/login action was sent during recovery.
+Production connection/health reads were 200 and unauthenticated publish was 401.
+The real UI in an isolated fixture also remained stopped after the deliberately
+late begin response arrived. Screenshots and bounded evidence are retained under
+`output/story-login-recovery-20261031/`. No new CAPTCHA answer, article selection,
+publication or alteration of historical receipts occurred.
+
+The hosted linked-Story flow remains unaccepted: no successful Meta login or
+hosted publication is claimed. The infrastructure correction does not establish
+that Meta will accept another attempt. The owner is not asked to repeat more
+CAPTCHAs. No cooldown duration or account-lock diagnosis is invented.
