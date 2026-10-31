@@ -140,3 +140,39 @@ This interactive refresh does not satisfy Liv's automatic-delivery acceptance.
 Validation: 84 focused tests across idea storage, idea/work projection and the
 approval feed; application TypeScript and safe-build configuration checks.
 Production/UI readback follows the exact release deployment below.
+
+### Production and consolidation receipt
+
+Production `ai.aproposmagazine.com` is READY at
+`dpl_HoSnAKjPMXrxz5N5nQXqwGcAwX9L`, source
+`72db48ab6992b9bb77d5e353d1a166f4639037bd`.
+The signed-in UI shows the actual brief date, six suggestions and collapsed
+history (two items); expanding history shows the original Fire & Ice revision 3
+and the 19 October Louisiana idea. The default desktop `/ai` still opens Writer
+over the robot background with saved workspace recovery available.
+
+The owner accepted the five suggestions from this chat and also requested
+consolidation from other chats/searches. Read the relevant editorial, book,
+concert, accreditation and SEO result threads without messaging or restarting
+them. The old `Apropos idébrief` contains additional leads but overlaps with the
+current East of Eden / Emin proposals and retained Carrie / Diplomat / Social
+Reckoning ideas. Those retained records were not overwritten or duplicated.
+Already published Terminal List and Ringo work was not imported as new ideas.
+Old news, games and announcement features were not promoted into the current
+Liv remit. Existing local scheduler configuration was inspected read-only;
+SEO and external-mention searches are not article briefs.
+
+One distinct review lead, Last Seen season 1, was rechecked against Apple TV's
+official series and episode pages and saved at 13:23:30.725Z, request
+`liv-collect-other-chats-20261031-v1`. It retains the original chat link and an
+explicit September-brief caveat. Old ratings and claimed critic summaries were
+not carried over as facts. No source claims that new reviews are already read.
+The UI reads the same canonical private idea store as MCP; refresh does not
+start a new search or establish an automatic future cross-chat ingestion job.
+
+Native desk readback at 13:24:36.943Z confirms six current suggestions, identical
+old idea records and an unchanged draft. Local evidence and browser captures:
+`output/liv-overview-freshness-20261031/verification.json`, `live-overview.png`
+and `live-history.png`. The error/fatal scan had no Liv entries; two separate
+podcast RSS MaxListeners warnings were observed, so it is not described as a
+globally clean runtime scan. A separate RSS readback is retained alongside it.
