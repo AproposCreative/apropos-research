@@ -23,9 +23,9 @@ function request({raw, body = payload(), method = "POST", url = "https://fixture
 }
 function fixture({environment = flags(), projectID = PROJECT, app = {options: {projectId: PROJECT}}} = {}) {
   const docs = new Map(), calls = {services: 0, appCheckConstruction: 0, appCheck: 0, auth: 0, user: 0, memberWrites: 0};
-  let failMemberRead = false, replay = false;
+  let failMemberRead = false, replay = false, suppressionRevision = 0;
   const clone = (x) => structuredClone(x);
-  const snapshot = (path) => ({exists: docs.has(path), data: () => clone(docs.get(path))});
+  const snapshot = (path) => ({exists: docs.has(path), data: () => clone(docs.get(path)), updateTime: {seconds: NOW / 1000, nanoseconds: suppressionRevision}});
   const ref = (path) => ({path, get: async () => {
     if (failMemberRead && path.startsWith("reader_newsletter_subscribers/") && docs.has(path)) throw new Error("private readback failure");
     return snapshot(path);
@@ -55,7 +55,7 @@ function fixture({environment = flags(), projectID = PROJECT, app = {options: {p
     }}};
   };
   return {handler: createReaderNewsletterRequestHandler({environment, createServices, now: () => NOW}),
-    docs, calls, failMemberRead: () => { failMemberRead = true; }, recoverMemberRead: () => { failMemberRead = false; },
+    docs, calls, unsubscribeAgain: () => { suppressionRevision++; docs.set(`newsletter_unsubscribes/${EMAIL}`, {email: EMAIL, unsubscribedAt: new Date(NOW).toISOString()}); }, failMemberRead: () => { failMemberRead = true; }, recoverMemberRead: () => { failMemberRead = false; },
     replay: () => { replay = true; }};
 }
 const memberKey = () => `reader_newsletter_subscribers/${createHash("sha256").update(EMAIL).digest("hex")}`;
@@ -214,4 +214,30 @@ test("wrong resolved database or unknown/mismatched app rejects before AppCheck 
   }
   const certificateBranch = fixture({app: {options: {}}});
   assert.equal((await certificateBranch.handler(request())).status, 200, "ActualDBproject from existing same-app helper remains authoritative when App.options.projectId absent");
+});
+
+// Current Fetch wrapper plus the actual candidate core; no mail/provider SDK.
+test("modern Fetch optin requires an explicit token request and preserves a later unsubscribe", async () => {
+  const f = fixture(); f.unsubscribeAgain();
+  const first = await f.handler(request({body: payload({reconfirmationChallenge: null})}));
+  assert.equal(first.status, 200); const challenge = await first.json();
+  assert.equal(challenge.status, "reconfirmationRequired");
+  assert.equal(challenge.requestID, REQUEST);
+  assert.match(challenge.reconfirmationChallenge, /^[a-f0-9-]{36}$/);
+  assert.equal(f.calls.memberWrites, 0);
+  assert.equal(f.docs.has(`newsletter_unsubscribes/${EMAIL}`), true);
+  const confirmedBody = payload({reconfirmationChallenge: challenge.reconfirmationChallenge});
+  const confirmed = await f.handler(request({body: confirmedBody}));
+  assert.equal(confirmed.status, 200);
+  assert.deepEqual(await confirmed.json(), {status: "subscribed", requestID: REQUEST});
+  assert.equal(f.calls.memberWrites, 1);
+  assert.equal(f.docs.has(`newsletter_unsubscribes/${EMAIL}`), false);
+  const duplicate = await f.handler(request({body: confirmedBody}));
+  assert.deepEqual(await duplicate.json(), {status: "subscribed", requestID: REQUEST});
+  assert.equal(f.calls.memberWrites, 1);
+  f.unsubscribeAgain();
+  const oldReplay = await f.handler(request({body: confirmedBody}));
+  assert.deepEqual(await oldReplay.json(), {status: "reconfirmationRequired", requestID: REQUEST});
+  assert.equal(f.docs.has(`newsletter_unsubscribes/${EMAIL}`), true);
+  assert.equal(f.calls.memberWrites, 1);
 });

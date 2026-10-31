@@ -22,22 +22,60 @@ function emptyManifest(): PodcastManifest {
   return { version: 1, updatedAt: new Date().toISOString(), episodes: [] };
 }
 
-async function readManifestDownloadToken(
-  file: ReturnType<ReturnType<typeof getPodcastBucket>['file']>
-): Promise<string> {
+async function readManifestForWrite() {
+  const file = getPodcastBucket().file(MANIFEST_PATH);
+  let prior;
   try {
-    const [meta] = await file.getMetadata();
-    const raw = meta?.metadata?.firebaseStorageDownloadTokens;
-    if (typeof raw === 'string' && raw.trim()) {
-      return raw.split(',')[0]!.trim();
+    [prior] = await file.getMetadata();
+  } catch (error) {
+    if (error && typeof error === 'object' && 'code' in error && error.code === 404) {
+      return {
+        file, manifest: emptyManifest(), generation: 0, metageneration: undefined,
+        metadata: {
+          contentType: 'application/json', cacheControl: 'public, max-age=300',
+          metadata: { firebaseStorageDownloadTokens: process.env.PODCAST_MANIFEST_TOKEN?.trim() || DEFAULT_MANIFEST_TOKEN },
+        },
+      };
     }
-  } catch {
-    /* ignore */
+    throw error;
   }
-  return process.env.PODCAST_MANIFEST_TOKEN?.trim() || DEFAULT_MANIFEST_TOKEN;
+  if (!prior || typeof prior !== 'object' || Array.isArray(prior)) throw new Error('Invalid catalog metadata');
+  // The SDK transparently decompresses downloads. Do not save plain JSON with
+  // a retained compressed-content header unless that encoding is supported.
+  if (prior.contentEncoding !== undefined && prior.contentEncoding !== 'identity') {
+    throw new Error('Unsupported catalog content encoding');
+  }
+  const generation = String(prior.generation || ''), metageneration = String(prior.metageneration || '');
+  if (!/^[1-9]\d*$/.test(generation) || !/^[1-9]\d*$/.test(metageneration) ||
+      (prior.temporaryHold !== undefined && prior.temporaryHold !== false) ||
+      (prior.eventBasedHold !== undefined && prior.eventBasedHold !== false) ||
+      Object.keys(prior).some(key => /retention/i.test(key) && Reflect.get(prior, key) != null)) {
+    throw new Error('Unsupported catalog metadata policy');
+  }
+  const custom = { ...(prior.metadata || {}) };
+  const tokens = custom.firebaseStorageDownloadTokens;
+  if (typeof tokens !== 'string' || !tokens.trim()) {
+    custom.firebaseStorageDownloadTokens = process.env.PODCAST_MANIFEST_TOKEN?.trim() || DEFAULT_MANIFEST_TOKEN;
+  }
+  const metadata = {
+    contentType: prior.contentType, cacheControl: prior.cacheControl,
+    contentDisposition: prior.contentDisposition, contentEncoding: prior.contentEncoding,
+    contentLanguage: prior.contentLanguage, customTime: prior.customTime,
+    temporaryHold: prior.temporaryHold, eventBasedHold: prior.eventBasedHold,
+    metadata: custom,
+  };
+  // Capture metadata first. If bytes advance while this read is in flight, the
+  // captured generation still rejects publication rather than blessing G2 as G1.
+  const manifest = await readManifest(true);
+  return { file, manifest, generation, metageneration, metadata };
 }
 
 export async function readPodcastManifest(): Promise<PodcastManifest> {
+  return readManifest(false);
+}
+
+/** A publication must not overwrite unreadable or partially normalized history. */
+async function readManifest(forWrite: boolean): Promise<PodcastManifest> {
   const bucket = getPodcastBucket();
   const file = bucket.file(MANIFEST_PATH);
   const [exists] = await file.exists();
@@ -46,9 +84,20 @@ export async function readPodcastManifest(): Promise<PodcastManifest> {
   const [buf] = await file.download();
   try {
     const parsed = JSON.parse(buf.toString('utf8')) as Record<string, unknown>;
+    if (forWrite && (!parsed || typeof parsed !== 'object' || Array.isArray(parsed) ||
+        !Array.isArray(parsed.episodes))) {
+      throw new Error('Invalid podcast manifest catalog');
+    }
     const rawEpisodes = Array.isArray(parsed.episodes) ? parsed.episodes : [];
     const episodes = rawEpisodes
-      .map((e) => normalizeManifestEpisode(e as Record<string, unknown>))
+      .map((e) => {
+        if (forWrite && (!e || typeof e !== 'object' || Array.isArray(e))) {
+          throw new Error('Invalid podcast manifest episode');
+        }
+        const episode = normalizeManifestEpisode(e as Record<string, unknown>);
+        if (forWrite && !episode) throw new Error('Invalid podcast manifest episode');
+        return episode;
+      })
       .filter((e): e is PodcastManifestEpisode => e !== null);
 
     return {
@@ -56,7 +105,8 @@ export async function readPodcastManifest(): Promise<PodcastManifest> {
       updatedAt: String(parsed.updatedAt || new Date().toISOString()),
       episodes,
     };
-  } catch {
+  } catch (error) {
+    if (forWrite) throw error;
     return emptyManifest();
   }
 }
@@ -78,10 +128,10 @@ export function buildPublicAudioUrl(slug: string, downloadToken: string): string
   return `https://firebasestorage.googleapis.com/v0/b/${bucket}/o/${encodeURIComponent(path)}?alt=media&token=${downloadToken}`;
 }
 
-async function saveManifest(manifest: PodcastManifest): Promise<void> {
-  const bucket = getPodcastBucket();
-  const file = bucket.file(MANIFEST_PATH);
-  const token = await readManifestDownloadToken(file);
+async function saveManifest(
+  manifest: PodcastManifest,
+  snapshot: Awaited<ReturnType<typeof readManifestForWrite>>
+): Promise<void> {
 
   const payload = {
     version: manifest.version,
@@ -89,15 +139,13 @@ async function saveManifest(manifest: PodcastManifest): Promise<void> {
     episodes: manifest.episodes.map(({ articleUrl: _a, ...ep }) => ep),
   };
 
-  await file.save(JSON.stringify(payload, null, 2), {
+  await snapshot.file.save(JSON.stringify(payload, null, 2), {
     resumable: false,
-    metadata: {
-      contentType: 'application/json',
-      cacheControl: 'public, max-age=300',
-      metadata: {
-        firebaseStorageDownloadTokens: token,
-      },
+    preconditionOpts: {
+      ifGenerationMatch: snapshot.generation,
+      ...(snapshot.metageneration !== undefined ? { ifMetagenerationMatch: snapshot.metageneration } : {}),
     },
+    metadata: snapshot.metadata,
   });
 
   await writeFeedMirror(manifest).catch((err) => {
@@ -152,8 +200,11 @@ export async function upsertManifestEpisode(input: {
   imageURL?: string | null;
   kind?: 'ai' | 'human';
   guid?: string;
+  articleId?: string;
+  sourceContentRevision?: string;
 }): Promise<PodcastManifest> {
-  const manifest = await readPodcastManifest();
+  const snapshot = await readManifestForWrite();
+  const manifest = snapshot.manifest;
   const entry = buildManifestEpisode({
     slug: input.slug,
     title: input.title,
@@ -166,6 +217,8 @@ export async function upsertManifestEpisode(input: {
     imageURL: input.imageURL,
     kind: input.kind,
     guid: input.guid,
+    articleId: input.articleId,
+    sourceContentRevision: input.sourceContentRevision,
   });
 
   const next = manifest.episodes.filter((e) => e.articleSlug !== input.slug);
@@ -173,7 +226,7 @@ export async function upsertManifestEpisode(input: {
   manifest.episodes = sortEpisodesDesc(next);
   manifest.updatedAt = new Date().toISOString();
 
-  await saveManifest(manifest);
+  await saveManifest(manifest, snapshot);
   return manifest;
 }
 

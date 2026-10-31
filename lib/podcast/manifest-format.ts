@@ -30,6 +30,25 @@ function optionalString(raw: unknown): string | undefined {
   return t || undefined;
 }
 
+/** Preserve an existing binding verbatim, or reject it; never demote partial proof. */
+function sourceBinding(
+  raw: { articleId?: unknown; sourceContentRevision?: unknown },
+  kind?: 'ai' | 'human'
+): { articleId: string; sourceContentRevision: string } | undefined {
+  const { articleId, sourceContentRevision } = raw;
+  if (articleId === undefined && sourceContentRevision === undefined) return undefined;
+  const validText = (value: unknown, limit: number): value is string =>
+    typeof value === 'string' && value.length > 0 && value === value.trim() &&
+    Buffer.byteLength(value, 'utf8') <= limit && !/[\p{Cc}\p{Cf}]/u.test(value);
+  if (!validText(articleId, 512) || articleId.includes('/') || articleId === '.' || articleId === '..' ||
+      (articleId.startsWith('__') && articleId.endsWith('__')) ||
+      !validText(sourceContentRevision, 1024) ||
+      (kind === 'ai' && !/^cms-sha256-v1:[a-f0-9]{64}$/.test(sourceContentRevision))) {
+    throw new Error('Invalid podcast source binding');
+  }
+  return { articleId, sourceContentRevision };
+}
+
 /** Normaliser legacy/web entries til iOS-format (+ valgfri RSS-felter). */
 export function normalizeManifestEpisode(raw: Record<string, unknown>): PodcastManifestEpisode | null {
   const articleSlug = String(raw.articleSlug || raw.slug || '').trim();
@@ -44,8 +63,9 @@ export function normalizeManifestEpisode(raw: Record<string, unknown>): PodcastM
     : ['Apropos Magazine'];
 
   const id = String(raw.id || slugToManifestId(articleSlug));
-  const kindRaw = optionalString(raw.kind);
+  const kindRaw = optionalString(raw.kind)?.toLowerCase();
   const kind = kindRaw === 'ai' || kindRaw === 'human' ? kindRaw : undefined;
+  const binding = sourceBinding(raw, kind);
 
   const episode: PodcastManifestEpisode = {
     id,
@@ -74,6 +94,7 @@ export function normalizeManifestEpisode(raw: Record<string, unknown>): PodcastM
   episode.guid = guid;
 
   if (kind) episode.kind = kind;
+  if (binding) Object.assign(episode, binding);
   const language = optionalString(raw.language) || optionalString(raw.locale);
   if (language && /^(da|en)(?:-[a-z]{2})?$/i.test(language)) episode.language = language.toLowerCase();
 
@@ -92,7 +113,12 @@ export function buildManifestEpisode(input: {
   imageURL?: string | null;
   kind?: 'ai' | 'human';
   guid?: string;
+  articleId?: string;
+  sourceContentRevision?: string;
 }): PodcastManifestEpisode {
+  const kindRaw = input.kind?.toLowerCase();
+  const kind = kindRaw === 'ai' || kindRaw === 'human' ? kindRaw : undefined;
+  const binding = sourceBinding(input, kind);
   const publishedAt = input.publishedAt || new Date().toISOString();
   const hosts = input.hosts?.filter(Boolean).length ? input.hosts! : ['Apropos Magazine'];
   const id = slugToManifestId(input.slug);
@@ -123,7 +149,8 @@ export function buildManifestEpisode(input: {
   } else {
     episode.imageURL = podcastShowCoverUrl();
   }
-  if (input.kind) episode.kind = input.kind;
+  if (kind) episode.kind = kind;
+  if (binding) Object.assign(episode, binding);
 
   return episode;
 }

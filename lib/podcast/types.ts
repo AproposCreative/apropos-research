@@ -27,6 +27,9 @@ export type PodcastManifestEpisode = {
   imageURL?: string;
   guid?: string;
   kind?: 'ai' | 'human';
+  /** Producer-supplied binding for these audio bytes; never inferred from the slug. */
+  articleId?: string;
+  sourceContentRevision?: string;
   /** Explicit language when supplied by the producer; never inferred from "-en-". */
   language?: string;
 };
