@@ -2,11 +2,13 @@ import { NextRequest, NextResponse } from 'next/server';
 import { resolveInstagramAccessToken } from '@/lib/instagram-config';
 import { editorialRequestAccess } from '@/lib/editorial-access';
 import { socialPublishSchema } from '@/lib/social/publish-types';
-import { claimSocialPublish, readSocialPublish, recentSocialPublishes, saveSocialPublish, reconcileSocialPublish } from '@/lib/social/publish-store';
+import { claimSocialPublish, readSocialPublish, readSocialPublishIdentity, recentSocialPublishes, saveSocialPublish, reconcileSocialPublish } from '@/lib/social/publish-store';
 import { metaPublisher, instagramContainerPublished } from '@/lib/social/meta-publisher';
 import { runSocialPublish } from '@/lib/social/publish-runner';
 import { verifyPublishImage } from '@/lib/social/publish-image';
-export const maxDuration = 120;
+import { after } from 'next/server';
+import { dispatchBrowserStory, storyBrowserConfigured, storyBrowserRequested, storyBrowserRequest } from '@/lib/social/story-browser';
+export const maxDuration = 300;
 export const runtime = 'nodejs';
 const headers = { 'Cache-Control': 'private, no-store' };
 const json = (body: unknown, status = 200) => NextResponse.json(body, { status, headers });
@@ -22,7 +24,7 @@ export async function GET(request: NextRequest) {
       let receipt = await readSocialPublish(access.uid, requestId);
       if (!receipt) return json({ error: 'Intet publiceringsforsøg registreret.' }, 404);
       const { token } = await resolveInstagramAccessToken();
-      if (token) {
+      if (token && receipt.delivery !== 'business-suite') {
         const publisher = metaPublisher({ token, instagramId: process.env.INSTAGRAM_ACCOUNT_ID || '', facebookPageId: process.env.FACEBOOK_PAGE_ID });
         const published = !!(receipt.containerId && ['sending', 'uncertain'].includes(receipt.instagram.status) &&
           await instagramContainerPublished(receipt.containerId, token).catch(() => false));
@@ -44,7 +46,8 @@ export async function GET(request: NextRequest) {
     }
     const { token } = await resolveInstagramAccessToken();
     return json({ configured: Boolean(process.env.INSTAGRAM_ACCOUNT_ID?.trim() && token),
-      facebookConfigured: Boolean(process.env.FACEBOOK_PAGE_ID?.trim() && token) });
+      facebookConfigured: Boolean(process.env.FACEBOOK_PAGE_ID?.trim() && token),
+      storyLinkDelivery: storyBrowserRequested() ? 'business-suite' : null });
   } catch { return json({ error: 'Status kunne ikke hentes. Der sendes ikke et nyt opslag.' }, 503); }
 }
 
@@ -62,8 +65,28 @@ export async function POST(request: NextRequest) {
   if (!instagramId || !token || (input.channels.facebook && !facebookPageId)) return json({ error: 'En valgt kanal er ikke konfigureret. Intet er sendt.' }, 503);
   try {
     await verifyPublishImage(access.uid, input);
-    const claim = await claimSocialPublish(access.uid, input, instagramId);
+    if (await readSocialPublishIdentity(access.uid, input, instagramId)) {
+      const claim = await claimSocialPublish(access.uid, input, instagramId);
+      return json({ receipt: claim.receipt, replay: true });
+    }
+    if (input.isStory && storyBrowserRequested()) {
+      if (!storyBrowserConfigured()) return json({ error: 'Story-serveren er ikke tilsluttet. Intet er udgivet.', connectionRequired: true, notDispatched: true }, 503);
+      // Validate the independent hosted connection before reserving a new post.
+      // Existing operations still replay below through the shared identity lock.
+      try {
+        const status = await storyBrowserRequest('/status');
+        const state = await status.json();
+        if (!status.ok || state.connected !== true) throw Error();
+      } catch { return json({ error: 'Story-forbindelsen skal tilsluttes af ejeren. Intet er udgivet.', connectionRequired: true, notDispatched: true }, 503); }
+    }
+    const browserStory = input.isStory && storyBrowserConfigured();
+    const claim = await claimSocialPublish(access.uid, input, instagramId, browserStory ? { browserStory: true } : undefined);
     if (!claim.created) return json({ receipt: claim.receipt, replay: true });
+    if (input.isStory && storyBrowserConfigured()) {
+      const receipt = claim.receipt;
+      after(async () => { await dispatchBrowserStory(receipt.id).catch(() => { /* Durable task and duplicate lock remain. GET never resends. */ }); });
+      return json({ receipt }, 202);
+    }
     const receipt = await runSocialPublish(claim.receipt, input,
       metaPublisher({ token, instagramId, facebookPageId }), saveSocialPublish);
     return json({ receipt });

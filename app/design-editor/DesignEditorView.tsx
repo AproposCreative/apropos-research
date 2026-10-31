@@ -179,6 +179,7 @@ export default function DesignEditorView({ onBack, embedMode }: DesignEditorView
   const [metadataReady, setMetadataReady] = useState(false);
   const [eyebrowOverrides, setEyebrowOverrides] = useState<Record<string, string[]>>({});
   const [instagramConfigured, setInstagramConfigured] = useState<boolean | null>(null);
+  const [storyLinkDelivery, setStoryLinkDelivery] = useState(false);
   const [confirmInstagramPostOpen, setConfirmInstagramPostOpen] = useState(false);
   const [renderedCardDataUrl, setRenderedCardDataUrl] = useState<string | null>(null);
   const [authors, setAuthors] = useState<{ id: string; name: string }[]>([]);
@@ -286,7 +287,7 @@ export default function DesignEditorView({ onBack, embedMode }: DesignEditorView
     let cancelled = false;
     fetch('/api/instagram/publish')
       .then(async r => { const data = await r.json().catch(() => null);
-        if (!cancelled) setFacebookConfigured(r.ok && data?.facebookConfigured === true);
+        if (!cancelled) { setFacebookConfigured(r.ok && data?.facebookConfigured === true); setStoryLinkDelivery(r.ok && data?.storyLinkDelivery === 'business-suite'); }
         return socialConfigured(r.status, data); })
       .then(configured => {
         if (!cancelled) setInstagramConfigured(configured);
@@ -678,6 +679,7 @@ export default function DesignEditorView({ onBack, embedMode }: DesignEditorView
                   <p className="text-amber-400/90 text-xs">Instagram-publish er ikke konfigureret. Sæt INSTAGRAM_ACCOUNT_ID og INSTAGRAM_ACCESS_TOKEN (se docs/INSTAGRAM_PUBLISH.md).</p>
                 )}
                 {instagramError && <p role="alert" className={styles.copyError}>{instagramError}</p>}
+                {publishing.connectionRequired && <a href="/social-story-connection" target="_blank" rel="noreferrer">Tilslut Story-forbindelse</a>}
               </div>
             </div>
           </div>
@@ -739,7 +741,7 @@ export default function DesignEditorView({ onBack, embedMode }: DesignEditorView
               <div className={styles.copyActions}><button type="button" className={styles.textButton} disabled={exporting || !editorReady || !subtitle.ready || !!previewError} onClick={handleExportPng}>Download Story</button>
                 <button type="button" className={styles.textButton} onClick={() => { void copyArticleLink(); }}>Kopiér artikellink</button></div>
               <input aria-label="Artikellink til Story" value={selectedArticleUrl} readOnly onFocus={event => event.target.select()} />
-              <p role="status">{copyState || 'Tilføj linket med Instagrams linkmærkat. Læs nu på billedet er grafik.'}</p>
+              <p role="status">{copyState || (storyLinkDelivery ? 'Artikellink tilføjes automatisk ved Udgiv.' : 'Tilføj linket med Instagrams linkmærkat. Læs nu på billedet er grafik.')}</p>
             </div>}
             {postingToInstagram && <p role="status" className={styles.copyNote}>{publishStep}</p>}
             <PublicationReceipts receipts={publishing.receipts} check={publishing.check} />
@@ -791,6 +793,7 @@ export default function DesignEditorView({ onBack, embedMode }: DesignEditorView
                   />
                   <div className="mt-2">
                     {instagramError && <p role="alert" className={styles.copyError}>{instagramError}</p>}
+                    {publishing.connectionRequired && <a href="/social-story-connection" target="_blank" rel="noreferrer">Tilslut Story-forbindelse</a>}
                   </div>
                 </div>
               </div>
@@ -1055,7 +1058,7 @@ export default function DesignEditorView({ onBack, embedMode }: DesignEditorView
               Er du sikker på, at du vil poste?
             </h2>
             <p className="mt-2 text-[13px] leading-relaxed text-white/65">
-              {confirmation?.spec.isStory ? 'Udgiv 9:16 Story på Instagram.' : 'Udgiv 1:1-opslaget på de valgte kanaler.'}
+              {confirmation?.spec.isStory ? storyLinkDelivery ? 'Udgiv Story med klikbart artikellink på Instagram.' : 'Udgiv 9:16 Story på Instagram.' : 'Udgiv 1:1-opslaget på de valgte kanaler.'}
             </p>
             <div className={styles.channelChoices}>
               <label><input type="checkbox" checked readOnly aria-label="Instagram valgt" /> Instagram{confirmation?.spec.isStory ? ' Story' : ''}</label>

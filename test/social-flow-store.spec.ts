@@ -1,7 +1,8 @@
 import { beforeEach, afterEach, expect, it, vi } from 'vitest';
 import { NextRequest } from 'next/server';
 import { createHash } from 'node:crypto';
-const mocks = vi.hoisted(() => ({ db: null as any, auth: vi.fn(), token: vi.fn(), bucket: vi.fn() }));
+const mocks = vi.hoisted(() => ({ db: null as any, auth: vi.fn(), token: vi.fn(), bucket: vi.fn(), after: vi.fn() }));
+vi.mock('next/server', async original => ({ ...await original<typeof import('next/server')>(), after: mocks.after }));
 vi.mock('@/lib/firebase-admin', () => ({ getAdminDb: () => mocks.db, getAdminStorageBucket: (...args: unknown[]) => mocks.bucket(...args) }));
 vi.mock('@/lib/editorial-access', () => ({ editorialRequestAccess: mocks.auth }));
 vi.mock('@/lib/instagram-config', () => ({ resolveInstagramAccessToken: mocks.token }));
@@ -134,6 +135,51 @@ it('requires personal POST and explicit channels, rejects story Facebook and wro
   expect((await POST(req('/api/instagram/publish', { ...input, isStory: true, channels: { instagram: true, facebook: true } }))).status).toBe(400);
   expect((await POST(req('/api/instagram/publish', { ...input, imageUrl: 'https://internal.invalid/image.jpg' }))).status).toBe(503);
   expect(fetch).not.toHaveBeenCalled();
+});
+it('atomically queues one browser Story and dispatches only the creation winner with no Graph fallback', async () => {
+  vi.stubEnv('SOCIAL_STORY_BROWSER_URL', 'https://story-worker.example'); vi.stubEnv('INTERNAL_API_SECRET', 'test-internal-secret-at-least-24-characters');
+  const fetch = vi.fn(async (url: URL | string) => {
+    if (String(url) === 'https://story-worker.example/status') return Response.json({ connected: true });
+    if (String(url) === 'https://story-worker.example/process') return Response.json({ accepted: true });
+    throw Error('Unexpected provider write');
+  }); vi.stubGlobal('fetch', fetch);
+  const story = { ...input, isStory: true };
+  const results = await Promise.all(Array.from({ length: 5 }, () => POST(req('/api/instagram/publish', story))));
+  expect(results.filter(row => row.status === 202)).toHaveLength(1);
+  const receipt = (await readSocialPublish('owner', input.requestId))!;
+  expect(receipt.delivery).toBe('business-suite'); expect(receipt.storyLink?.status).toBe('pending');
+  expect((await mocks.db.collection('socialStoryBrowserTasks').doc(receipt.id).get()).data()).toMatchObject({ status: 'queued', dispatchCount: 0, imageSha256: digest });
+  expect(mocks.after).toHaveBeenCalledOnce(); await mocks.after.mock.calls[0][0]();
+  expect(fetch.mock.calls.filter(([url]) => String(url).endsWith('/process'))).toHaveLength(1);
+  expect(fetch.mock.calls.every(([url]) => String(url).startsWith('https://story-worker.example/'))).toBe(true);
+  fetch.mockClear();
+  expect((await (await POST(req('/api/instagram/publish', story))).json()).replay).toBe(true);
+  expect((await GET(req('/api/instagram/publish?requestId='+input.requestId))).status).toBe(200);
+  expect(fetch).not.toHaveBeenCalled();
+});
+it('returns confirmed non-dispatch when hosted login is missing or preflight times out', async () => {
+  vi.stubEnv('SOCIAL_STORY_BROWSER_URL', 'https://story-worker.example'); vi.stubEnv('INTERNAL_API_SECRET', 'test-internal-secret-at-least-24-characters');
+  const fetch = vi.fn().mockResolvedValueOnce(Response.json({ connected: false })).mockRejectedValueOnce(Error('timeout'));
+  vi.stubGlobal('fetch', fetch);
+  for (let i = 0; i < 2; i++) {
+    const response = await POST(req('/api/instagram/publish', { ...input, isStory: true }));
+    expect(response.status).toBe(503); expect(await response.json()).toMatchObject({ notDispatched: true, connectionRequired: true });
+    expect(await readSocialPublish('owner', input.requestId)).toBeNull();
+  }
+  expect(mocks.after).not.toHaveBeenCalled();
+});
+it('never silently sends a Story without its link when hosted mode is requested but unconfigured', async () => {
+  vi.stubEnv('SOCIAL_STORY_DELIVERY', 'business-suite'); vi.stubEnv('SOCIAL_STORY_BROWSER_URL', '');
+  const fetch = vi.fn(); vi.stubGlobal('fetch', fetch);
+  expect(await (await POST(req('/api/instagram/publish', { ...input, isStory: true }))).json()).toMatchObject({ notDispatched: true, connectionRequired: true });
+  expect(fetch).not.toHaveBeenCalled(); expect(mocks.after).not.toHaveBeenCalled();
+});
+it('preserves old Graph Story identity after switching delivery to the hosted browser', async () => {
+  const story = { ...input, isStory: true }, prior = await claimSocialPublish('owner', story, '123');
+  vi.stubEnv('SOCIAL_STORY_DELIVERY', 'business-suite'); vi.stubEnv('SOCIAL_STORY_BROWSER_URL', '');
+  const response = await (await POST(req('/api/instagram/publish', story))).json();
+  expect(response.replay).toBe(true); expect(response.receipt.id).toBe(prior.receipt.id);
+  expect(response.receipt.delivery).toBeUndefined(); expect(mocks.after).not.toHaveBeenCalled();
 });
 it('exercises real route, exact JPEG hash, Graph receipts, replay and GET without another POST', async () => {
   const fetch = vi.fn(async (url: string, options: RequestInit) => {

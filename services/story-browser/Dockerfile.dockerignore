@@ -1,0 +1,6 @@
+**
+!package.json
+!package-lock.json
+!services
+!services/story-browser
+!services/story-browser/**

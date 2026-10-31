@@ -25,6 +25,8 @@ export type SocialPublishReceipt = {
   channels: SocialPublishInput['channels']; instagram: ChannelReceipt; facebook: ChannelReceipt;
   comment: ChannelReceipt; containerId?: string;
   imageSha256: string; approved: Pick<SocialPublishInput, 'card' | 'caption' | 'articleUrl' | 'isStory'>;
+  delivery?: 'business-suite';
+  storyLink?: { status: 'pending' | 'verified' | 'unverified'; label: string; articleUrl: string; checkedAt?: string };
 };
 export function publishIsUncertain(receipt: SocialPublishReceipt) {
   return [receipt.instagram, receipt.facebook, receipt.comment].some(x => x.status === 'uncertain' || x.status === 'sending');

@@ -21,7 +21,7 @@ export function socialPublishIdentity(input: SocialPublishInput, account: string
   return hash(['social-publish-v1', account, input.articleId, card, input.isStory,
     input.isStory ? '' : input.caption, input.articleUrl]);
 }
-export async function claimSocialPublish(uid: string, input: SocialPublishInput, account: string) {
+export async function claimSocialPublish(uid: string, input: SocialPublishInput, account: string, options?: { browserStory: true }) {
   const db = database(), id = socialPublishIdentity(input, account);
   const ref = db.collection('socialPublishOperations').doc(id);
   const requestRef = db.collection('socialPublishRequests').doc(requestKey(uid, input.requestId));
@@ -43,6 +43,15 @@ export async function claimSocialPublish(uid: string, input: SocialPublishInput,
       // receipt field for historical records without scheduling a Facebook write.
       comment: { status: 'skipped' }, imageSha256: input.imageSha256,
       approved: { card: input.card, caption: input.caption, articleUrl: input.articleUrl, isStory: input.isStory } };
+    if (options?.browserStory) {
+      if (!input.isStory || input.channels.facebook) throw Error('social_story_only');
+      receipt.delivery = 'business-suite'; receipt.phase = 'story_queued';
+      receipt.storyLink = { status: 'pending', label: 'Læs anmeldelsen', articleUrl: input.articleUrl };
+      tx.create(db.collection('socialStoryBrowserTasks').doc(id), { id, ownerUid: uid, createdAt: now,
+        requestId: input.requestId, status: 'queued', dispatchCount: 0, imageSha256: input.imageSha256,
+        objectPath: `instagram-publish/${uid}-${input.imageSha256}.jpg`,
+        articleUrl: input.articleUrl, stickerLabel: 'Læs anmeldelsen' });
+    }
     tx.create(ref, receipt);
     tx.set(requestRef, { ownerUid: uid, operationId: id });
     return { created: true, receipt };
@@ -57,6 +66,13 @@ export async function readSocialPublish(uid: string, requestId: string): Promise
   if (!pointer || pointer.ownerUid !== uid) return null;
   const row = (await db.collection('socialPublishOperations').doc(pointer.operationId).get()).data();
   return row?.ownerUid === uid ? row as SocialPublishReceipt : null;
+}
+export async function readSocialPublishIdentity(uid: string, input: SocialPublishInput, account: string): Promise<SocialPublishReceipt | null> {
+  const row = (await database().collection('socialPublishOperations').doc(socialPublishIdentity(input, account)).get()).data() as SocialPublishReceipt | undefined;
+  if (!row) return null;
+  if (row.ownerUid !== uid) throw Error('social_publish_already_requested');
+  if (row.channels.facebook !== input.channels.facebook) throw Error('social_publish_channels_changed');
+  return row;
 }
 export async function recentSocialPublishes(uid: string, articleId: string): Promise<SocialPublishReceipt[]> {
   const result = await database().collection('socialPublishOperations').where('ownerUid', '==', uid).where('articleId', '==', articleId).get();

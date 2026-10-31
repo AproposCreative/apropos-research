@@ -12,7 +12,7 @@ export function isOwnerView(view: string | null): boolean {
   return ['seo', 'podcast', 'newsletter', 'liv-inbox', 'push', 'image-gen', 'akkreditering'].includes(view || '');
 }
 export function isOwnerPage(path: string): boolean {
-  return ['/ai/seo', '/ai/podcast', '/ai/newsletter', '/ai/liv-inbox', '/ai/push', '/ai/image-gen', '/ai/akkreditering', '/push', '/liv-inbox', '/settings', '/admin'].some(prefix => path === prefix || path.startsWith(`${prefix}/`));
+  return ['/ai/seo', '/ai/podcast', '/ai/newsletter', '/ai/liv-inbox', '/ai/push', '/ai/image-gen', '/ai/akkreditering', '/push', '/liv-inbox', '/settings', '/admin', '/social-story-connection'].some(prefix => path === prefix || path.startsWith(`${prefix}/`));
 }
 
 export function canOpenEditorialApp(app: string, capabilities: EditorialCapabilities): boolean {
@@ -28,7 +28,7 @@ export function requiresEditorialOwner(path: string, method: string): boolean {
     '/api/liv-inbox', '/api/accreditation', '/api/editorial/mail', '/api/editorial/accreditation', '/api/push', '/api/push-desk', '/api/admin', '/api/editorial/operations',
     '/api/ai-cost', '/api/editorial/desk', '/api/editorial/tips/select', '/api/webflow/config', '/api/instagram/config',
     '/api/instagram/meta-config', '/api/instagram/exchange-token', '/api/instagram/renew-token',
-    '/api/instagram/token-status'];
+    '/api/instagram/token-status', '/api/instagram/story-connection'];
   if (trees.some(prefix => path === prefix || path.startsWith(`${prefix}/`))) return true;
   if (path.endsWith('/settings') || path.endsWith('/control')) return true;
   if (path.startsWith('/api/cron/') || path.startsWith('/api/internal/') || path.startsWith('/api/test-')) return true;

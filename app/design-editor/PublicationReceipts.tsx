@@ -22,6 +22,8 @@ function Receipt({ receipt, check }: { receipt: SocialPublishReceipt; check: (re
     </div>)}
     {(['instagram', 'facebook', 'comment'] as const).map(channel => receipt[channel].error && !(channel === 'comment' && commentNotice) ? <p key={channel}>{receipt[channel].error}</p> : null)}
     {commentNotice && <p>{commentNotice.text}</p>}
+    {receipt.storyLink && <p>{receipt.storyLink.status === 'verified' ? 'Artikellink kontrolleret' : receipt.instagram.status === 'published' ? 'Story udgivet. Artikellinket er endnu ikke bekræftet.' : receipt.instagram.status === 'failed' ? 'Storyen med artikellink blev stoppet.' : receipt.instagram.status === 'uncertain' ? 'Story og artikellink kræver kontrol.' : 'Udgiver Story med artikellink…'}</p>}
+    {receipt.delivery === 'business-suite' && receipt.instagram.status === 'failed' && <a href="/social-story-connection" target="_blank" rel="noopener noreferrer">Tilslut Story-forbindelse</a>}
     {receipt.phase === 'stopped' && !commentNotice && <p>Forløbet er stoppet. Der sendes ikke automatisk igen.</p>}
     <button type="button" className={styles.textButton} disabled={checking} onClick={async () => {
       setChecking(true); try { await check(receipt.requestId); } finally { setChecking(false); }

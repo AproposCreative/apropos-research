@@ -13,6 +13,7 @@ export function useSocialPublishing(articleId: string) {
   const locked = useRef(false);
   const [posting, setPosting] = useState(false), [step, setStep] = useState('');
   const [error, setError] = useState<string | null>(null);
+  const [connectionRequired, setConnectionRequired] = useState(false);
   const [receipts, setReceipts] = useState<SocialPublishReceipt[]>([]);
   const [unconfirmedRequestId, setUnconfirmedRequestId] = useState<string | null>(null);
   const pendingKey = 'apropos-social-publish-pending:v1:'+scope;
@@ -23,7 +24,7 @@ export function useSocialPublishing(articleId: string) {
     return fetch(url, { ...options, headers: { ...options.headers, Authorization: `Bearer ${token}` }, cache: 'no-store' });
   }
   useEffect(() => {
-    let cancelled = false; setReceipts([]); setError(null);
+    let cancelled = false; setReceipts([]); setError(null); setConnectionRequired(false);
     try { setUnconfirmedRequestId(localStorage.getItem(pendingKey)); } catch { setUnconfirmedRequestId(null); }
     if (!user || !articleId) return;
     void request('/api/instagram/publish?'+new URLSearchParams({ articleId })).then(async response => {
@@ -48,7 +49,7 @@ export function useSocialPublishing(articleId: string) {
   }
   async function publish(spec: SocialPostSpec, exportImage: () => Promise<Blob>) {
     if (locked.current) return;
-    locked.current = true; setPosting(true); setError(null); setStep('Danner billede…');
+    locked.current = true; setPosting(true); setError(null); setConnectionRequired(false); setStep('Danner billede…');
     const ownerScope = scope; let started = false; let requestId: string | undefined;
     try {
       if (!spec.isStory && spec.caption.length > 2200) throw Error('Opslagsteksten må højst være 2.200 tegn inklusive afslutningen.');
@@ -74,6 +75,11 @@ export function useSocialPublishing(articleId: string) {
       const response = await request('/api/instagram/publish', { method: 'POST', headers: { 'Content-Type': 'application/json' },
         body: JSON.stringify({ ...spec, requestId, imageUrl, imageSha256 } satisfies SocialPublishInput) });
       const data = await response.json();
+      if (data.notDispatched === true && data.connectionRequired === true && !data.receipt) {
+        localStorage.removeItem(pendingKey);
+        if (ownerScope === currentScope.current) { setUnconfirmedRequestId(null); setConnectionRequired(true); setError(data.error); }
+        return;
+      }
       if (data.receipt) { remember(data.receipt, ownerScope); localStorage.removeItem(pendingKey);
         if (ownerScope === currentScope.current) setUnconfirmedRequestId(null); }
       else throw Error(data.error || 'Kvitteringen mangler.');
@@ -84,5 +90,11 @@ export function useSocialPublishing(articleId: string) {
       if (started && requestId) await check(requestId);
     } finally { locked.current = false; setPosting(false); setStep(''); }
   }
-  return { posting, step, error, receipts, unconfirmedRequestId, publish, check };
+  useEffect(() => {
+    const pending = receipts.find(row => row.delivery === 'business-suite' && !row.complete);
+    if (!pending) return;
+    const timer = setInterval(() => { if (document.visibilityState === 'visible') void check(pending.requestId); }, 4000);
+    return () => clearInterval(timer);
+  }, [receipts, scope]);
+  return { posting, step, error, connectionRequired, receipts, unconfirmedRequestId, publish, check };
 }

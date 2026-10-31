@@ -5,6 +5,10 @@
   "installCommand": "npm ci --ignore-scripts",
   "crons": [
     {
+      "path": "/api/cron/social-stories",
+      "schedule": "* * * * *"
+    },
+    {
       "path": "/api/cron/podcast-metadata",
       "schedule": "*/15 * * * *"
     },
