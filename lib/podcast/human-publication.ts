@@ -6,10 +6,11 @@ import { encodeToAac96k } from './encode-aac';
 import { probeAudioDurationSeconds } from './probe-duration';
 import { podcastShowCoverUrl } from './show-config';
 import core from './human-publication-core.cjs';
+import type { HumanPublicationStep } from './human-publication-core.cjs';
 
 export function createResearchHumanPublisher({ db, bucket, encode, probe, onStep, transport = fetch }: {
   db: any; bucket: any; encode: (bytes: Buffer) => Promise<Buffer>;
-  probe: (bytes: Buffer) => Promise<number | null>; onStep?: (step: string) => Promise<void>;
+  probe: (bytes: Buffer) => Promise<number | null>; onStep?: (step: HumanPublicationStep) => Promise<void>;
   transport?: typeof fetch;
 }) {
   async function readPublicationActor() {
@@ -59,7 +60,7 @@ export function createResearchHumanPublisher({ db, bucket, encode, probe, onStep
 
 export async function publishHumanRecording(input: {
   jobId: string; slug: string;
-  onStep?: (step: string) => Promise<void>;
+  onStep?: (step: HumanPublicationStep) => Promise<void>;
 }) {
   const db = getAdminDb();
   if (!db) throw Error('Existing publication database unavailable');
