@@ -18,3 +18,21 @@ Only the ToolList presentation groups active push/podcast with the existing
 secondary tools. The catalogue's availability/status/permissions and the separate
 desktop card menu remain unchanged. No service is disabled or marked paused by
 this move. Retain deep links and the existing expandable disclosure semantics.
+
+## Production verification
+
+Source ddd61ebba8bff83c22ad41a0dbb1e59a742c1f43, deployment
+`dpl_Ea5NwTctvauawV8dBVQt5WK4uchv`, READY with exact source metadata and
+ai.aproposmagazine.com alias confirmed. Turbopack, TypeScript, 254 pages and
+scoped lint pass; 26 existing checks across four access/catalogue/draft files pass.
+
+Actual authenticated production at 390x844: workspace is now 789px high with
+1087px scrollable content. Native scroll moves its scrollTop from 0 to 298 while
+document scroll stays 0. Complete saved Foto Story, subtitle and six stars are
+visible, with toolbar fixed above it. Mobile /ai disclosure reads Andre værktøjer
+(4) and contains Pushbeskeder, Podcast, Image-gen and Akkreditering; first two are
+absent from the primary list. Actual paused-status notes remain for the latter
+two only. Before applying the mobile viewport, /ai without a view parameter
+opened the desktop Writer, as required. No typography, artwork, article copy,
+publishing identity, automation, provider, budget or credential change. No post,
+push message or mail sent. Evidence: output/mobile-scroll-tools-20261102/.
