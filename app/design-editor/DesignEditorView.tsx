@@ -1,6 +1,6 @@
 'use client';
 
-import { useState, useEffect, useCallback, useRef, useMemo } from 'react';
+import { useState, useEffect, useCallback, useRef, useMemo, useId } from 'react';
 import { Amiri } from 'next/font/google';
 import SocialEditorToolbar from './SocialEditorToolbar';
 import SocialDesignPicker from './SocialDesignPicker';
@@ -179,6 +179,8 @@ export default function DesignEditorView({ onBack, embedMode }: DesignEditorView
   const [facebookConfigured, setFacebookConfigured] = useState(false);
   const [confirmation, setConfirmation] = useState<{ spec: SocialPostSpec; card: SocialCardData; size: SocialCardSize } | null>(null);
   const [copyState, setCopyState] = useState('');
+  const [storyExportOpen, setStoryExportOpen] = useState(false);
+  const storyExportId = useId();
   const [metadataReady, setMetadataReady] = useState(false);
   const [eyebrowOverrides, setEyebrowOverrides] = useState<Record<string, string[]>>({});
   const [instagramConfigured, setInstagramConfigured] = useState<boolean | null>(null);
@@ -697,7 +699,10 @@ export default function DesignEditorView({ onBack, embedMode }: DesignEditorView
         >
           <div className={styles.workspaceContent}>
             {selected && <>
-              <div className={styles.saveStatus} role="status" aria-live="polite">{draft.status === 'saved' ? 'Gemt' : draft.status === 'saving' ? 'Gemmer…' : draft.status === 'conflict' ? 'Nyere version på en anden enhed' : draft.status === 'offline' ? 'Ikke synkroniseret' : 'Henter kladde…'}</div>
+              <div className={styles.editorHeading}>
+                <span className={styles.mobileDesignLabel} aria-hidden="true">Design</span>
+                <div className={styles.saveStatus} role="status" aria-live="polite">{draft.status === 'saved' ? 'Gemt' : draft.status === 'saving' ? 'Gemmer…' : draft.status === 'conflict' ? 'Nyere version på en anden enhed' : draft.status === 'offline' ? 'Ikke synkroniseret' : 'Henter kladde…'}</div>
+              </div>
               {draft.error && <div className={styles.syncNotice}><p>{draft.error}</p>{draft.status === 'conflict' ? <div className={styles.copyActions}>
                 <button type="button" className={styles.textButton} onClick={draft.useServer}>Brug gemt version</button>
                 <button type="button" className={styles.textButton} onClick={draft.keepLocal}>Gem mine ændringer</button>
@@ -742,9 +747,15 @@ export default function DesignEditorView({ onBack, embedMode }: DesignEditorView
                 >
                   Nulstil
                 </button>
+                {selectedArticleUrl && <button type="button" className={`${styles.metaButton} ${styles.storyExportToggle}`}
+                  aria-expanded={storyExportOpen} aria-controls={storyExportId}
+                  onClick={() => setStoryExportOpen(value => !value)}>
+                  Story-link
+                  <svg aria-hidden="true" viewBox="0 0 16 16" width="12" height="12" fill="none" stroke="currentColor" strokeWidth="1.5"><path d="m5 3 5 5-5 5" /></svg>
+                </button>}
               </div>
             )}
-            {size === 'story' && selectedArticleUrl && <div className={styles.storyExport}>
+            {size === 'story' && selectedArticleUrl && <div id={storyExportId} className={styles.storyExport} hidden={!isDesktop && !storyExportOpen}>
               <div className={styles.copyActions}><button type="button" className={styles.textButton} disabled={exporting || !editorReady || !subtitle.ready || !!previewError} onClick={handleExportPng}>Download Story</button>
                 <button type="button" className={styles.textButton} onClick={() => { void copyArticleLink(); }}>Kopiér artikellink</button></div>
               <input aria-label="Artikellink til Story" value={selectedArticleUrl} readOnly onFocus={event => event.target.select()} />

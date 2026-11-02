@@ -72,6 +72,11 @@
 .copySpacingActions > span { margin-right: auto; color: #98989d; font-size: 13px; }
 @media (max-width: 370px) { .copySizeActions { margin-left: 0; }.copyActions { justify-content: space-between; } }
 .saveStatus { align-self: flex-end; color: #98989d; font-size: 12px; padding: 0 4px; }
+.editorHeading { display: flex; align-self: flex-end; align-items: baseline; justify-content: space-between; gap: 12px; }
+.mobileDesignLabel, .storyExportToggle { display: none; }
+.storyExportToggle svg { transition: transform 150ms ease; }
+.storyExportToggle[aria-expanded="true"] svg { transform: rotate(90deg); }
+.storyExportToggle:focus-visible { outline: 2px solid #0a84ff; outline-offset: 2px; }
 .designPicker { width: 100%; max-width: 640px; margin: 0; padding: 8px 0; border: 0; min-width: 0; }
 .designPicker legend { padding: 0 0 4px; font-size: 13px; color: #98989d; }
 .designOptions { display: flex; gap: 8px; }
@@ -88,6 +93,13 @@
 .photoSwatch i { background: #fff; }
 .photoSwatch b { top: auto; bottom: 12px; height: 8px; background: repeating-linear-gradient(#fff 0 2px, transparent 2px 5px); }
 .photoSwatch em { position: absolute; bottom: 6px; left: 13px; width: 12px; height: 2px; background: #fff; }
+@media (max-width: 767px) {
+  .editorHeading { width: 100%; max-width: 640px; }
+  .mobileDesignLabel { display: block; color: #98989d; font-size: 13px; }
+  .storyExportToggle { display: inline-flex; align-items: center; gap: 6px; }
+  .designPicker { padding-top: 0; }
+  .designPicker legend { position: absolute; width: 1px; height: 1px; padding: 0; overflow: hidden; clip-path: inset(50%); white-space: nowrap; }
+}
 fieldset.copyGroup { min-width: 0; border: 0; padding: 0; margin: 0; }
 fieldset.copyGroup:disabled { opacity: .6; }
 .syncNotice, .storyExport, .receipts { width: 100%; max-width: 640px; border-radius: 16px; padding: 8px 12px; background: #1c1c1e; box-sizing: border-box; font-size: 13px; }
