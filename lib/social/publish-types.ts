@@ -1,7 +1,8 @@
 import { z } from 'zod';
-import { MAX_TITLE_SUBTITLE_GAP } from './card-layout';
+import { MAX_TITLE_SUBTITLE_GAP, SOCIAL_CARD_DESIGNS } from './card-layout';
 export const socialCardSchema = z.object({
   title: z.string().max(4000), excerpt: z.string().max(12000).optional(),
+  design: z.enum(SOCIAL_CARD_DESIGNS).optional(),
   theme: z.enum(['light', 'dark']).optional(), imageUrl: z.string().max(3000).nullable().optional(),
   titleSizePercent: z.number().int().min(70).max(150).optional(), subtitleSizePercent: z.number().int().min(70).max(150).optional(),
   titleSubtitleGap: z.number().int().min(0).max(MAX_TITLE_SUBTITLE_GAP).optional(),

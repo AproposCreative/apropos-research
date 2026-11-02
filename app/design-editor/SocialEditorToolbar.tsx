@@ -7,7 +7,7 @@ import styles from './SocialEditor.module.css';
 type Props = {
   embedded?: boolean; articlesOpen: boolean; onArticles: () => void;
   size: SocialCardSize; onSize: (size: SocialCardSize) => void;
-  dark: boolean; onTheme: () => void; publishing: boolean; publishDisabled: boolean; onPublish: () => void;
+  dark: boolean; showTheme?: boolean; onTheme: () => void; publishing: boolean; publishDisabled: boolean; onPublish: () => void;
   exporting: boolean; exportDisabled?: boolean; editingDisabled?: boolean; onExport: () => void; onClose?: () => void;
 };
 
@@ -23,9 +23,9 @@ export default function SocialEditorToolbar(props: Props) {
         <button type="button" disabled={props.editingDisabled} onClick={() => props.onSize('square')} aria-pressed={props.size === 'square'} title="Kvadrat">1:1</button>
         <button type="button" disabled={props.editingDisabled} onClick={() => props.onSize('story')} aria-pressed={props.size === 'story'} title="Story">9:16</button>
       </div>
-      <button type="button" disabled={props.editingDisabled} onClick={props.onTheme} className={styles.iconButton} aria-label={props.dark ? 'Skift til lyst design' : 'Skift til mørkt design'} aria-pressed={props.dark} title="Lyst eller mørkt design">
+      {props.showTheme !== false && <button type="button" disabled={props.editingDisabled} onClick={props.onTheme} className={styles.iconButton} aria-label={props.dark ? 'Skift til lyst design' : 'Skift til mørkt design'} aria-pressed={props.dark} title="Lyst eller mørkt design">
         <svg aria-hidden="true" viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="1.7"><circle cx="12" cy="12" r="8" /><path d="M12 4a8 8 0 0 1 0 16Z" fill="currentColor" stroke="none" /></svg>
-      </button>
+      </button>}
       <button type="button" onClick={props.onPublish} disabled={props.publishDisabled} className={styles.publishButton}
         aria-label={props.size === 'story' ? 'Post til Instagram Story' : 'Post til Instagram'} title="Udgiv" aria-busy={props.publishing}>
         <svg aria-hidden="true" viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="1.8" strokeLinecap="round" strokeLinejoin="round"><circle cx="12" cy="12" r="9" /><path d="M12 17V7m-4 4 4-4 4 4" /></svg>

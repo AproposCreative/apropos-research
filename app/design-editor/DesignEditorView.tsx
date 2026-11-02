@@ -3,6 +3,8 @@
 import { useState, useEffect, useCallback, useRef, useMemo } from 'react';
 import { Amiri } from 'next/font/google';
 import SocialEditorToolbar from './SocialEditorToolbar';
+import SocialDesignPicker from './SocialDesignPicker';
+import type { SocialCardDesign } from '@/lib/social/card-layout';
 import styles from './SocialEditor.module.css';
 import SocialCardCanvas, { type SocialCardData, type SocialCardSize, DIMENSIONS } from './SocialCardCanvas';
 import { exportCardToPng, exportCardToJpegBlob } from './exportCardToPng';
@@ -150,6 +152,7 @@ export default function DesignEditorView({ onBack, embedMode }: DesignEditorView
   const [loading, setLoading] = useState(true);
   const [selected, setSelected] = useState<NormalizedArticle | null>(null);
   const [theme, setTheme] = useState<'light' | 'dark'>('light');
+  const [design, setDesign] = useState<SocialCardDesign>('classic');
   const [size, setSize] = useState<SocialCardSize>('square');
   const identity = JSON.stringify([selected?.id, selected?.title, selected?.excerpt]);
   const draft = useSocialDraft(identity, selected?.id ?? '');
@@ -467,6 +470,7 @@ export default function DesignEditorView({ onBack, embedMode }: DesignEditorView
       titleSubtitleGap: textSize.spacing.gap,
       excerpt: subtitle.text || undefined,
       theme,
+      design,
       imageUrl: selected?.imageUrl ?? undefined,
       category: selected?.category ?? undefined,
       categorySecondary: undefined,
@@ -478,7 +482,7 @@ export default function DesignEditorView({ onBack, embedMode }: DesignEditorView
         : (dedupedStoryBottomMetaLabels.length > 0 ? dedupedStoryBottomMetaLabels : undefined),
       rating: selected?.rating ?? undefined,
     };
-  }, [subtitle.text, cardTitle.text, textSize.title.percent, textSize.subtitle.percent, textSize.spacing.gap, selected?.excerpt, selected?.imageUrl, selected?.category, selected?.section, selected?.primaryTopic, selected?.topics, selected?.rating, selected?.authorId, eyebrowChips, authors, sections, topics, resolveName, size, storyMetaShuffleSeed, theme]);
+  }, [subtitle.text, cardTitle.text, textSize.title.percent, textSize.subtitle.percent, textSize.spacing.gap, selected?.excerpt, selected?.imageUrl, selected?.category, selected?.section, selected?.primaryTopic, selected?.topics, selected?.rating, selected?.authorId, eyebrowChips, authors, sections, topics, resolveName, size, storyMetaShuffleSeed, theme, design]);
 
   const filteredArticles = useMemo(() => {
     const q = articleSearch.trim().toLowerCase();
@@ -542,12 +546,14 @@ export default function DesignEditorView({ onBack, embedMode }: DesignEditorView
       if (saved.subtitle !== null) subtitle.edit(saved.subtitle, saved.subtitleStatus);
       else subtitle.reset();
       setCaption(saved.caption); setTheme(saved.theme); setSize(saved.size);
+      setDesign(saved.design ?? 'classic');
       textSize.restore(saved.titleSizePercent, saved.subtitleSizePercent, saved.titleSubtitleGap);
       setStoryMetaShuffleSeed(saved.storyMetaShuffleSeed); setFacebook(saved.facebook);
       setEyebrowOverrides(previous => ({ ...previous, [identity]: saved.eyebrowValues }));
     } else {
       cardTitle.restore(); subtitle.reset(); textSize.restore(100, 100);
       setCaption(buildDefaultCaption(selected)); setTheme('light'); setSize('square');
+      setDesign('classic');
       setStoryMetaShuffleSeed(0); setFacebook(false);
     }
     setHydrated(hydrationKey);
@@ -556,12 +562,12 @@ export default function DesignEditorView({ onBack, embedMode }: DesignEditorView
   useEffect(() => {
     if (!editorReady || !selected || !metadataReady) return;
     draft.update({ title: cardTitle.text, subtitle: subtitle.checking && !subtitle.hasEntry ? null : subtitle.text,
-      subtitleStatus: subtitle.status ?? 'original', caption, theme, size,
+      subtitleStatus: subtitle.status ?? 'original', caption, theme, size, design,
       titleSizePercent: textSize.title.percent, subtitleSizePercent: textSize.subtitle.percent,
       titleSubtitleGap: textSize.spacing.gap,
       eyebrowValues: eyebrowChips.map(chip => chip.value), storyMetaShuffleSeed, facebook });
   }, [editorReady, selected?.id, cardTitle.text, subtitle.text, subtitle.checking, subtitle.hasEntry, subtitle.status,
-    caption, theme, size, textSize.title.percent, textSize.subtitle.percent, textSize.spacing.gap, eyebrowChips, storyMetaShuffleSeed, facebook, metadataReady]);
+    caption, theme, size, design, textSize.title.percent, textSize.subtitle.percent, textSize.spacing.gap, eyebrowChips, storyMetaShuffleSeed, facebook, metadataReady]);
 
   // Safety net: ensure first article is selected if selected is missing.
   useEffect(() => {
@@ -696,6 +702,7 @@ export default function DesignEditorView({ onBack, embedMode }: DesignEditorView
                 <button type="button" className={styles.textButton} onClick={draft.useServer}>Brug gemt version</button>
                 <button type="button" className={styles.textButton} onClick={draft.keepLocal}>Gem mine ændringer</button>
               </div> : <button type="button" className={styles.textButton} onClick={() => { void draft.retry(); }}>Prøv synkronisering igen</button>}</div>}
+              <SocialDesignPicker design={design} onChange={setDesign} disabled={!editorReady || postingToInstagram} />
               <fieldset disabled={!editorReady || postingToInstagram} className={styles.copyGroup}>
               <TitleControls key={cardTitle.key} title={cardTitle} sizing={textSize.title} spacing={selected.excerpt ? textSize.spacing : undefined} />
               {selected.excerpt && <SubtitleControls key={subtitle.key} subtitle={subtitle} sizing={textSize.subtitle} />}
@@ -812,6 +819,7 @@ export default function DesignEditorView({ onBack, embedMode }: DesignEditorView
     onArticles={() => setArticlesOpen(value => !value)} size={size}
     onSize={next => { if (size !== next) { subtitle.carryToNextFormat(); setSize(next); } }}
     dark={theme === 'dark'} onTheme={() => setTheme(value => value === 'light' ? 'dark' : 'light')}
+    showTheme={design === 'classic'}
     publishing={postingToInstagram} editingDisabled={!editorReady || postingToInstagram} publishDisabled={!editorReady || !subtitle.ready || postingToInstagram || instagramConfigured !== true || !!previewError} onPublish={requestPostToInstagram}
     exporting={exporting} exportDisabled={!editorReady || !!previewError} onExport={handleExportPng} onClose={onBack} />;
 

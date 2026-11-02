@@ -292,6 +292,24 @@ it('keeps old draft and publish identities at default spacing, while preserving 
   expect(custom.created).toBe(true); expect(custom.receipt.approved.card.titleSubtitleGap).toBe(8);
   expect((await claimSocialPublish('owner', { ...input, requestId: '68ef40d6-159b-446f-8792-511e94de6c64', card: { ...input.card, titleSubtitleGap: 8 } }, '123')).created).toBe(false);
 });
+it('restores either design without changing old draft defaults or publication locks', async () => {
+  expect(sameSocialDraft(draft, { ...draft, design: 'classic' })).toBe(true);
+  expect(sameSocialDraft(draft, { ...draft, design: 'photo' })).toBe(false);
+  const photoDraft = { ...draft, design: 'photo' as const };
+  await saveSocialDraft('owner', 'article', source, 0, photoDraft);
+  expect((await readSocialDraft('owner', 'article', source)).draft).toEqual(photoDraft);
+  const classic = await claimSocialPublish('owner', input, '123');
+  const explicit = await claimSocialPublish('owner', { ...input, requestId: '68ef40d6-159b-446f-8792-511e94de6c62', card: { ...input.card, design: 'classic' } }, '123');
+  expect(explicit.created).toBe(false); expect(explicit.receipt.id).toBe(classic.receipt.id);
+  const photo = await claimSocialPublish('owner', { ...input, requestId: '68ef40d6-159b-446f-8792-511e94de6c63', card: { ...input.card, design: 'photo' } }, '123');
+  expect(photo.created).toBe(true); expect(photo.receipt.approved.card.design).toBe('photo');
+  const otherDevice = await claimSocialPublish('owner', { ...input, requestId: '68ef40d6-159b-446f-8792-511e94de6c64', card: { ...input.card, design: 'photo', theme: 'dark' } }, '123');
+  expect(otherDevice.created).toBe(false); expect(otherDevice.receipt.id).toBe(photo.receipt.id);
+});
+it('rejects an unknown design before draft storage or publication', async () => {
+  expect(socialDraftSchema.safeParse({ ...draft, design: 'unknown' }).success).toBe(false);
+  expect((await POST(req('/api/instagram/publish', { ...input, card: { ...input.card, design: 'unknown' } }))).status).toBe(400);
+});
 it.each([-1, 121, 1.5])('rejects invalid spacing %s before touching Meta', async gap => {
   const fetch = vi.fn(); vi.stubGlobal('fetch', fetch);
   expect(socialDraftSchema.safeParse({ ...draft, titleSubtitleGap: gap }).success).toBe(false);

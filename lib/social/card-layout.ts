@@ -1,3 +1,6 @@
+export const SOCIAL_CARD_DESIGNS = ['classic', 'photo'] as const;
+export type SocialCardDesign = typeof SOCIAL_CARD_DESIGNS[number];
+
 export const DEFAULT_TITLE_SUBTITLE_GAP = 24;
 export const MAX_TITLE_SUBTITLE_GAP = 120;
 export const TITLE_SUBTITLE_GAP_STEP = 8;

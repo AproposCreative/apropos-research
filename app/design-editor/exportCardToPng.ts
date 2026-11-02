@@ -138,6 +138,89 @@ async function ensureDesignFontsLoaded(amiriFontFamily: string) {
   ]);
 }
 
+async function renderPhotoCard(ctx: CanvasRenderingContext2D, data: SocialCardData,
+  size: SocialCardSize, width: number, height: number) {
+  if (!data.imageUrl) throw new Error('Vælg en artikel med et billede til Foto-designet.');
+  const family = getComputedStyle(document.body).getPropertyValue('--font-poppins').trim() || '"Poppins", Arial, sans-serif';
+  if ('fonts' in document) await Promise.all([
+    document.fonts.load(`700 72px ${family}`), document.fonts.load(`400 38px ${family}`),
+  ]);
+  // Use the retained logo and real article photo. Never export an unnoticed
+  // empty/black photo card when an image or brand asset cannot be loaded.
+  const [photo, logo] = await Promise.all([loadImage(data.imageUrl), loadLogoImage()]);
+  const story = size === 'story';
+  ctx.fillStyle = '#000000';
+  ctx.fillRect(0, 0, width, height);
+  ctx.imageSmoothingEnabled = true;
+  ctx.imageSmoothingQuality = 'high';
+  drawImageCover(ctx, photo, 0, 0, width, height);
+
+  const shade = ctx.createLinearGradient(0, height * .28, 0, height);
+  shade.addColorStop(0, 'rgba(0,0,0,0)');
+  shade.addColorStop(.38, 'rgba(0,0,0,.18)');
+  shade.addColorStop(.68, 'rgba(0,0,0,.82)');
+  shade.addColorStop(1, '#000000');
+  ctx.fillStyle = shade;
+  ctx.fillRect(0, 0, width, height);
+  const topShade = ctx.createLinearGradient(0, 0, 0, height * .26);
+  topShade.addColorStop(0, 'rgba(0,0,0,.4)');
+  topShade.addColorStop(1, 'rgba(0,0,0,0)');
+  ctx.fillStyle = topShade;
+  ctx.fillRect(0, 0, width, height * .26);
+
+  const logoWidth = story ? 250 : 210;
+  const logoHeight = logoWidth * SQUARE_LOGO_H / SQUARE_LOGO_W;
+  const logoTop = story ? STORY_LOGO_TOP : 48;
+  drawThemeAsset(ctx, logo, (width - logoWidth) / 2, logoTop, logoWidth, logoHeight, true);
+
+  const textWidth = width - 128;
+  const block = (text: string, maxLines: number, maximum: number, weight: number, percent?: number) => {
+    const font = (px: number) => `${weight} ${px}px ${family}`;
+    const fit = sizeCardText(ctx, text, textWidth, maxLines, maximum, font, percent);
+    ctx.font = font(fit.fontSize);
+    const metrics = fit.lines.map(line => ctx.measureText(line));
+    const ascent = Math.max(...metrics.map(m => m.actualBoundingBoxAscent || fit.fontSize * .8));
+    const descent = Math.max(...metrics.map(m => m.actualBoundingBoxDescent || fit.fontSize * .2));
+    const lineHeight = fit.fontSize * 1.18;
+    return { ...fit, font: font(fit.fontSize), ascent, height: ascent + descent + (fit.lines.length - 1) * lineHeight, lineHeight };
+  };
+  const labels = (data.eyebrowLabels?.length ? data.eyebrowLabels : [data.category, data.categorySecondary])
+    .filter((label): label is string => !!label && !isWebflowReferenceId(label)).slice(0, 2);
+  const meta = labels.length ? block(labels.join(' · '), 2, story ? 32 : 27, 400) : null;
+  const title = block(data.title.trim() || 'Overskrift', story ? 4 : 3, story ? 76 : 64, 700, data.titleSizePercent);
+  const subtitle = data.excerpt?.trim() ? block(data.excerpt, story ? 3 : 2, story ? 38 : 32, 400, data.subtitleSizePercent) : null;
+  const rating = data.rating ?? 0;
+  const starSize = story ? 56 : 48;
+  const starGap = 14;
+  const subtitleGap = titleSubtitleGap(data.titleSubtitleGap);
+  const contentHeight = (meta ? meta.height + 28 : 0) + title.height +
+    (subtitle ? subtitleGap + subtitle.height : 0) + (rating > 0 ? 36 + starSize : 0);
+  // Leave the bottom of Stories clear for Meta's native clickable link and UI.
+  // No drawn button is included in this photographic design.
+  let y = height - (story ? 350 : 80) - contentHeight;
+  if (y < logoTop + logoHeight + 80) throw new Error('Teksten fylder for meget. Vælg Mindre eller forkort teksten.');
+  ctx.fillStyle = '#ffffff';
+  ctx.textAlign = 'center';
+  ctx.textBaseline = 'alphabetic';
+  const paint = (value: ReturnType<typeof block>) => {
+    ctx.font = value.font;
+    value.lines.forEach((line, index) => ctx.fillText(line, width / 2, y + value.ascent + index * value.lineHeight));
+    y += value.height;
+  };
+  if (meta) { paint(meta); y += 28; }
+  paint(title);
+  if (subtitle) { y += subtitleGap; paint(subtitle); }
+  if (rating > 0) {
+    const { filled } = await loadStarImages();
+    const total = 6 * starSize + 5 * starGap;
+    y += 36;
+    for (let i = 0; i < 6; i++) {
+      drawThemeAsset(ctx, filled, (width - total) / 2 + i * (starSize + starGap), y,
+        starSize, starSize, true, i < rating ? '#ffffff' : '#747474');
+    }
+  }
+}
+
 export async function exportCardToPng(
   data: SocialCardData,
   size: SocialCardSize,
@@ -164,6 +247,7 @@ async function renderCardToContext(
   height: number,
   amiriFontFamily: string,
 ): Promise<void> {
+  if (data.design === 'photo') return renderPhotoCard(ctx, data, size, width, height);
   const isSquare = size === 'square';
   const isStory = size === 'story';
   const padding = isSquare ? SQUARE_H1_PADDING_H : isStory ? STORY_H1_PADDING_H : 56;

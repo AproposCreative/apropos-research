@@ -2,11 +2,13 @@
 
 import { useEffect, useRef, useState } from 'react';
 import { exportCardToPng } from './exportCardToPng';
+import type { SocialCardDesign } from '@/lib/social/card-layout';
 
 export type SocialCardSize = 'story' | 'square';
 export const DIMENSIONS = { story: { width: 1080, height: 1920 }, square: { width: 1080, height: 1080 } };
 
 export interface SocialCardData {
+  design?: SocialCardDesign;
   theme?: 'light' | 'dark';
   title: string;
   excerpt?: string;
