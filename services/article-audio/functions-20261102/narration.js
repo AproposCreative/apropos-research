@@ -20,6 +20,7 @@ const {narrationAddress} = require("./articleLocale");
 const {createCatalogACLGuard} = require("./catalogACL.cjs");
 const audioRecipe = require("./narrationAudioRecipe.cjs");
 const {providerSignal,confirmedQuota}=require("./normalAudioReliability.cjs");
+const {appendNormalEpisode}=require("./episodePublication.cjs");
 const admin = require("firebase-admin");
 const logger = require("firebase-functions/logger");
 const ffmpegPath = require("ffmpeg-static");
@@ -803,6 +804,26 @@ async function syncManifest(bucket, {assertCurrent = async () => {}, targetBindi
       audioURL: publicURL(proof.objectPath, token), audioBytes: proof.audioBytes};
     if (sidecar.durationSeconds > 0) target.durationSeconds = Math.round(sidecar.durationSeconds);
     episodes.push(...priorManifest.episodes.map(x => x.id === targetID ? target : x));
+  } else if (authorizedBinding) {
+    // A new normal episode changes only its own entry. Never enumerate and
+    // re-date unrelated source-bound recordings when publishing one article.
+    const file=bucket.file(authorizedBinding.objectPath),[metadata]=await file.getMetadata();
+    const [sidecarBytes]=await bucket.file(`${authorizedBinding.objectPath}.json`).download();
+    const sidecar=JSON.parse(sidecarBytes.toString('utf8'));
+    const proof=offlineSource.objectBinding(authorizedBinding.objectPath,metadata,sidecar);
+    if(offlineSource.canonicalJSON(proof)!==offlineSource.canonicalJSON(authorizedBinding))throw Error('Normal episode source proof changed');
+    const article=await loadArticle(admin.firestore(),proof.articleId,proof.articleSlug);
+    if(!offlineSource.sameSource(proof,offlineSource.captureSource(article,proof.articleId,proof.articleSlug)))throw Error('Normal publication source changed');
+    const token=extractToken(metadata);if(!token)throw Error('Normal episode download receipt unavailable');
+    const episode={id:`ai-${slugToId(proof.articleSlug)}`,guid:`ai-${slugToId(proof.articleSlug)}`,
+      articleId:proof.articleId,sourceContentRevision:proof.sourceContentRevision,articleSlug:proof.articleSlug,
+      title:sidecar.title||titleFromSlug(proof.articleSlug),subtitle:'Lyt til artiklen',
+      audioURL:publicURL(proof.objectPath,token),hosts:sidecar.hosts?.length?sidecar.hosts:['Apropos Magazine'],
+      publishedAt:article.lastPublished,kind:'ai',imageURL:sidecar.imageURL||SHOW_COVER_URL,
+      audioBytes:proof.audioBytes,...(sidecar.durationSeconds>0?{durationSeconds:Math.round(sidecar.durationSeconds)}:{}),
+      ...(sidecar.description?{description:sidecar.description}:{})};
+    episodes.push(...appendNormalEpisode(priorManifest.episodes,episode));
+    selectedHumanChecks.push({path:proof.objectPath,identity:offlineSource.canonicalJSON(metadata)});
   } else {
   const retainedEnglish = await retainedEnglishRows(bucket, priorManifest, selectedEnglishChecks);
   const humanSlugs = new Set();

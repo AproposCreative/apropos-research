@@ -1,0 +1,93 @@
+{
+  "schemaVersion": 1,
+  "purpose": "Prevent older episodes being re-dated when a new article is published",
+  "previousRelease": "reliability-20261102.json",
+  "checkedAt": "2026-11-02T21:03:57.000Z",
+  "incident": {
+    "cause": "The normal narration publisher rebuilt unrelated source-bound AI rows from Storage metadata timestamps. Its legacy preservation loop skipped source-bound rows, so five older episode publication dates changed to November 2 when Behemoth was committed.",
+    "affectedEpisodeIds": [
+      "ai-mayday-apple-tv-russisk-charme-og-streamingtrthed",
+      "ai-soulfly-i-lille-vega",
+      "ai-alt-du-skal-vide-for-du-mister-stemmen-pa-refshaleoen-i-august",
+      "ai-marvel-tokon-fighting-souls-anmeldelse",
+      "ai-alle-guds-farver-et-faellesskab-er-foerst-rummeligt-nar-det-forandrer-sig"
+    ],
+    "spotifyNotificationsReportedByOwner": true,
+    "spotifyInternalNotificationDecisionNotObserved": true,
+    "earlierVerificationMissedDatePreservation": true
+  },
+  "deployedWorker": {
+    "checkedAt": "2026-11-02T21:03:35.126Z",
+    "name": "generateNarrationOnQueue",
+    "state": "ACTIVE",
+    "updateTime": "2026-11-02T21:03:09.659405840Z",
+    "source": {
+      "bucket": "gcf-v2-sources-817066738308-us-central1",
+      "object": "generateNarrationOnQueue/function-source.zip",
+      "generation": "1793653295404128"
+    },
+    "revision": "generatenarrationonqueue-00020-nag",
+    "configDigest": "2ebf1f0bd77d8b49d148adeda101f84b4e8ccc75c1cd2ac835973afe3910eba8",
+    "maintenanceFlags": {
+      "AUTOMATIC_OFFLINE_ENABLED": "false",
+      "AUTOMATIC_OFFLINE_MAX_RENDERS": "0",
+      "AUTOMATIC_OFFLINE_MAX_CHARACTERS": "0",
+      "AUTOMATIC_OFFLINE_TOTAL_CHARACTERS": "1500000"
+    },
+    "sourceSHA256": "ef6eb7f8dd4a0077ce62637f1dd86f54ac7a1f53f6479fd16ba5b378cbb58458",
+    "exactSourceVerified": true
+  },
+  "correction": {
+    "result": "original_episode_dates_restored",
+    "changedEpisodes": 5,
+    "allOriginalDatesRestored": true,
+    "allOtherFieldsPreserved": true,
+    "aclPreserved": true,
+    "customMetadataPreserved": true,
+    "manifestGeneration": "1793653423338687",
+    "originalRowsAuthenticatedByBeforeWitnessAt": "2026-11-02T15:29:37.570631+00:00",
+    "dates": [
+      {
+        "id": "ai-mayday-apple-tv-russisk-charme-og-streamingtrthed",
+        "guid": "ai-mayday-apple-tv-russisk-charme-og-streamingtrthed",
+        "publishedAt": "2026-09-03T08:59:33.078Z"
+      },
+      {
+        "id": "ai-soulfly-i-lille-vega",
+        "guid": "ai-soulfly-i-lille-vega",
+        "publishedAt": "2026-08-21T19:35:40.100Z"
+      },
+      {
+        "id": "ai-alt-du-skal-vide-for-du-mister-stemmen-pa-refshaleoen-i-august",
+        "guid": "ai-alt-du-skal-vide-for-du-mister-stemmen-pa-refshaleoen-i-august",
+        "publishedAt": "2026-09-10T09:55:35.768Z"
+      },
+      {
+        "id": "ai-marvel-tokon-fighting-souls-anmeldelse",
+        "guid": "ai-marvel-tokon-fighting-souls-anmeldelse",
+        "publishedAt": "2026-08-25T13:36:14.382Z"
+      },
+      {
+        "id": "ai-alle-guds-farver-et-faellesskab-er-foerst-rummeligt-nar-det-forandrer-sig",
+        "guid": "ai-alle-guds-farver-et-faellesskab-er-foerst-rummeligt-nar-det-forandrer-sig",
+        "publishedAt": "2026-09-12T09:31:52.868Z"
+      }
+    ]
+  },
+  "verification": {
+    "testsPassed": 82,
+    "failures": 0,
+    "publicRssCheckedAt": "2026-11-02T21:04:04.646Z",
+    "rssEpisodeCount": 132,
+    "allFiveOriginalDatesConfirmedInRss": true,
+    "oneEntryPerRetainedGuid": true,
+    "behemothPreserved": true,
+    "audioGeneratedForThisCorrection": 0
+  },
+  "newNormalPublicationContract": [
+    "Publish only the new article entry. Do not enumerate or rebuild unrelated recordings.",
+    "Keep every prior episode row, GUID, date, enclosure and extension field unchanged. Existing different media requires explicit repair.",
+    "Use the qualified article publication date for the first new entry.",
+    "Date correction is a separate administrative, generation-bound, metadata-only capability with retained audit evidence."
+  ]
+}

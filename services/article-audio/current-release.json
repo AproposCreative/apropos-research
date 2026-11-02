@@ -1,7 +1,8 @@
 {
   "schemaVersion": 1,
   "repair": "release-20261102.json",
-  "latest": "reliability-20261102.json",
-  "workerRevision": "generatenarrationonqueue-00019-wey",
-  "workerSourceSHA256": "e0f8d4acb8eb2225385555faac501c59c4e390e46eb16fb980e75b9c34456a8e"
+  "latest": "episode-dates-20261102.json",
+  "workerRevision": "generatenarrationonqueue-00020-nag",
+  "workerSourceSHA256": "ef6eb7f8dd4a0077ce62637f1dd86f54ac7a1f53f6479fd16ba5b378cbb58458",
+  "reliability": "reliability-20261102.json"
 }

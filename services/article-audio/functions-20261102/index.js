@@ -14,6 +14,7 @@ const {createPublishedCMSReader} = require("./offlineAudioLiveSource");
 const {contentRevision: offlineContentRevision} = require("./offlineAudioSource.cjs");
 const {prepareNormalSource,recoveryRequest,matchesFailedJob} = require('./normalAudioAdmission.cjs');
 const {startNormalAudioDeadline} = require('./normalAudioReliability.cjs');
+const {handleCatalogDateCorrection} = require('./catalogDateCorrection.cjs');
 const {
   evaluateArticleNotificationPolicy,
   isEnglishArticleContent,
@@ -897,6 +898,9 @@ exports.generateNarrationOnQueue = onDocumentCreated(
     async (event) => {
       let snap = event.data;
       if (!snap) return;
+      if(snap.data()?.catalogDateCorrection){
+        await handleCatalogDateCorrection({snap,db:admin.firestore(),bucket:admin.storage().bucket(NARRATION_BUCKET),now:()=>admin.firestore.FieldValue.serverTimestamp()});return;
+      }
       const recoverySnap = snap.data()?.normalAudioRecovery ? snap : null;
       if (recoverySnap) {
         try {
