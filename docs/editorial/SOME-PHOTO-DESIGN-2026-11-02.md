@@ -29,3 +29,24 @@ receipts and queued approvals are not changed. No post or mail is sent by releas
 Missing photo/logo or excessive text prevents a photo export; it cannot silently
 publish an empty cover. No dependencies, auth, credentials, Story worker, cadence,
 production automation or budget changes are part of this feature.
+
+## Production verification
+
+Source `d86b9117df2d43c3b2bd07b0da3d0cfb0996928d`, staged production deployment
+`dpl_GdEHVmfWdoP14NSkgXog7hNkNyjk`, READY with exact SHA metadata and assigned
+`ai.aproposmagazine.com` alias confirmed. Local build: webpack, TypeScript and
+254 pages; production build: Turbopack, TypeScript and 254 pages. Scoped lint
+passes. 82 focused tests in six files pass, covering draft sync, existing and new
+duplicate identities, format/text fitting and hosted Story access/store/runtime.
+
+Browser fixture used the actual shared selector/renderer with freshly built
+fonts. Desktop and 390px mobile observed; PNG/JPEG exports measured at
+1080x1080 and 1080x1920. Long title at 150%, rating absent, and classic/photo
+switching exercised. On the real authenticated production editor, Foto was
+selected for the existing Terminallisten season 2 Story, saved and retained after
+reload. Real photo, centered retained white logo, complete title/subtitle and six
+stars visibly confirmed with no layout error. Only the design preference changed;
+no article copy, publication receipt, post, worker configuration or automation was
+changed by this feature. The in-app browser did not return a download event;
+production export capture is not claimed. Local actual-renderer exports were
+successfully saved and inspected. Evidence: output/social-photo-design-20261102/.
