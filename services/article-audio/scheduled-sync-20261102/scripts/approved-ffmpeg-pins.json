@@ -1,0 +1,43 @@
+{
+  "scriptName": "apropos-install-approved-ffmpeg",
+  "command": "node scripts/install-approved-ffmpeg.cjs",
+  "packageSHA256": "de2337aeaf3a32ba0806ed5ead9366bc5a2f425cb88f91f8a6d254119f7fff9c",
+  "lockSHA256": "d081de34c2808d7910e8a0cb384b3d7a82892d6c61bd80f7f0ca91010102d2a9",
+  "ffmpeg": {
+    "version": "5.3.0",
+    "resolved": "https://registry.npmjs.org/ffmpeg-static/-/ffmpeg-static-5.3.0.tgz",
+    "integrity": "sha512-H+K6sW6TiIX6VGend0KQwthe+kaceeH/luE8dIZyOP35ik7ahYojDuqlTV1bOrtEwl01sy2HFNGQfi5IDJvotg==",
+    "release": "b6.1.1",
+    "baseURL": "https://github.com/eugeneware/ffmpeg-static/releases/download",
+    "sourceFiles": {
+      "package.json": "646ba194bac40bdb76856effc9629463477c0e1e7ccded3888971328ff7761c5",
+      "index.js": "ca4ca945d60557d20f99c11fdcd338f85a55ff38b19868b1e8755b7a5c350a9d",
+      "install.js": "9801ce3aa35e45f72f7d13339ff04c916011b529040d1a1301c74102ed335fb9"
+    },
+    "outputs": {
+      "ffmpeg": {
+        "size": 79826272,
+        "sha256": "e7e7fb30477f717e6f55f9180a70386c62677ef8a4d4d1a5d948f4098aa3eb99"
+      },
+      "ffmpeg.README": {
+        "size": 2235,
+        "sha256": "72f4b1b06d419d22ace6e7cc75f06826f90737345aa0b1736158929f4aacc537"
+      },
+      "ffmpeg.LICENSE": {
+        "size": 35147,
+        "sha256": "8ceb4b9ee5adedde47b31e975c1d90c73ad27b6b165a1dcd80c7c545eb65b903"
+      }
+    }
+  },
+  "ffprobe": {
+    "version": "3.1.0",
+    "resolved": "https://registry.npmjs.org/ffprobe-static/-/ffprobe-static-3.1.0.tgz",
+    "integrity": "sha512-Dvpa9uhVMOYivhHKWLGDoa512J751qN1WZAIO+Xw4L/mrUSPxS4DApzSUDbCFE/LUq2+xYnznEahTd63AqBSpA==",
+    "indexSHA256": "62421c8438fb87a81fda4f1e239835ed68ab5c177ea7509fafa621b479edfa56",
+    "gitHead": "73b68af853c51b29037dccb9a4267d4342a6aa6a",
+    "binaryPath": "bin/linux/x64/ffprobe",
+    "binarySize": 64541160,
+    "binaryGitBlobSHA1": "2fe7a9b31553e4ddbead41b339ce9fe9404d3f52",
+    "packageSHA256": "e4e79c7f355490b3c027cd78eee957779599ebfab80772f2b0874cf64fb68011"
+  }
+}

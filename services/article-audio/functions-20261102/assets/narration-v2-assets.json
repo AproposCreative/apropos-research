@@ -1,0 +1,37 @@
+{
+  "version": "ellen-continuous-v2-2026-10-31",
+  "sourceSha256": "965949e0e52b36149e55c4ab486ab1c3be45e5e39bd2d64145430f823ffda4bb",
+  "v1": [
+    {
+      "name": "narration-jingle.wav",
+      "bytes": 6514620,
+      "sha256": "ba2545a42cca7a90822340c2908c5a1d8681800211eaad9b402ee16c7f67f82d"
+    }
+  ],
+  "v2": [
+    {
+      "name": "narration-v2-first.wav",
+      "bytes": 7330444,
+      "sha256": "835b3f6394501a7876ff85d9ac3f3cde48ba7904b15930215bf43a03bfe60439",
+      "durationSeconds": 41.55555555555556
+    },
+    {
+      "name": "narration-v2-loop.wav",
+      "bytes": 6272044,
+      "sha256": "ec5589e92e4bb3d840e9f4081005534050068e4e97631def2ecd9bd31e07fbaf",
+      "durationSeconds": 35.55555555555556
+    },
+    {
+      "name": "narration-v2-outro.wav",
+      "bytes": 1146644,
+      "sha256": "0953f3cfe4373b40f5f21aa8aa632c694a8689f82b0e77046ba81f2d1c588765",
+      "durationSeconds": 6.5
+    }
+  ],
+  "continuousIntroSourceSeconds": [
+    41.39,
+    47.39
+  ],
+  "loopCrossfadeSeconds": 0.08,
+  "beatGainChangeDb": 3.0
+}

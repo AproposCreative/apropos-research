@@ -1,0 +1,129 @@
+{
+  "schemaVersion": 1,
+  "purpose": "Restore publication-to-audio delivery after the staged/live CMS source mismatch",
+  "checkedAt": "2026-11-02T20:41:23.013Z",
+  "project": "apropos-magazine-6004a",
+  "region": "us-central1",
+  "functionSourceDirectories": {
+    "syncArticles": "sync-20261102",
+    "syncArticlesScheduled": "scheduled-sync-20261102",
+    "webflowWebhook": "webhook-20261102",
+    "generateNarrationOnQueue": "functions-20261102"
+  },
+  "deployed": [
+    {
+      "name": "syncArticles",
+      "state": "ACTIVE",
+      "updateTime": "2026-11-02T20:31:10.186379029Z",
+      "source": {
+        "bucket": "gcf-v2-sources-817066738308-us-central1",
+        "object": "syncArticles/function-source.zip",
+        "generation": "1793651419395887"
+      },
+      "revision": "syncarticles-00006-cuz",
+      "configDigest": "77804aa9f4c250027c9c5d4f12971d9cfd3ef3758938e27ab5485119f08a9c85",
+      "maintenanceFlags": {
+        "AUTOMATIC_OFFLINE_ENABLED": "false",
+        "AUTOMATIC_OFFLINE_MAX_RENDERS": null,
+        "AUTOMATIC_OFFLINE_MAX_CHARACTERS": null,
+        "AUTOMATIC_OFFLINE_TOTAL_CHARACTERS": null
+      },
+      "sourceSHA256": "d12f8c8d406ed6e9f9fe1361e5bb656738c690cabe78120b3dbbc9f5e852fc76",
+      "exactPackageVerified": true
+    },
+    {
+      "name": "syncArticlesScheduled",
+      "state": "ACTIVE",
+      "updateTime": "2026-11-02T20:32:29.039991236Z",
+      "source": {
+        "bucket": "gcf-v2-sources-817066738308-us-central1",
+        "object": "syncArticlesScheduled/function-source.zip",
+        "generation": "1793651455067103"
+      },
+      "revision": "syncarticlesscheduled-00009-haz",
+      "configDigest": "f54b2f8e12769ecd7eb66f1c1fc6c1a492d9b3d04f9d44b8b4522ddc2ecbfb92",
+      "maintenanceFlags": {
+        "AUTOMATIC_OFFLINE_ENABLED": "false",
+        "AUTOMATIC_OFFLINE_MAX_RENDERS": "0",
+        "AUTOMATIC_OFFLINE_MAX_CHARACTERS": "0",
+        "AUTOMATIC_OFFLINE_TOTAL_CHARACTERS": "1500000"
+      },
+      "sourceSHA256": "2b5ac868918add784376fff7144c524e1a4dafc8e06b176ca648fc8f5429937a",
+      "exactPackageVerified": true
+    },
+    {
+      "name": "webflowWebhook",
+      "state": "ACTIVE",
+      "updateTime": "2026-11-02T20:37:11.450943590Z",
+      "source": {
+        "bucket": "gcf-v2-sources-817066738308-us-central1",
+        "object": "webflowWebhook/function-source.zip",
+        "generation": "1793651752715827"
+      },
+      "revision": "webflowwebhook-00040-rex",
+      "configDigest": "bf218ebb2e73a0cdaf47e655d7a444a780a6a0d899478afb223deee58e0c9fec",
+      "maintenanceFlags": {
+        "AUTOMATIC_OFFLINE_ENABLED": "false",
+        "AUTOMATIC_OFFLINE_MAX_RENDERS": null,
+        "AUTOMATIC_OFFLINE_MAX_CHARACTERS": null,
+        "AUTOMATIC_OFFLINE_TOTAL_CHARACTERS": null
+      },
+      "sourceSHA256": "fab0bd98cdc648aa80c9befd6100bba722a3b8f97636f4dd98d2130f5dc3c2af",
+      "exactPackageVerified": true
+    },
+    {
+      "name": "generateNarrationOnQueue",
+      "state": "ACTIVE",
+      "updateTime": "2026-11-02T20:39:03.749872797Z",
+      "source": {
+        "bucket": "gcf-v2-sources-817066738308-us-central1",
+        "object": "generateNarrationOnQueue/function-source.zip",
+        "generation": "1793651878091870"
+      },
+      "revision": "generatenarrationonqueue-00018-fog",
+      "configDigest": "9e934858e2bb147b5a487f32678579edcddb2da9931102a5255366b8514dee32",
+      "maintenanceFlags": {
+        "AUTOMATIC_OFFLINE_ENABLED": "false",
+        "AUTOMATIC_OFFLINE_MAX_RENDERS": "0",
+        "AUTOMATIC_OFFLINE_MAX_CHARACTERS": "0",
+        "AUTOMATIC_OFFLINE_TOTAL_CHARACTERS": "1500000"
+      },
+      "sourceSHA256": "54706081520574db1669701db708cadc5c209c6bd0828f82b6e3700f63341fe9",
+      "exactPackageVerified": true
+    }
+  ],
+  "verification": {
+    "tests": 52,
+    "failed": 0,
+    "skipped": 0,
+    "noNewDependencies": true,
+    "cloudUpdateMask": "buildConfig.source",
+    "maintenanceAIEnabled": false,
+    "unrelatedVercelReleaseChanged": false
+  },
+  "recoveredArticle": {
+    "articleId": "6ae8aff199edb6a5b1f8c9f9",
+    "slug": "behemoth-og-dimmu-borgir-i-kb-hallen",
+    "originalFailedJobPreservedInRecoveryHistory": true,
+    "canonicalJobStatus": "done",
+    "result": "published",
+    "sourceContentRevision": "cms-sha256-v1:cbd912e4eeb2e606d08e7bc238c8a4f2d28acffa569bf4d4a8aaa08d7bffbf5c",
+    "audioSHA256": "1b0c4336f7df3b44e9e78881aed6b589988707e97c716adac152d568889f5bf3",
+    "durationSeconds": 274,
+    "model": "eleven_v4",
+    "voice": "Ellen",
+    "jingle": "v2",
+    "outro": "free-ad-free-v1",
+    "rssPresent": true,
+    "rssEpisodeCount": 132,
+    "spotifyIngestionVerified": false
+  },
+  "operationsNotes": [
+    "Each directory is a separate existing Cloud Function source unit. Deploy only the named entry point; do not deploy every export in the historical index.js.",
+    "The four exact deployed source ZIPs are pinned by Storage object generation and SHA256 above. Finder .DS_Store is omitted from this source checkout.",
+    "Normal audio admission waits only for definitive LIVE item absence. Access, quota and transport errors propagate. Source checks after capture remain strict.",
+    "First-audio recovery requires administrative Firestore access, the unchanged failed job timestamp, a proven pre-provider failure, successful inspect receipt and a source-bound request. Never delete/recreate the canonical job or repeat uncertain paid work.",
+    "Future article notification delivery is independent of narration and retains the existing notified_articles duplicate lock. No retroactive push was sent for the recovered article.",
+    "Existing 15-minute podcast metadata synchronization prepares artwork before exposing a new episode in RSS. Owner refresh was used for this immediate delivery check."
+  ]
+}
