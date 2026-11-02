@@ -1,8 +1,9 @@
 {
   "schemaVersion": 1,
   "repair": "release-20261102.json",
-  "latest": "episode-dates-20261102.json",
+  "latest": "spotify-order-verified-20261102.json",
   "workerRevision": "generatenarrationonqueue-00020-nag",
   "workerSourceSHA256": "ef6eb7f8dd4a0077ce62637f1dd86f54ac7a1f53f6479fd16ba5b378cbb58458",
-  "reliability": "reliability-20261102.json"
+  "reliability": "reliability-20261102.json",
+  "dateCorrection": "episode-dates-20261102.json"
 }

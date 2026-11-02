@@ -1,0 +1,72 @@
+{
+  "schemaVersion": 1,
+  "status": "SPOTIFY_ORDER_RESTORED",
+  "checkedAt": "2026-11-02T21:15:33.157Z",
+  "previousRelease": "episode-dates-20261102.json",
+  "spotifyShowId": "2I1kdhSpGpADdK26NoDOE8",
+  "directSpotifyEpisodeDates": [
+    {
+      "id": "4eAaVBzgJiq0Q9t5Md0Axm",
+      "title": "Mayday (Apple TV)",
+      "releasedAt": "2026-09-03T08:59:00Z",
+      "expectedOriginalDate": "2026-09-03T08:59:33.078Z",
+      "originalDayMatches": true,
+      "checkedAt": "2026-11-02T21:13:34.132Z"
+    },
+    {
+      "checkedAt": "2026-11-02T21:14:50.341Z",
+      "id": "4d8RlPFuxnTicYOJM4adTd",
+      "title": "Soulfly i Lille Vega",
+      "releasedAt": "2026-08-21T19:35:00Z",
+      "originalDayMatches": true
+    },
+    {
+      "id": "71WmNMrec2qy2tCW8WUHU8",
+      "title": "Kors, kaos og Justice p\u00e5 O Days Festival",
+      "releasedAt": "2026-09-10T09:55:00Z",
+      "expectedOriginalDate": "2026-09-10T09:55:35.768Z",
+      "originalDayMatches": true,
+      "checkedAt": "2026-11-02T21:13:34.132Z"
+    },
+    {
+      "id": "2ZoWJMwCn2HTcz6cBh828p",
+      "title": "Marvel T\u014dkon: Fighting Souls Anmeldelse",
+      "releasedAt": "2026-08-25T13:36:00Z",
+      "expectedOriginalDate": "2026-08-25T13:36:14.382Z",
+      "originalDayMatches": true,
+      "checkedAt": "2026-11-02T21:13:34.132Z"
+    },
+    {
+      "id": "0cuw4gRrNR8Ea7sscXEbTP",
+      "title": "Alle Guds farver: Dokumentar om tro, drag og f\u00e6llesskab",
+      "releasedAt": "2026-09-12T09:31:00Z",
+      "expectedOriginalDate": "2026-09-12T09:31:52.868Z",
+      "originalDayMatches": true,
+      "checkedAt": "2026-11-02T21:14:28.083Z"
+    }
+  ],
+  "oneOfEachAffectedEpisodeConfirmedInCreatorsSearch": true,
+  "creatorNewestOrder": [
+    "    - row \"Episode cover art Behemoth og Dimmu Borgir i KB Hallen Episode actions Published 11/2/26 Audio 0 0\":",
+    "    - 'row \"Episode cover art Anmeldelse: Terminallisten, s\u00e6son 2 p\u00e5 Prime Video Episode actions Published 10/31/26 Audio 3 2\"':",
+    "    - 'row \"Episode cover art Anmeldelse: The Terminal List, s\u00e6son 1 p\u00e5 Prime Video Episode actions Published 10/28/26 Audio 2 2\"':",
+    "    - 'row \"Episode cover art Boganmeldelse: Nogen der kender nogen Episode actions Published 10/28/26 Audio 0 0\"':",
+    "    - 'row \"Episode cover art Anmeldelse: Placebo i K.B. Hallen - et langt farvel Episode actions Published 10/27/26 Audio 0 0\"':",
+    "    - 'row \"Episode cover art Anmeldelse: Deep Purple - Royal Arena Episode actions Published 10/26/26 Audio 0 0\"':",
+    "    - 'row \"Episode cover art Anmeldelse: Lanterns, s\u00e6son 1. Hvorn\u00e5r bliver det sejt? Episode actions Published 10/24/26 Audio 0 0\"':",
+    "    - row \"Episode cover art Jeg gik p\u00e5 barsel og endte i en religi\u00f8s uldsekt Episode actions Published 10/23/26 Audio 0 0\":"
+  ],
+  "existingFeedUrlConfirmed": "https://ai.aproposmagazine.com/api/podcast/rss",
+  "hostingAndFeedConfigurationChanged": false,
+  "episodesDeletedOrRepublished": false,
+  "newAudioGenerated": false,
+  "serverSourceUnchangedFromPreviousRelease": {
+    "revision": "generatenarrationonqueue-00020-nag",
+    "sha256": "ef6eb7f8dd4a0077ce62637f1dd86f54ac7a1f53f6479fd16ba5b378cbb58458"
+  },
+  "notes": [
+    "RSS correction was already complete, while Spotify still showed November 2 for five older episodes.",
+    "The external Spotify ingestion delay was observed directly: three episodes corrected first, then the remaining two.",
+    "The five original dates are now confirmed on the same Spotify episode identities. The Creators list again starts with Behemoth November 2 followed by Terminallisten October 31."
+  ]
+}
