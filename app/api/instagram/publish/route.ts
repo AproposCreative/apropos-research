@@ -7,7 +7,7 @@ import { metaPublisher, instagramContainerPublished } from '@/lib/social/meta-pu
 import { runSocialPublish } from '@/lib/social/publish-runner';
 import { verifyPublishImage } from '@/lib/social/publish-image';
 import { after } from 'next/server';
-import { dispatchBrowserStory, storyBrowserConfigured, storyBrowserRequested, storyBrowserRequest } from '@/lib/social/story-browser';
+import { dispatchBrowserStory, storyBrowserConfigured, storyBrowserRequested, readStoryBrowserConnection } from '@/lib/social/story-browser';
 export const maxDuration = 300;
 export const runtime = 'nodejs';
 const headers = { 'Cache-Control': 'private, no-store' };
@@ -44,10 +44,14 @@ export async function GET(request: NextRequest) {
       if (!/^[a-zA-Z0-9_-]{1,128}$/.test(articleId)) return json({ error: 'Ugyldig artikel.' }, 400);
       return json({ receipts: await recentSocialPublishes(access.uid, articleId) });
     }
-    const { token } = await resolveInstagramAccessToken();
+    const hosted = storyBrowserRequested();
+    const [{ token }, storyConnection] = await Promise.all([
+      resolveInstagramAccessToken(), hosted ? readStoryBrowserConnection() : Promise.resolve(null),
+    ]);
     return json({ configured: Boolean(process.env.INSTAGRAM_ACCOUNT_ID?.trim() && token),
       facebookConfigured: Boolean(process.env.FACEBOOK_PAGE_ID?.trim() && token),
-      storyLinkDelivery: storyBrowserRequested() ? 'business-suite' : null });
+      storyLinkDelivery: hosted ? 'business-suite' : null, storyConnection,
+      storyConfigured: Boolean(process.env.INSTAGRAM_ACCOUNT_ID?.trim() && storyConnection === 'connected') });
   } catch { return json({ error: 'Status kunne ikke hentes. Der sendes ikke et nyt opslag.' }, 503); }
 }
 
@@ -71,14 +75,14 @@ export async function POST(request: NextRequest) {
       return json({ receipt: claim.receipt, replay: true });
     }
     if (input.isStory && storyBrowserRequested()) {
-      if (!storyBrowserConfigured()) return json({ error: 'Story-serveren er ikke tilsluttet. Intet er udgivet.', connectionRequired: true, notDispatched: true }, 503);
       // Validate the independent hosted connection before reserving a new post.
       // Existing operations still replay below through the shared identity lock.
-      try {
-        const status = await storyBrowserRequest('/status');
-        const state = await status.json();
-        if (!status.ok || state.connected !== true) throw Error();
-      } catch { return json({ error: 'Story-forbindelsen skal tilsluttes af ejeren. Intet er udgivet.', connectionRequired: true, notDispatched: true }, 503); }
+      const storyConnection = await readStoryBrowserConnection();
+      if (storyConnection !== 'connected') return json({ error: storyConnection === 'not_connected'
+        ? 'Ejeren skal tilslutte den fælles Meta-forbindelse. Denne Story er ikke sendt.'
+        : storyConnection === 'not_configured' ? 'Story-serveren er ikke tilsluttet. Denne Story er ikke sendt.'
+        : 'Story-forbindelsen kunne ikke kontrolleres. Denne Story er ikke sendt.',
+        storyConnection, connectionRequired: true, notDispatched: true }, 503);
     }
     const browserStory = input.isStory && storyBrowserConfigured();
     const claim = await claimSocialPublish(access.uid, input, instagramId, browserStory ? { browserStory: true } : undefined);

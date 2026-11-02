@@ -4,6 +4,10 @@ export function sortSocialReceipts(receipts: SocialPublishReceipt[]) {
   return [...receipts].sort((a, b) => b.createdAt.localeCompare(a.createdAt));
 }
 
+export function socialReceiptChannelLabel(receipt: SocialPublishReceipt, channel: 'instagram' | 'facebook') {
+  return channel === 'instagram' ? receipt.approved.isStory ? 'Instagram Story' : 'Instagram-opslag' : 'Facebook-opslag';
+}
+
 /** Interpret old receipts without rewriting their original provider evidence. */
 export function facebookCommentNotice(receipt: SocialPublishReceipt) {
   if (!receipt.channels.facebook || receipt.facebook.status !== 'published' || ['published', 'skipped'].includes(receipt.comment.status)) return null;

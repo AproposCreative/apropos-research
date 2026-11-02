@@ -1,3 +1,5 @@
+import type { StoryConnectionStatus } from './story-connection-status';
+
 export const STORY_LINK_LABEL = 'Læs artiklen her';
 export function storyBrowserRequested() {
   return process.env.SOCIAL_STORY_DELIVERY === 'business-suite' || !!process.env.SOCIAL_STORY_BROWSER_URL?.trim();
@@ -12,6 +14,19 @@ export async function storyBrowserRequest(path: string, init: RequestInit = {}) 
     throw Error('social_story_browser_unavailable');
   return fetch(new URL(path, base), { ...init, headers: { 'Content-Type': 'application/json', 'x-story-service-secret': process.env.SOCIAL_STORY_BROWSER_SECRET.trim() }, redirect: 'error', cache: 'no-store',
     signal: AbortSignal.timeout(path === '/process' ? 250_000 : path === '/setup' ? 110_000 : 15_000) });
+}
+
+/** Read-only team readiness, without exposing or starting the owner's login. */
+export async function readStoryBrowserConnection(): Promise<StoryConnectionStatus> {
+  if (!storyBrowserConfigured()) return 'not_configured';
+  try {
+    const response = await storyBrowserRequest('/status');
+    if (!response.ok) return 'unavailable';
+    const state = await response.json();
+    if (state?.connected === true) return 'connected';
+    if (state?.connected === false) return 'not_connected';
+  } catch { /* A timeout does not prove that a saved login is missing. */ }
+  return 'unavailable';
 }
 
 export async function dispatchBrowserStory(id: string) {

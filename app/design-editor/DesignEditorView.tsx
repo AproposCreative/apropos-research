@@ -18,6 +18,8 @@ import { useAuth } from '@/lib/auth-context';
 import { useSocialDraft } from './useSocialDraft';
 import { useSocialPublishing, type SocialPostSpec } from './useSocialPublishing';
 import PublicationReceipts from './PublicationReceipts';
+import StoryConnectionNotice from './StoryConnectionNotice';
+import { storyConnectionMessage, type StoryConnectionStatus } from '@/lib/social/story-connection-status';
 
 const amiri = Amiri({
   weight: ['400', '700'],
@@ -147,7 +149,7 @@ interface DesignEditorViewProps {
 
 export default function DesignEditorView({ onBack, embedMode }: DesignEditorViewProps) {
   const rootRef = useRef<HTMLDivElement>(null);
-  const { user } = useAuth();
+  const { user, capabilities } = useAuth();
   const [articles, setArticles] = useState<NormalizedArticle[]>([]);
   const [loading, setLoading] = useState(true);
   const [selected, setSelected] = useState<NormalizedArticle | null>(null);
@@ -185,6 +187,12 @@ export default function DesignEditorView({ onBack, embedMode }: DesignEditorView
   const [eyebrowOverrides, setEyebrowOverrides] = useState<Record<string, string[]>>({});
   const [instagramConfigured, setInstagramConfigured] = useState<boolean | null>(null);
   const [storyLinkDelivery, setStoryLinkDelivery] = useState(false);
+  const [storyConnection, setStoryConnection] = useState<StoryConnectionStatus | null>(null);
+  const [storyConfigured, setStoryConfigured] = useState(false);
+  const [connectionChecking, setConnectionChecking] = useState(false);
+  const [connectionRefresh, setConnectionRefresh] = useState(0);
+  const refreshConnection = () => setConnectionRefresh(value => value + 1);
+  const publishConfigured = size === 'story' && storyLinkDelivery ? storyConfigured : instagramConfigured === true;
   const [confirmInstagramPostOpen, setConfirmInstagramPostOpen] = useState(false);
   const [renderedCardDataUrl, setRenderedCardDataUrl] = useState<string | null>(null);
   const [authors, setAuthors] = useState<{ id: string; name: string }[]>([]);
@@ -290,20 +298,38 @@ export default function DesignEditorView({ onBack, embedMode }: DesignEditorView
   // Tjek om Instagram-publish er konfigureret (til test / brugertilbagemelding)
   useEffect(() => {
     let cancelled = false;
-    fetch('/api/instagram/publish')
+    const controller = new AbortController();
+    setInstagramConfigured(null); setStoryConfigured(false); setConnectionChecking(true);
+    if (!user) { setConnectionChecking(false); return; }
+    user.getIdToken().then(token => fetch('/api/instagram/publish', { headers: { Authorization: `Bearer ${token}` }, cache: 'no-store', signal: controller.signal }))
       .then(async r => { const data = await r.json().catch(() => null);
-        if (!cancelled) { setFacebookConfigured(r.ok && data?.facebookConfigured === true); setStoryLinkDelivery(r.ok && data?.storyLinkDelivery === 'business-suite'); }
+        if (!cancelled) {
+          setFacebookConfigured(r.ok && data?.facebookConfigured === true);
+          if (r.ok) setStoryLinkDelivery(data?.storyLinkDelivery === 'business-suite');
+          setStoryConfigured(r.ok && data?.storyConfigured === true);
+          setStoryConnection(r.ok && ['connected', 'not_connected', 'not_configured', 'unavailable'].includes(data?.storyConnection) ? data.storyConnection : 'unavailable');
+        }
         return socialConfigured(r.status, data); })
       .then(configured => {
         if (!cancelled) setInstagramConfigured(configured);
       })
       .catch(() => {
-        if (!cancelled) setInstagramConfigured(null);
-      });
+        if (!cancelled) { setInstagramConfigured(null); setStoryConnection('unavailable'); }
+      }).finally(() => { if (!cancelled) setConnectionChecking(false); });
     return () => {
-      cancelled = true;
+      cancelled = true; controller.abort();
     };
+  }, [user, connectionRefresh]);
+
+  useEffect(() => {
+    const refresh = () => { if (document.visibilityState === 'visible') setConnectionRefresh(value => value + 1); };
+    window.addEventListener('focus', refresh);
+    return () => window.removeEventListener('focus', refresh);
   }, []);
+
+  useEffect(() => {
+    if (publishing.connectionRequired) setConnectionRefresh(value => value + 1);
+  }, [publishing.connectionRequired]);
 
   const ensureCaptionFooter = useCallback((text: string) => {
     const t = text.trim();
@@ -596,13 +622,13 @@ export default function DesignEditorView({ onBack, embedMode }: DesignEditorView
   }, [size, cardData, subtitle.ready]);
 
   const requestPostToInstagram = () => {
-    if (!editorReady || !subtitle.ready || !selected || !selectedArticleUrl || !!previewError) return;
+    if (!editorReady || !subtitle.ready || !selected || !selectedArticleUrl || !!previewError || !publishConfigured) return;
     setConfirmation({ card: structuredClone(cardData), size, spec: { articleId: selected.id, caption: size === 'story' ? '' : captionForPublish,
       articleUrl: selectedArticleUrl, isStory: size === 'story', card: structuredClone(cardData), channels: { instagram: true, facebook: size === 'square' && facebook && facebookConfigured } } });
     setConfirmInstagramPostOpen(true);
   };
   const handlePostToInstagram = async () => {
-    if (!confirmation) return;
+    if (!confirmation || !publishConfigured) return;
     const snapshot = confirmation;
     setConfirmInstagramPostOpen(false);
     await publishing.publish({ ...snapshot.spec, channels: { instagram: true, facebook: !snapshot.spec.isStory && facebook && facebookConfigured } },
@@ -671,7 +697,7 @@ export default function DesignEditorView({ onBack, embedMode }: DesignEditorView
                 <button
                   type="button"
                   onClick={requestPostToInstagram}
-                  disabled={postingToInstagram || instagramConfigured === false}
+                  disabled={postingToInstagram || !publishConfigured}
                   className="w-full py-2.5 px-4 rounded-xl border border-white/12 bg-white/[0.04] hover:bg-white/[0.08] hover:border-white/20 disabled:opacity-50 disabled:pointer-events-none text-white font-medium text-sm transition-colors flex items-center justify-center gap-2"
                 >
                   {postingToInstagram ? (
@@ -687,7 +713,7 @@ export default function DesignEditorView({ onBack, embedMode }: DesignEditorView
                   <p className="text-amber-400/90 text-xs">Instagram-publish er ikke konfigureret. Sæt INSTAGRAM_ACCOUNT_ID og INSTAGRAM_ACCESS_TOKEN (se docs/INSTAGRAM_PUBLISH.md).</p>
                 )}
                 {instagramError && <p role="alert" className={styles.copyError}>{instagramError}</p>}
-                {publishing.connectionRequired && <a href="/social-story-connection" target="_blank" rel="noreferrer">Tilslut Story-forbindelse</a>}
+                {publishing.connectionRequired && capabilities.owner && <a href="/social-story-connection" target="_blank" rel="noreferrer">Tilslut Story-forbindelse</a>}
               </div>
             </div>
           </div>
@@ -708,6 +734,7 @@ export default function DesignEditorView({ onBack, embedMode }: DesignEditorView
                 <button type="button" className={styles.textButton} onClick={draft.keepLocal}>Gem mine ændringer</button>
               </div> : <button type="button" className={styles.textButton} onClick={() => { void draft.retry(); }}>Prøv synkronisering igen</button>}</div>}
               <SocialDesignPicker design={design} onChange={setDesign} disabled={!editorReady || postingToInstagram} />
+              {size === 'story' && storyLinkDelivery && <StoryConnectionNotice status={storyConnection} owner={capabilities.owner} checking={connectionChecking} refresh={refreshConnection} />}
               <fieldset disabled={!editorReady || postingToInstagram} className={styles.copyGroup}>
               <TitleControls key={cardTitle.key} title={cardTitle} sizing={textSize.title} spacing={selected.excerpt ? textSize.spacing : undefined} />
               {selected.excerpt && <SubtitleControls key={subtitle.key} subtitle={subtitle} sizing={textSize.subtitle} />}
@@ -759,10 +786,10 @@ export default function DesignEditorView({ onBack, embedMode }: DesignEditorView
               <div className={styles.copyActions}><button type="button" className={styles.textButton} disabled={exporting || !editorReady || !subtitle.ready || !!previewError} onClick={handleExportPng}>Download Story</button>
                 <button type="button" className={styles.textButton} onClick={() => { void copyArticleLink(); }}>Kopiér artikellink</button></div>
               <input aria-label="Artikellink til Story" value={selectedArticleUrl} readOnly onFocus={event => event.target.select()} />
-              <p role="status">{copyState || (storyLinkDelivery ? '“Læs artiklen her” tilføjes som klikbart link ved Udgiv.' : 'Tilføj linket med Instagrams linkmærkat.')}</p>
+              <p role="status">{copyState || (storyLinkDelivery ? storyConnection === 'connected' ? '“Læs artiklen her” tilføjes som klikbart link ved Udgiv.' : storyConnectionMessage(storyConnection, capabilities.owner) : 'Tilføj linket med Instagrams linkmærkat.')}</p>
             </div>}
             {postingToInstagram && <p role="status" className={styles.copyNote}>{publishStep}</p>}
-            <PublicationReceipts receipts={publishing.receipts} check={publishing.check} />
+            <PublicationReceipts receipts={publishing.receipts} check={publishing.check} canConnectStory={capabilities.owner} />
             {publishing.unconfirmedRequestId && <button type="button" className={styles.textButton}
               onClick={() => { void publishing.check(publishing.unconfirmedRequestId!); }}>Hent manglende kvittering</button>}
             {publishing.error && <p role="alert" className={styles.copyError}>{publishing.error}</p>}
@@ -811,7 +838,7 @@ export default function DesignEditorView({ onBack, embedMode }: DesignEditorView
                   />
                   <div className="mt-2">
                     {instagramError && <p role="alert" className={styles.copyError}>{instagramError}</p>}
-                    {publishing.connectionRequired && <a href="/social-story-connection" target="_blank" rel="noreferrer">Tilslut Story-forbindelse</a>}
+                    {publishing.connectionRequired && capabilities.owner && <a href="/social-story-connection" target="_blank" rel="noreferrer">Tilslut Story-forbindelse</a>}
                   </div>
                 </div>
               </div>
@@ -831,7 +858,7 @@ export default function DesignEditorView({ onBack, embedMode }: DesignEditorView
     onSize={next => { if (size !== next) { subtitle.carryToNextFormat(); setSize(next); } }}
     dark={theme === 'dark'} onTheme={() => setTheme(value => value === 'light' ? 'dark' : 'light')}
     showTheme={design === 'classic'}
-    publishing={postingToInstagram} editingDisabled={!editorReady || postingToInstagram} publishDisabled={!editorReady || !subtitle.ready || postingToInstagram || instagramConfigured !== true || !!previewError} onPublish={requestPostToInstagram}
+    publishing={postingToInstagram} editingDisabled={!editorReady || postingToInstagram} publishDisabled={!editorReady || !subtitle.ready || postingToInstagram || !publishConfigured || !!previewError} onPublish={requestPostToInstagram}
     exporting={exporting} exportDisabled={!editorReady || !!previewError} onExport={handleExportPng} onClose={onBack} />;
 
   return (
@@ -1095,7 +1122,7 @@ export default function DesignEditorView({ onBack, embedMode }: DesignEditorView
               <button
                 type="button"
                 onClick={handlePostToInstagram}
-                disabled={postingToInstagram}
+                disabled={postingToInstagram || !publishConfigured}
                 className="w-full px-4 py-2.5 rounded-xl text-[13px] font-medium text-white transition-all duration-200 border border-white/10 bg-white/5 hover:border-white/20 hover:bg-white/10 hover:shadow-[0_0_32px_-8px_rgba(255,255,255,0.18)] disabled:opacity-40 active:scale-[0.99]"
               >
                 {postingToInstagram ? 'Udgiver…' : 'Udgiv nu'}

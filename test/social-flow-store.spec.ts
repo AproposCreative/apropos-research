@@ -163,10 +163,46 @@ it('returns confirmed non-dispatch when hosted login is missing or preflight tim
   vi.stubGlobal('fetch', fetch);
   for (let i = 0; i < 2; i++) {
     const response = await POST(req('/api/instagram/publish', { ...input, isStory: true }));
-    expect(response.status).toBe(503); expect(await response.json()).toMatchObject({ notDispatched: true, connectionRequired: true });
+    expect(response.status).toBe(503);
+    const body = await response.json();
+    expect(body).toMatchObject({ notDispatched: true, connectionRequired: true, storyConnection: i === 0 ? 'not_connected' : 'unavailable' });
+    expect(body.error).toContain('Denne Story er ikke sendt.');
+    if (i === 1) expect(body.error).not.toContain('Ejeren skal tilslutte');
     expect(await readSocialPublish('owner', input.requestId)).toBeNull();
   }
   expect(mocks.after).not.toHaveBeenCalled();
+});
+it.each([true, false])('lets editors read bounded shared Story readiness without login access: connected=%s', async connected => {
+  vi.stubEnv('SOCIAL_STORY_BROWSER_URL', 'https://story-worker.example'); vi.stubEnv('SOCIAL_STORY_BROWSER_SECRET', 'test-internal-secret-at-least-32-characters');
+  mocks.auth.mockResolvedValue({ uid: 'milo', owner: false });
+  const fetch = vi.fn().mockResolvedValue(Response.json({ connected, connectedAt: 'private-login-detail', state: { cookies: ['secret'] } }));
+  vi.stubGlobal('fetch', fetch);
+  const response = await GET(req('/api/instagram/publish'));
+  expect(response.status).toBe(200); expect(response.headers.get('cache-control')).toContain('no-store');
+  expect(await response.json()).toEqual({ configured: true, facebookConfigured: true, storyLinkDelivery: 'business-suite', storyConnection: connected ? 'connected' : 'not_connected', storyConfigured: connected });
+  expect(fetch).toHaveBeenCalledOnce(); expect(String(fetch.mock.calls[0][0])).toBe('https://story-worker.example/status');
+  expect(mocks.after).not.toHaveBeenCalled();
+});
+it('keeps feed publishing available when the Story worker cannot be reached', async () => {
+  vi.stubEnv('SOCIAL_STORY_BROWSER_URL', 'https://story-worker.example'); vi.stubEnv('SOCIAL_STORY_BROWSER_SECRET', 'test-internal-secret-at-least-32-characters');
+  vi.stubGlobal('fetch', vi.fn().mockRejectedValue(Error('timeout')));
+  expect(await (await GET(req('/api/instagram/publish'))).json()).toMatchObject({ configured: true, storyConfigured: false, storyConnection: 'unavailable' });
+});
+it('reports missing Story service configuration without contacting Meta or the worker', async () => {
+  vi.stubEnv('SOCIAL_STORY_DELIVERY', 'business-suite'); vi.stubEnv('SOCIAL_STORY_BROWSER_URL', '');
+  const fetch = vi.fn(); vi.stubGlobal('fetch', fetch);
+  expect(await (await GET(req('/api/instagram/publish'))).json()).toMatchObject({ configured: true, storyConfigured: false, storyConnection: 'not_configured' });
+  expect(fetch).not.toHaveBeenCalled();
+});
+it.each([null, {}, { connected: 'yes' }])('treats malformed worker readiness as unknown, not a missing login: %j', async state => {
+  vi.stubEnv('SOCIAL_STORY_BROWSER_URL', 'https://story-worker.example'); vi.stubEnv('SOCIAL_STORY_BROWSER_SECRET', 'test-internal-secret-at-least-32-characters');
+  vi.stubGlobal('fetch', vi.fn().mockResolvedValue(Response.json(state)));
+  expect(await (await GET(req('/api/instagram/publish'))).json()).toMatchObject({ storyConfigured: false, storyConnection: 'unavailable' });
+});
+it('checks authentication before reading shared readiness', async () => {
+  mocks.auth.mockResolvedValue(null); const fetch = vi.fn(); vi.stubGlobal('fetch', fetch);
+  expect((await GET(req('/api/instagram/publish'))).status).toBe(401);
+  expect(fetch).not.toHaveBeenCalled();
 });
 it('uses the independent Business Suite connection without requiring a Graph API token', async () => {
   vi.stubEnv('SOCIAL_STORY_BROWSER_URL', 'https://story-worker.example'); vi.stubEnv('SOCIAL_STORY_BROWSER_SECRET', 'test-internal-secret-at-least-32-characters');
