@@ -8,6 +8,10 @@ export default function ToolList({ onSelectApp, onOpenShelf, onClose, showAllToo
   onSelectApp?: (id: string) => void; onOpenShelf?: () => void; onClose?: () => void; showAllTools?: boolean;
 }) {
   const { tools, isPending, isError, refetch } = useWebApps();
+  // Mobile grouping is presentation only. Podcast/push remain enabled and the
+  // separate desktop catalogue keeps its original ordering and cards.
+  const otherTools = tools.filter(app => app.hidden || ['push-desk', 'podcast'].includes(app.id));
+  const primaryTools = showAllTools ? tools : tools.filter(app => !otherTools.includes(app));
   const row = (app: ToolEntry) => {
     const content = <><span className={styles.copy}><span className={styles.name}>{app.name}</span>
       <span className={styles.srOnly}>{app.description}</span>
@@ -22,15 +26,15 @@ export default function ToolList({ onSelectApp, onOpenShelf, onClose, showAllToo
   return <nav className={styles.list} aria-label="Værktøjer">
     {isPending && <span className={styles.srOnly} role="status">Kontrollerer værktøjernes status</span>}
     {isError && <div className={styles.notice} role="status">Aktuel status kunne ikke hentes. Du kan stadig åbne værktøjerne; nogle kan være sat på pause. <button type="button" onClick={() => void refetch()}>Hent status igen</button></div>}
-    <ul>{tools.filter(app => showAllTools || !app.hidden).map(row)}
+    <ul>{primaryTools.map(row)}
       {onOpenShelf && <li><button type="button" className={styles.row} onClick={() => { onOpenShelf(); onClose?.(); }}>
         <span className={styles.copy}><span className={styles.name}>Mine artikler</span><span className={styles.srOnly}>Find dine gemte arbejdsrum og fortsæt, hvor du slap.</span></span><span className={styles.chevron} aria-hidden="true">›</span>
       </button></li>}
     </ul>
-    {!showAllTools && tools.some(app => app.hidden) && <details className={styles.hidden}>
-      <summary>Skjulte værktøjer ({tools.filter(app => app.hidden).length})</summary>
-      <p className={styles.notice}>Her finder du værktøjer med pauset eller blokeret automatik. Gemte data er bevaret. Åbning genstarter ikke automatikken.</p>
-      <ul>{tools.filter(app => app.hidden).map(row)}</ul>
+    {!showAllTools && otherTools.length > 0 && <details className={styles.hidden}>
+      <summary>Andre værktøjer ({otherTools.length})</summary>
+      <p className={styles.notice}>Podcast, pushbeskeder og øvrige funktioner. Pauset automatik starter ikke ved åbning.</p>
+      <ul>{otherTools.map(row)}</ul>
     </details>}
   </nav>;
 }

@@ -1035,14 +1035,14 @@ export default function DesignEditorView({ onBack, embedMode }: DesignEditorView
 
       {/* Hovedvindue */}
       <div
-        className="flex-1 min-w-0 flex flex-col md:absolute md:top-0 md:bottom-0 z-10 transition-[left] duration-300"
+        className="flex-1 min-h-0 min-w-0 flex flex-col md:absolute md:top-0 md:bottom-0 z-10 transition-[left] duration-300"
         style={{
           left: isDesktop && articlesOpen ? `${articlesPanelWidth + PANEL_GAP}px` : '0',
           right: 0,
           transition: isResizingArticles ? 'none' : undefined,
         }}
       >
-        <div className="h-full flex flex-col rounded-xl border border-white/15 overflow-hidden bg-black/55 md:bg-[#070707]/90 backdrop-blur-2xl md:backdrop-blur-xl shadow-[0_20px_70px_rgba(0,0,0,0.55)]">
+        <div className="min-h-0 flex-1 flex flex-col rounded-xl border border-white/15 overflow-hidden bg-black/55 md:bg-[#070707]/90 backdrop-blur-2xl md:backdrop-blur-xl shadow-[0_20px_70px_rgba(0,0,0,0.55)]">
           {/* Top bar */}
           {toolbar}
           {editorCanvas}
