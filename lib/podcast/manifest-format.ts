@@ -30,6 +30,15 @@ function optionalString(raw: unknown): string | undefined {
   return t || undefined;
 }
 
+function humanReceipt(raw: { audioObjectGeneration?: unknown; audioSHA256?: unknown; articleId?: unknown; sourceContentRevision?: unknown }, kind?: 'ai' | 'human') {
+  if (raw.audioObjectGeneration === undefined && raw.audioSHA256 === undefined) return undefined;
+  if (kind !== 'human' || typeof raw.audioObjectGeneration !== 'string' || !/^[1-9]\d*$/.test(raw.audioObjectGeneration) ||
+      typeof raw.audioSHA256 !== 'string' || !/^[a-f\d]{64}$/.test(raw.audioSHA256) ||
+      typeof raw.articleId !== 'string' || !/^[a-f\d]{24}$/.test(raw.articleId) ||
+      typeof raw.sourceContentRevision !== 'string' || !/^cms-sha256-v1:[a-f\d]{64}$/.test(raw.sourceContentRevision)) throw Error('Invalid human audio receipt');
+  return { audioObjectGeneration: raw.audioObjectGeneration, audioSHA256: raw.audioSHA256 };
+}
+
 /** Preserve an existing binding verbatim, or reject it; never demote partial proof. */
 function sourceBinding(
   raw: { articleId?: unknown; sourceContentRevision?: unknown },
@@ -95,6 +104,7 @@ export function normalizeManifestEpisode(raw: Record<string, unknown>): PodcastM
 
   if (kind) episode.kind = kind;
   if (binding) Object.assign(episode, binding);
+  Object.assign(episode, humanReceipt(raw, kind));
   const language = optionalString(raw.language) || optionalString(raw.locale);
   if (language && /^(da|en)(?:-[a-z]{2})?$/i.test(language)) episode.language = language.toLowerCase();
 
@@ -115,6 +125,8 @@ export function buildManifestEpisode(input: {
   guid?: string;
   articleId?: string;
   sourceContentRevision?: string;
+  audioObjectGeneration?: string;
+  audioSHA256?: string;
 }): PodcastManifestEpisode {
   const kindRaw = input.kind?.toLowerCase();
   const kind = kindRaw === 'ai' || kindRaw === 'human' ? kindRaw : undefined;
@@ -151,6 +163,7 @@ export function buildManifestEpisode(input: {
   }
   if (kind) episode.kind = kind;
   if (binding) Object.assign(episode, binding);
+  Object.assign(episode, humanReceipt(input, kind));
 
   return episode;
 }
