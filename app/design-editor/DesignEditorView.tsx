@@ -192,7 +192,10 @@ export default function DesignEditorView({ onBack, embedMode }: DesignEditorView
   const [connectionChecking, setConnectionChecking] = useState(false);
   const [connectionRefresh, setConnectionRefresh] = useState(0);
   const refreshConnection = () => setConnectionRefresh(value => value + 1);
-  const publishConfigured = size === 'story' && storyLinkDelivery ? storyConfigured : instagramConfigured === true;
+  const linkedStoryReady = storyLinkDelivery && storyConfigured;
+  const publishConfigured = instagramConfigured === true || (size === 'story' && linkedStoryReady);
+  const confirmationConfigured = confirmation?.spec.isStory && confirmation.spec.storyLinkMode === 'article'
+    ? linkedStoryReady : instagramConfigured === true;
   const [confirmInstagramPostOpen, setConfirmInstagramPostOpen] = useState(false);
   const [renderedCardDataUrl, setRenderedCardDataUrl] = useState<string | null>(null);
   const [authors, setAuthors] = useState<{ id: string; name: string }[]>([]);
@@ -624,11 +627,12 @@ export default function DesignEditorView({ onBack, embedMode }: DesignEditorView
   const requestPostToInstagram = () => {
     if (!editorReady || !subtitle.ready || !selected || !selectedArticleUrl || !!previewError || !publishConfigured) return;
     setConfirmation({ card: structuredClone(cardData), size, spec: { articleId: selected.id, caption: size === 'story' ? '' : captionForPublish,
+      ...(size === 'story' ? { storyLinkMode: linkedStoryReady ? 'article' : 'none' } : {}),
       articleUrl: selectedArticleUrl, isStory: size === 'story', card: structuredClone(cardData), channels: { instagram: true, facebook: size === 'square' && facebook && facebookConfigured } } });
     setConfirmInstagramPostOpen(true);
   };
   const handlePostToInstagram = async () => {
-    if (!confirmation || !publishConfigured) return;
+    if (!confirmation || !confirmationConfigured) return;
     const snapshot = confirmation;
     setConfirmInstagramPostOpen(false);
     await publishing.publish({ ...snapshot.spec, channels: { instagram: true, facebook: !snapshot.spec.isStory && facebook && facebookConfigured } },
@@ -734,7 +738,7 @@ export default function DesignEditorView({ onBack, embedMode }: DesignEditorView
                 <button type="button" className={styles.textButton} onClick={draft.keepLocal}>Gem mine ændringer</button>
               </div> : <button type="button" className={styles.textButton} onClick={() => { void draft.retry(); }}>Prøv synkronisering igen</button>}</div>}
               <SocialDesignPicker design={design} onChange={setDesign} disabled={!editorReady || postingToInstagram} />
-              {size === 'story' && storyLinkDelivery && <StoryConnectionNotice status={storyConnection} owner={capabilities.owner} checking={connectionChecking} refresh={refreshConnection} />}
+              {size === 'story' && storyLinkDelivery && <StoryConnectionNotice status={storyConnection} owner={capabilities.owner} checking={connectionChecking} refresh={refreshConnection} unlinkedAvailable={instagramConfigured === true} />}
               <fieldset disabled={!editorReady || postingToInstagram} className={styles.copyGroup}>
               <TitleControls key={cardTitle.key} title={cardTitle} sizing={textSize.title} spacing={selected.excerpt ? textSize.spacing : undefined} />
               {selected.excerpt && <SubtitleControls key={subtitle.key} subtitle={subtitle} sizing={textSize.subtitle} />}
@@ -786,7 +790,8 @@ export default function DesignEditorView({ onBack, embedMode }: DesignEditorView
               <div className={styles.copyActions}><button type="button" className={styles.textButton} disabled={exporting || !editorReady || !subtitle.ready || !!previewError} onClick={handleExportPng}>Download Story</button>
                 <button type="button" className={styles.textButton} onClick={() => { void copyArticleLink(); }}>Kopiér artikellink</button></div>
               <input aria-label="Artikellink til Story" value={selectedArticleUrl} readOnly onFocus={event => event.target.select()} />
-              <p role="status">{copyState || (storyLinkDelivery ? storyConnection === 'connected' ? '“Læs artiklen her” tilføjes som klikbart link ved Udgiv.' : storyConnectionMessage(storyConnection, capabilities.owner) : 'Tilføj linket med Instagrams linkmærkat.')}</p>
+              <p role="status">{copyState || (linkedStoryReady ? '“Læs artiklen her” tilføjes som klikbart link ved Udgiv.'
+                : instagramConfigured === true ? 'Storyen udgives uden klikbart artikellink.' : storyLinkDelivery ? storyConnectionMessage(storyConnection, capabilities.owner) : 'Tilføj linket med Instagrams linkmærkat.')}</p>
             </div>}
             {postingToInstagram && <p role="status" className={styles.copyNote}>{publishStep}</p>}
             <PublicationReceipts receipts={publishing.receipts} check={publishing.check} canConnectStory={capabilities.owner} />
@@ -1104,7 +1109,7 @@ export default function DesignEditorView({ onBack, embedMode }: DesignEditorView
               Er du sikker på, at du vil poste?
             </h2>
             <p className="mt-2 text-[13px] leading-relaxed text-white/65">
-              {confirmation?.spec.isStory ? storyLinkDelivery ? 'Udgiv Story med klikbart artikellink på Instagram.' : 'Udgiv 9:16 Story på Instagram.' : 'Udgiv 1:1-opslaget på de valgte kanaler.'}
+              {confirmation?.spec.isStory ? confirmation.spec.storyLinkMode === 'article' ? 'Udgiv Story med klikbart artikellink på Instagram.' : 'Udgiv Story på Instagram uden klikbart artikellink.' : 'Udgiv 1:1-opslaget på de valgte kanaler.'}
             </p>
             <div className={styles.channelChoices}>
               <label><input type="checkbox" checked readOnly aria-label="Instagram valgt" /> Instagram{confirmation?.spec.isStory ? ' Story' : ''}</label>
@@ -1122,10 +1127,10 @@ export default function DesignEditorView({ onBack, embedMode }: DesignEditorView
               <button
                 type="button"
                 onClick={handlePostToInstagram}
-                disabled={postingToInstagram || !publishConfigured}
+                disabled={postingToInstagram || !confirmationConfigured}
                 className="w-full px-4 py-2.5 rounded-xl text-[13px] font-medium text-white transition-all duration-200 border border-white/10 bg-white/5 hover:border-white/20 hover:bg-white/10 hover:shadow-[0_0_32px_-8px_rgba(255,255,255,0.18)] disabled:opacity-40 active:scale-[0.99]"
               >
-                {postingToInstagram ? 'Udgiver…' : 'Udgiv nu'}
+                {postingToInstagram ? 'Udgiver…' : confirmation?.spec.storyLinkMode === 'none' ? 'Udgiv uden link' : 'Udgiv nu'}
               </button>
             </div>
           </div>

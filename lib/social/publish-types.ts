@@ -14,9 +14,11 @@ export const socialPublishSchema = z.object({
   requestId: z.string().uuid(), articleId: z.string().regex(/^[a-zA-Z0-9_-]{1,128}$/),
   imageUrl: z.string().url().max(3000), imageSha256: z.string().regex(/^[a-f0-9]{64}$/),
   caption: z.string().max(2200).default(''), articleUrl: z.string().url().max(2000), isStory: z.boolean(),
+  storyLinkMode: z.enum(['article', 'none']).optional(),
   card: socialCardSchema,
   channels: z.object({ instagram: z.literal(true), facebook: z.boolean() }).strict(),
-}).strict().refine(x => !x.isStory || !x.channels.facebook, 'Stories understøtter kun Instagram.');
+}).strict().refine(x => !x.isStory || !x.channels.facebook, 'Stories understøtter kun Instagram.')
+  .refine(x => x.isStory || x.storyLinkMode === undefined, 'Artikellinkvalg gælder kun Stories.');
 export type SocialPublishInput = z.infer<typeof socialPublishSchema>;
 export type PublishStage = 'pending' | 'sending' | 'published' | 'failed' | 'uncertain' | 'skipped';
 export type ChannelReceipt = { status: PublishStage; id?: string; url?: string; error?: string; errorCode?: number; publishedAt?: string };
@@ -25,7 +27,7 @@ export type SocialPublishReceipt = {
   createdAt: string; updatedAt: string; complete: boolean; phase: string;
   channels: SocialPublishInput['channels']; instagram: ChannelReceipt; facebook: ChannelReceipt;
   comment: ChannelReceipt; containerId?: string;
-  imageSha256: string; approved: Pick<SocialPublishInput, 'card' | 'caption' | 'articleUrl' | 'isStory'>;
+  imageSha256: string; approved: Pick<SocialPublishInput, 'card' | 'caption' | 'articleUrl' | 'isStory' | 'storyLinkMode'>;
   delivery?: 'business-suite';
   storyLink?: { status: 'pending' | 'verified' | 'unverified'; label: string; articleUrl: string; checkedAt?: string };
 };

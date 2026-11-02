@@ -21,6 +21,8 @@ export function socialPublishIdentity(input: SocialPublishInput, account: string
   if (gap !== DEFAULT_TITLE_SUBTITLE_GAP) card.push(['titleSubtitleGap', gap]);
   // Missing/explicit classic keeps every historical duplicate lock unchanged.
   if (c.design === 'photo') card.push(['design', 'photo']);
+  // Link mode never unlocks another send of the same Story. Preserve historical
+  // Graph and browser identities, including pending/uncertain operations.
   return hash(['social-publish-v1', account, input.articleId, card, input.isStory,
     input.isStory ? '' : input.caption, input.articleUrl]);
 }
@@ -45,9 +47,10 @@ export async function claimSocialPublish(uid: string, input: SocialPublishInput,
       // Article-link controls belong only to Story export. Retain the comment
       // receipt field for historical records without scheduling a Facebook write.
       comment: { status: 'skipped' }, imageSha256: input.imageSha256,
-      approved: { card: input.card, caption: input.caption, articleUrl: input.articleUrl, isStory: input.isStory } };
+      approved: { card: input.card, caption: input.caption, articleUrl: input.articleUrl, isStory: input.isStory,
+        ...(input.storyLinkMode ? { storyLinkMode: input.storyLinkMode } : {}) } };
     if (options?.browserStory) {
-      if (!input.isStory || input.channels.facebook) throw Error('social_story_only');
+      if (!input.isStory || input.channels.facebook || input.storyLinkMode === 'none') throw Error('social_story_only');
       receipt.delivery = 'business-suite'; receipt.phase = 'story_queued';
       receipt.storyLink = { status: 'pending', label: STORY_LINK_LABEL, articleUrl: input.articleUrl };
       tx.create(db.collection('socialStoryBrowserTasks').doc(id), { id, ownerUid: uid, createdAt: now,

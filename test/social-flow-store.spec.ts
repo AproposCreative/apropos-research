@@ -7,7 +7,7 @@ vi.mock('@/lib/firebase-admin', () => ({ getAdminDb: () => mocks.db, getAdminSto
 vi.mock('@/lib/editorial-access', () => ({ editorialRequestAccess: mocks.auth }));
 vi.mock('@/lib/instagram-config', () => ({ resolveInstagramAccessToken: mocks.token }));
 import { readSocialDraft, saveSocialDraft } from '@/lib/social/draft-store';
-import { claimSocialPublish, readSocialPublish, saveSocialPublish, reconcileSocialPublish } from '@/lib/social/publish-store';
+import { claimSocialPublish, readSocialPublish, saveSocialPublish, reconcileSocialPublish, socialPublishIdentity } from '@/lib/social/publish-store';
 import { runSocialPublish, type SocialPublisher } from '@/lib/social/publish-runner';
 import { GET, POST } from '@/app/api/instagram/publish/route';
 import { GET as draftGET, PUT as draftPUT } from '@/app/api/design-editor/draft/route';
@@ -218,6 +218,87 @@ it('never silently sends a Story without its link when hosted mode is requested 
   const fetch = vi.fn(); vi.stubGlobal('fetch', fetch);
   expect(await (await POST(req('/api/instagram/publish', { ...input, isStory: true }))).json()).toMatchObject({ notDispatched: true, connectionRequired: true });
   expect(fetch).not.toHaveBeenCalled(); expect(mocks.after).not.toHaveBeenCalled();
+});
+it('lets an authenticated team editor publish an explicitly plain Story without the owner’s hosted login', async () => {
+  vi.stubEnv('SOCIAL_STORY_BROWSER_URL', 'https://story-worker.example'); vi.stubEnv('SOCIAL_STORY_BROWSER_SECRET', 'test-internal-secret-at-least-32-characters');
+  mocks.auth.mockResolvedValue({ uid: 'milo', owner: false });
+  const plain: SocialPublishInput = { ...input, imageUrl: input.imageUrl.replace('owner-', 'milo-'), isStory: true, storyLinkMode: 'none' };
+  const fetch = vi.fn(async (url: string, options: RequestInit) => {
+    expect(url).toMatch(/^https:\/\/graph\.facebook\.com\//);
+    if (url.endsWith('/media')) {
+      expect(JSON.parse(options.body as string)).toEqual({ image_url: plain.imageUrl, media_type: 'STORIES' });
+      return Response.json({ id: '100' });
+    }
+    if (url.includes('status_code')) return Response.json({ status_code: 'FINISHED' });
+    if (url.endsWith('/media_publish')) return Response.json({ id: '200' });
+    if (url.includes('permalink')) return Response.json({ permalink: 'https://www.instagram.com/stories/example/200/' });
+    throw Error('Unexpected operation');
+  }); vi.stubGlobal('fetch', fetch);
+  const response = await POST(req('/api/instagram/publish', plain));
+  expect(response.status).toBe(200); const { receipt } = await response.json();
+  expect(receipt.instagram.status).toBe('published'); expect(receipt.approved.storyLinkMode).toBe('none');
+  expect(receipt.delivery).toBeUndefined(); expect(receipt.storyLink).toBeUndefined();
+  expect((await mocks.db.collection('socialStoryBrowserTasks').get()).docs).toHaveLength(0);
+  expect(mocks.after).not.toHaveBeenCalled();
+  const readback = await (await GET(req('/api/instagram/publish?requestId='+plain.requestId))).json();
+  expect(readback.receipt.approved.storyLinkMode).toBe('none');
+  expect((await (await POST(req('/api/instagram/publish', plain))).json()).replay).toBe(true);
+  expect((await (await POST(req('/api/instagram/publish', { ...plain, storyLinkMode: 'article' }))).json()).replay).toBe(true);
+  expect(fetch.mock.calls.filter(([url]) => url.endsWith('/media_publish'))).toHaveLength(1);
+  expect(fetch.mock.calls.some(([url]) => /photos|comments|story-worker/.test(url))).toBe(false);
+});
+it('publishes an explicitly plain Story when the hosted service is not configured at all', async () => {
+  vi.stubEnv('SOCIAL_STORY_DELIVERY', 'business-suite'); vi.stubEnv('SOCIAL_STORY_BROWSER_URL', '');
+  const fetch = vi.fn(async (url: string) => {
+    if (url.endsWith('/media')) return Response.json({ id: '100' });
+    if (url.includes('status_code')) return Response.json({ status_code: 'FINISHED' });
+    if (url.endsWith('/media_publish')) return Response.json({ id: '200' });
+    if (url.includes('permalink')) return Response.json({});
+    throw Error('Unexpected operation');
+  }); vi.stubGlobal('fetch', fetch);
+  const result = await POST(req('/api/instagram/publish', { ...input, isStory: true, storyLinkMode: 'none' }));
+  expect(result.status).toBe(200); expect((await result.json()).receipt.instagram.status).toBe('published');
+  expect(mocks.after).not.toHaveBeenCalled();
+});
+it.each(['article', undefined])('does not downgrade requested linked Stories on a failed connection: mode=%s', async storyLinkMode => {
+  vi.stubEnv('SOCIAL_STORY_BROWSER_URL', 'https://story-worker.example'); vi.stubEnv('SOCIAL_STORY_BROWSER_SECRET', 'test-internal-secret-at-least-32-characters');
+  const fetch = vi.fn().mockRejectedValue(Error('timeout')); vi.stubGlobal('fetch', fetch);
+  const response = await POST(req('/api/instagram/publish', { ...input, isStory: true, storyLinkMode }));
+  expect(response.status).toBe(503); expect(await response.json()).toMatchObject({ notDispatched: true });
+  expect(fetch).toHaveBeenCalledOnce(); expect(String(fetch.mock.calls[0][0])).toBe('https://story-worker.example/status');
+  expect(await readSocialPublish('owner', input.requestId)).toBeNull(); expect(mocks.after).not.toHaveBeenCalled();
+});
+it('rejects an explicit article-link request when no hosted route exists, without sending a plain Story', async () => {
+  vi.stubEnv('SOCIAL_STORY_DELIVERY', ''); vi.stubEnv('SOCIAL_STORY_BROWSER_URL', '');
+  const fetch = vi.fn(); vi.stubGlobal('fetch', fetch);
+  expect((await POST(req('/api/instagram/publish', { ...input, isStory: true, storyLinkMode: 'article' }))).status).toBe(503);
+  expect(fetch).not.toHaveBeenCalled(); expect(mocks.after).not.toHaveBeenCalled();
+});
+it('never changes a pending hosted Story into a normal post when the mode is changed', async () => {
+  const story: SocialPublishInput = { ...input, isStory: true, storyLinkMode: 'article' };
+  const claim = await claimSocialPublish('owner', story, '123', { browserStory: true });
+  const fetch = vi.fn(); vi.stubGlobal('fetch', fetch);
+  const body = await (await POST(req('/api/instagram/publish', { ...story, storyLinkMode: 'none' }))).json();
+  expect(body.replay).toBe(true); expect(body.receipt.id).toBe(claim.receipt.id);
+  expect(body.receipt.delivery).toBe('business-suite'); expect(body.receipt.approved.storyLinkMode).toBe('article');
+  expect(fetch).not.toHaveBeenCalled(); expect(mocks.after).not.toHaveBeenCalled();
+});
+it('preserves historical Story identity across link modes and rejects a plain hosted task', async () => {
+  const legacy = { ...input, isStory: true };
+  expect(socialPublishIdentity({ ...legacy, storyLinkMode: 'none' }, '123')).toBe(socialPublishIdentity(legacy, '123'));
+  expect(socialPublishIdentity({ ...legacy, storyLinkMode: 'article' }, '123')).toBe(socialPublishIdentity(legacy, '123'));
+  await expect(claimSocialPublish('owner', { ...legacy, storyLinkMode: 'none' }, '123', { browserStory: true })).rejects.toThrow('social_story_only');
+});
+it.each(['article', 'none', 'invalid'])('rejects Story-only link mode on feed posts: %s', async storyLinkMode => {
+  const fetch = vi.fn(); vi.stubGlobal('fetch', fetch);
+  expect((await POST(req('/api/instagram/publish', { ...input, storyLinkMode }))).status).toBe(400);
+  expect(fetch).not.toHaveBeenCalled();
+});
+it('does not bypass normal Instagram configuration for a plain Story', async () => {
+  mocks.token.mockResolvedValue({ token: null });
+  const fetch = vi.fn(); vi.stubGlobal('fetch', fetch);
+  expect((await POST(req('/api/instagram/publish', { ...input, isStory: true, storyLinkMode: 'none' }))).status).toBe(503);
+  expect(fetch).not.toHaveBeenCalled();
 });
 it('preserves old Graph Story identity after switching delivery to the hosted browser', async () => {
   const story = { ...input, isStory: true }, prior = await claimSocialPublish('owner', story, '123');

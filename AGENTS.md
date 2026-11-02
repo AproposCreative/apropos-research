@@ -203,3 +203,11 @@ Later design refinement: Story images omit the old drawn CTA and use the native
 link label “Læs artiklen her” once. Feed images keep their existing graphic CTA.
 Meta controls the sticker icon and typeface; do not claim arbitrary font or icon
 customization without observing those controls. Keep old queued labels/receipts.
+
+Normal Story publishing while the hosted link connection is unfinished (owner
+choice 2026-11-02): editors must still be able to choose Story and publish without
+a clickable article link through the existing server-side Instagram publisher.
+Make this explicit in the publication confirmation and retained approval. A failed
+linked Story never silently falls back to a plain one. Preserve the same cross-mode
+duplicate lock, historical receipts and pending/uncertain jobs. Connecting or
+finishing Meta login is not a prerequisite for explicitly approved plain Stories.

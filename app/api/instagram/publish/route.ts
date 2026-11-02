@@ -65,7 +65,10 @@ export async function POST(request: NextRequest) {
   if (article.protocol !== 'https:' || !['www.aproposmagazine.com', 'aproposmagazine.com'].includes(article.hostname) ||
     !/^\/articles\/[^/]+$/.test(article.pathname) || article.search || article.hash) return json({ error: 'Ugyldigt artikellink.' }, 400);
   const instagramId = process.env.INSTAGRAM_ACCOUNT_ID?.trim(), facebookPageId = process.env.FACEBOOK_PAGE_ID?.trim();
-  const hostedStory = input.isStory && storyBrowserRequested();
+  // Plain Stories are an explicit, personally approved mode, never a retry or
+  // silent downgrade of a linked Story when its browser connection fails.
+  const hostedStory = input.isStory && (input.storyLinkMode === 'article' ||
+    (input.storyLinkMode !== 'none' && storyBrowserRequested()));
   const { token } = hostedStory ? { token: null } : await resolveInstagramAccessToken();
   if (!instagramId || (!hostedStory && !token) || (input.channels.facebook && !facebookPageId)) return json({ error: 'En valgt kanal er ikke konfigureret. Intet er sendt.' }, 503);
   try {
@@ -74,7 +77,7 @@ export async function POST(request: NextRequest) {
       const claim = await claimSocialPublish(access.uid, input, instagramId);
       return json({ receipt: claim.receipt, replay: true });
     }
-    if (input.isStory && storyBrowserRequested()) {
+    if (hostedStory) {
       // Validate the independent hosted connection before reserving a new post.
       // Existing operations still replay below through the shared identity lock.
       const storyConnection = await readStoryBrowserConnection();
@@ -84,10 +87,10 @@ export async function POST(request: NextRequest) {
         : 'Story-forbindelsen kunne ikke kontrolleres. Denne Story er ikke sendt.',
         storyConnection, connectionRequired: true, notDispatched: true }, 503);
     }
-    const browserStory = input.isStory && storyBrowserConfigured();
+    const browserStory = hostedStory && storyBrowserConfigured();
     const claim = await claimSocialPublish(access.uid, input, instagramId, browserStory ? { browserStory: true } : undefined);
     if (!claim.created) return json({ receipt: claim.receipt, replay: true });
-    if (input.isStory && storyBrowserConfigured()) {
+    if (browserStory) {
       const receipt = claim.receipt;
       after(async () => { await dispatchBrowserStory(receipt.id).catch(() => { /* Durable task and duplicate lock remain. GET never resends. */ }); });
       return json({ receipt }, 202);
