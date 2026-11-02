@@ -1,15 +1,12 @@
-import { incomingAudioPath, getPodcastBucket } from '@/lib/podcast/bucket';
-import { encodeToAac96k } from '@/lib/podcast/encode-aac';
 import {
   setJobDone,
   setJobError,
   setJobProcessing,
 } from '@/lib/podcast/job-store';
-import { upsertManifestEpisode, uploadEncodedAudio } from '@/lib/podcast/manifest';
+import { readPodcastManifest, writeFeedMirror } from '@/lib/podcast/manifest';
+import { publishHumanRecording } from '@/lib/podcast/human-publication';
 import { markWebflowAudioVersion } from '@/lib/podcast/mark-webflow-audio-version';
 import { sendPodcastEpisodeNotification } from '@/lib/podcast/notify-episode';
-import { probeAudioDurationSeconds } from '@/lib/podcast/probe-duration';
-import { resolveArticleBySlug } from '@/lib/podcast/resolve-article';
 import type { PodcastJobStep } from '@/lib/podcast/types';
 
 export async function runPodcastPipeline(input: {
@@ -17,49 +14,21 @@ export async function runPodcastPipeline(input: {
   slug: string;
   articleUrl: string;
 }): Promise<void> {
-  const { jobId, slug, articleUrl } = input;
+  const { jobId, slug } = input;
   let currentStep: PodcastJobStep = 'metadata';
 
   try {
     currentStep = 'metadata';
     await setJobProcessing(jobId, 'metadata');
-    const article = await resolveArticleBySlug(slug);
-    if (!article) {
-      throw new Error('Artikel ikke fundet på aproposmagazine.dk');
-    }
-
-    const bucket = getPodcastBucket();
-    const incoming = bucket.file(incomingAudioPath(slug));
-    const [exists] = await incoming.exists();
-    if (!exists) {
-      throw new Error('Lydfil mangler i incoming — upload den først');
-    }
-
-    currentStep = 'encode';
-    await setJobProcessing(jobId, 'encode');
-    const [raw] = await incoming.download();
-    const encoded = await encodeToAac96k(Buffer.from(raw));
-    const audioUrl = await uploadEncodedAudio(slug, encoded);
-    const durationSeconds = await probeAudioDurationSeconds(encoded);
-
-    currentStep = 'manifest';
-    await setJobProcessing(jobId, 'manifest');
-    await upsertManifestEpisode({
-      slug,
-      title: article.title,
-      articleUrl: articleUrl || article.articleUrl,
-      audioUrl,
-      hosts: article.authorName ? [article.authorName] : undefined,
-      durationSeconds: durationSeconds ?? undefined,
-      audioBytes: encoded.byteLength,
-      description: article.description ?? undefined,
-      imageURL: article.coverUrl ?? undefined,
-      kind: 'human',
-    });
+    const publication = await publishHumanRecording({ jobId, slug,
+      onStep: async step => { currentStep = step as PodcastJobStep; await setJobProcessing(jobId, currentStep); } });
+    // Ordinary new human publication keeps its existing best-effort RSS effect.
+    // Independent RSS authority/CAS remains a separate unresolved delivery gate.
+    await writeFeedMirror(await readPodcastManifest()).catch(err => console.warn('[podcast] feed mirror write failed', err));
 
     currentStep = 'notification';
     await setJobProcessing(jobId, 'notification');
-    await sendPodcastEpisodeNotification({ articleSlug: slug, title: article.title });
+    await sendPodcastEpisodeNotification({ articleSlug: slug, title: publication.episode.title });
 
     // Best-effort: markér Webflow CMS "Lydversion" — må ikke fejle hele jobbet
     try {
@@ -73,7 +42,7 @@ export async function runPodcastPipeline(input: {
 
     currentStep = 'cleanup';
     await setJobProcessing(jobId, 'cleanup');
-    await incoming.delete({ ignoreNotFound: true });
+    // Retain the incoming original and every previously published recording.
 
     await setJobDone(jobId);
   } catch (err) {

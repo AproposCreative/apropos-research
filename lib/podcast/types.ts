@@ -30,6 +30,9 @@ export type PodcastManifestEpisode = {
   /** Producer-supplied binding for these audio bytes; never inferred from the slug. */
   articleId?: string;
   sourceContentRevision?: string;
+  /** Committed immutable human object receipt, preserved as one complete pair. */
+  audioObjectGeneration?: string;
+  audioSHA256?: string;
   /** Explicit language when supplied by the producer; never inferred from "-en-". */
   language?: string;
 };
