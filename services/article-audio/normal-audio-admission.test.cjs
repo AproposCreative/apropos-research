@@ -20,12 +20,12 @@ test('webhook arriving before LIVE availability waits before admission',async()=
  assert.deepEqual(waits,[1500,3000]);assert.equal(x.rows.get('articles/'+id).contentRevision,item().contentRevision);
 });
 test('missing publication and provider read errors never lead to unbounded retries',async()=>{const x=database({['articles/'+id]:item()});let reads=0;
- await assert.rejects(prepareNormalSource({db:x.db,liveSource:{one:async()=>{reads++;return null;}},articleId:id,slug,now:()=>123,wait:async()=>{}}),/not visible/);assert.equal(reads,3);
+ await assert.rejects(prepareNormalSource({db:x.db,liveSource:{one:async()=>{reads++;return null;}},articleId:id,slug,now:()=>123,wait:async()=>{}}),/not visible/);assert.equal(reads,5);
  reads=0;await assert.rejects(prepareNormalSource({db:x.db,liveSource:{one:async()=>{reads++;throw Error('CMS publication could not be confirmed (429)');}},articleId:id,slug,now:()=>123,wait:async()=>{}}),/429/);assert.equal(reads,1);
 });
 for(const mutate of [a=>({...a,isDraft:true}),a=>({...a,fieldData:{slug:'other'}}),a=>({...a,contentRevision:'forged'})])test('unqualified source never admitted',async()=>{const x=database({['articles/'+id]:item()});await assert.rejects(prepareNormalSource({db:x.db,liveSource:{one:async()=>mutate(item())},articleId:id,slug,now:()=>123}));assert.equal(x.writes(),0);});
 test('publication changing during admission is bounded and never returns stale source',async()=>{const x=database({['articles/'+id]:item()});let n=0;
- await assert.rejects(prepareNormalSource({db:x.db,liveSource:{one:async()=>item(String(n++))},articleId:id,slug,now:()=>123,wait:async()=>{}}),/stabilize/);assert.equal(n,6);
+ await assert.rejects(prepareNormalSource({db:x.db,liveSource:{one:async()=>item(String(n++))},articleId:id,slug,now:()=>123,wait:async()=>{}}),/stabilize/);assert.equal(n,10);
 });
 const failure={slug,articleId:id,name:'Behemoth',createdAt:'original',status:'error',error:'Current live CMS publication changed',narrationClaim:'private-old-claim',processedAt:'original-failure-time'};
 const recovery={slug,articleId:id,status:'pending',normalAudioRecovery:{version:'first-audio-v1',mode:'resume',expectedSourceRevision:item().contentRevision,expectedError:failure.error,expectedJobUpdate:{seconds:1,nanoseconds:100},noEffectEvidenceSHA256:'f'.repeat(64)}};

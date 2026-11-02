@@ -10,11 +10,11 @@ function requireIdentity(article,id,slug){
 async function prepareNormalSource({db,liveSource,articleId,slug,now,wait=ms=>new Promise(r=>setTimeout(r,ms))}){
  if(!/^[a-f\d]{24}$/.test(articleId||'')||!/^[a-z0-9]+(?:-+[a-z0-9]+)*$/.test(slug||''))throw Error('Canonical normal audio identity required');
  const ref=db.collection('articles').doc(articleId);
- for(let attempt=0;attempt<3;attempt++){
+ for(let attempt=0;attempt<5;attempt++){
   const point=await liveSource.one(articleId);
   // Webflow can emit the webhook just before the live item is readable.
   // Wait only for definitive absence. Auth, quota and transport errors propagate.
-  if(!point){if(attempt<2){await wait(1500*(attempt+1));continue;}throw Error('Publication was not visible before audio admission');}
+  if(!point){if(attempt<4){await wait(1500*(2**attempt));continue;}throw Error('Publication was not visible before audio admission');}
   const live=requireIdentity(point,articleId,slug);
   const current=await ref.get();
   if(!current.exists||current.data().contentRevision!==live.contentRevision){
@@ -25,15 +25,15 @@ async function prepareNormalSource({db,liveSource,articleId,slug,now,wait=ms=>ne
     tx.set(ref,fields,{mergeFields:KEYS});
     return true;
    });
-   if(!committed){if(attempt<2)await wait(1500*(attempt+1));continue;}
+   if(!committed){if(attempt<4)await wait(1500*(2**attempt));continue;}
   }
   const next=await liveSource.one(articleId);
-  if(!next){if(attempt<2)await wait(1500*(attempt+1));continue;}
+  if(!next){if(attempt<4)await wait(1500*(2**attempt));continue;}
   const confirmed=requireIdentity(next,articleId,slug),mirror=await ref.get();
   if(confirmed.contentRevision===live.contentRevision&&mirror.exists&&mirror.data().contentRevision===confirmed.contentRevision){
    requireIdentity(mirror.data(),articleId,slug);return confirmed;
   }
-  if(attempt<2)await wait(1500*(attempt+1));
+  if(attempt<4)await wait(1500*(2**attempt));
  }
  throw Error('Publication did not stabilize before audio admission');
 }

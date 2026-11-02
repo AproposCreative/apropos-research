@@ -13,6 +13,7 @@ const {createNarrationOwnership} = require("./offlineAudioQueueOwnership");
 const {createPublishedCMSReader} = require("./offlineAudioLiveSource");
 const {contentRevision: offlineContentRevision} = require("./offlineAudioSource.cjs");
 const {prepareNormalSource,recoveryRequest,matchesFailedJob} = require('./normalAudioAdmission.cjs');
+const {startNormalAudioDeadline} = require('./normalAudioReliability.cjs');
 const {
   evaluateArticleNotificationPolicy,
   isEnglishArticleContent,
@@ -959,11 +960,15 @@ exports.generateNarrationOnQueue = onDocumentCreated(
       }
 
       let result = {status: "error"};
+      let closeDeadline = () => {};
       try {
         if (!isOfflineRepair) {
           if(recoverySnap)await prepareNormalSource({db,liveSource:createPublishedCMSReader({fetch,apiKey:()=>webflowApiKey.value(),collectionID:ARTICLES_COLLECTION_ID}),articleId,slug,now:()=>admin.firestore.FieldValue.serverTimestamp()});
           normalClaim = await createNarrationOwnership({db}).claimNormal(slug, data, recoverySnap);
           if (!normalClaim) return;
+          if(!await normalClaim.finish({startedAt:admin.firestore.FieldValue.serverTimestamp(),stage:'qualifying_source'}))return;
+          closeDeadline=startNormalAudioDeadline({finish:fields=>normalClaim.finish({...fields,processedAt:admin.firestore.FieldValue.serverTimestamp()}),
+            onError:()=>logger.error('Normal audio deadline receipt could not be retained')});
           if(!recoverySnap)await prepareNormalSource({db,liveSource:createPublishedCMSReader({fetch,apiKey:()=>webflowApiKey.value(),collectionID:ARTICLES_COLLECTION_ID}),articleId,slug,now:()=>admin.firestore.FieldValue.serverTimestamp()});
         }
         if (isOfflineRepair) {
@@ -982,6 +987,7 @@ exports.generateNarrationOnQueue = onDocumentCreated(
           if (!claimed) return;
         }
         await createCatalogACLGuard({bucket: admin.storage().bucket(NARRATION_BUCKET)}).capture();
+        if(normalClaim&&!await normalClaim.finish({stage:'preparing_narration'}))return;
         result = await generateAndPublishNarration({
           slug,
           articleId,
@@ -989,7 +995,7 @@ exports.generateNarrationOnQueue = onDocumentCreated(
           apiKey: elevenLabsApiKey.value(),
           beforeSynthesis: async () => {
             await normalClaim?.assertCurrent();
-            if(normalClaim&&!await normalClaim.finish({paidAttemptStartedAt:admin.firestore.FieldValue.serverTimestamp()}))throw Error('Paid attempt ownership changed');
+            if(normalClaim&&!await normalClaim.finish({stage:'synthesizing',paidAttemptStartedAt:admin.firestore.FieldValue.serverTimestamp()}))throw Error('Paid attempt ownership changed');
           },
           assertCurrent: async () => {
             await normalClaim.assertCurrent();
@@ -1008,6 +1014,7 @@ exports.generateNarrationOnQueue = onDocumentCreated(
           status: result.status === "published" ? "done" : result.status,
           result: result.status,
           processedAt: admin.firestore.FieldValue.serverTimestamp(),
+          stage: result.status === 'published' || result.status === 'exists' ? 'complete' : result.status,
           ...(result.title ? {title: result.title} : {}),
         });
         if (!finished) return;
@@ -1022,6 +1029,8 @@ exports.generateNarrationOnQueue = onDocumentCreated(
         });
         if (!finished) return;
         result = {status: "error"};
+      } finally {
+        closeDeadline();
       }
 
       // Offline repair is maintenance, including its failure path. It must not
@@ -1034,6 +1043,11 @@ exports.generateNarrationOnQueue = onDocumentCreated(
       const liveArticle = await createPublishedCMSReader({fetch, apiKey: () => webflowApiKey.value(), collectionID: ARTICLES_COLLECTION_ID}).one(articleId);
       if (!currentArticle.exists || !liveArticle || currentArticle.data().contentRevision !== liveArticle.contentRevision ||
           currentArticle.data().fieldData?.slug !== slug || liveArticle.fieldData?.slug !== slug) return;
+
+      // Article alerts can precede synthesis. Refresh the existing feed/player
+      // silently when a new normal episode becomes ready; never reannounce an
+      // administrative recovery, maintenance job or failed/uncertain render.
+      if (result.status === 'published') await sendSilentRefreshPush(articleId,slug);
 
       // Send præcis én push for artiklen (dedupe via notified_articles).
       try {

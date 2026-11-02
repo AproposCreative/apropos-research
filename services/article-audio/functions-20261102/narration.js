@@ -2,9 +2,9 @@
  * Server-side AI-oplæsning (narration).
  *
  * Genskaber præcis recepten fra scripts/narration-poc.mjs:
- *   stemme "Ellen", model eleven_v3, intro + stjerner + artikel + stjerne-outro + tak,
+ *   stemme "Ellen", model fra den versionsbundne V.2-recept, intro + artikel + outro,
  *   ffmpeg voice-polish EQ + blød stereobredde, baggrundsjingle med musik-intro,
- *   3s musik-breaker mellem TTS-chunks, bed under oplæsningen og jingle-outro til sidst.
+ *   sammenhængende TTS-chunks, bed under oplæsningen og den valgte jingle-outro.
  *
  * Kører i Cloud Functions via ffmpeg-static/ffprobe-static (Linux-binaries hentes
  * ved deploy). Lyd skrives midlertidigt i /tmp og ryddes op bagefter.
@@ -19,6 +19,7 @@ const offlineSource = require("./offlineAudioSource.cjs");
 const {narrationAddress} = require("./articleLocale");
 const {createCatalogACLGuard} = require("./catalogACL.cjs");
 const audioRecipe = require("./narrationAudioRecipe.cjs");
+const {providerSignal,confirmedQuota}=require("./normalAudioReliability.cjs");
 const admin = require("firebase-admin");
 const logger = require("firebase-functions/logger");
 const ffmpegPath = require("ffmpeg-static");
@@ -204,13 +205,13 @@ function buildNarrationScript(fieldData, authorName, rating, language = "da") {
 }
 
 // ---- ElevenLabs ------------------------------------------------------------
-async function resolveVoiceId(apiKey) {
+async function resolveVoiceId(apiKey, deadlineAt) {
   const response = await fetch("https://api.elevenlabs.io/v1/voices", {
     headers: {"xi-api-key": apiKey},
+    signal:providerSignal(deadlineAt,15000),redirect:"error",
   });
   if (!response.ok) {
-    const body = await response.text();
-    throw new Error(`ElevenLabs /v1/voices ${response.status}: ${body}`);
+    throw new Error(`ElevenLabs voice lookup HTTP ${response.status}`);
   }
   const data = await response.json();
   const voices = Array.isArray(data.voices) ? data.voices : [];
@@ -226,7 +227,7 @@ async function resolveVoiceId(apiKey) {
   return match.voice_id;
 }
 
-async function synthesizeChunk(apiKey, voiceId, text, outPath, fullText, {singleAttempt = false, language = "da"} = {}) {
+async function synthesizeChunk(apiKey, voiceId, text, outPath, fullText, {singleAttempt = false, language = "da", deadlineAt} = {}) {
   const body = audioRecipe.speechRequest(text, fullText, language);
   const url =
     `https://api.elevenlabs.io/v1/text-to-speech/${voiceId}?output_format=${OUTPUT_FORMAT}`;
@@ -242,9 +243,10 @@ async function synthesizeChunk(apiKey, voiceId, text, outPath, fullText, {single
           "Accept": "audio/mpeg",
         },
         body: JSON.stringify(body),
+        signal:providerSignal(deadlineAt,120000),redirect:"error",
       });
       if (!response.ok) {
-        const errText = await response.text();
+        const errText = "Provider synthesis rejected";
         if (response.status >= 400 && response.status < 500) {
           throw new Error(`ElevenLabs TTS ${response.status}: ${errText}`);
         }
@@ -265,10 +267,11 @@ async function synthesizeChunk(apiKey, voiceId, text, outPath, fullText, {single
 }
 
 // Returnerer ElevenLabs-forbrug eller null hvis kaldet fejler.
-async function elevenLabsUsage(apiKey) {
+async function elevenLabsUsage(apiKey, deadlineAt) {
   try {
     const response = await fetch("https://api.elevenlabs.io/v1/user/subscription", {
       headers: {"xi-api-key": apiKey},
+      signal:providerSignal(deadlineAt,15000),redirect:"error",
     });
     if (!response.ok) return null;
     const data = await response.json();
@@ -1083,7 +1086,7 @@ async function readBoundedSidecar(bucket, name, {withIdentity = false} = {}) {
   return withIdentity ? {value, identity: offlineSource.canonicalJSON(after)} : value;
 }
 async function generateAndPublishNarration({slug, articleId, name, apiKey, repair, oldSource, renderBudget, publishMaintenance, registerImmutableOutput,
-  englishEnabled = false, englishVoiceID, noNotify = false, beforeSynthesis = async () => {}, assertCurrent: assertJobCurrent = async () => {}}) {
+  englishEnabled = false, englishVoiceID, noNotify = false, beforeSynthesis = async () => {}, deadlineAt = Date.now()+420000, assertCurrent: assertJobCurrent = async () => {}}) {
   const english = typeof articleId === "string" && articleId.startsWith("en_");
   if (english && (englishEnabled !== true || noNotify !== true || typeof publishMaintenance !== "function" ||
       typeof englishVoiceID !== "string" || !/^[a-zA-Z0-9_-]{1,100}$/.test(englishVoiceID))) throw new Error("English maintenance capability required");
@@ -1108,6 +1111,7 @@ async function generateAndPublishNarration({slug, articleId, name, apiKey, repai
   const source = offlineSource.captureSource(article, articleId, slug);
   const immutableArticle = JSON.parse(JSON.stringify(article));
   const assertCurrent = async () => {
+    if(Date.now()>=deadlineAt)throw Error("Narration deadline exceeded");
     if (assertJobCurrent) await assertJobCurrent();
     await catalogGuard.capture(MANIFEST_PATH);
     const latest = await loadArticle(db, source.articleId, slug);
@@ -1148,15 +1152,12 @@ async function generateAndPublishNarration({slug, articleId, name, apiKey, repai
 
   // Kredit-cap: stop før ElevenLabs-kvoten brændes.
   await assertCurrent();
-  const usage = await elevenLabsUsage(apiKey);
+  const usage = await elevenLabsUsage(apiKey,deadlineAt);
   await assertCurrent();
-  if (publishMaintenance && (!usage || usage.confirmed !== true || !Number.isSafeInteger(usage.count) || usage.count < 0 ||
-      !Number.isSafeInteger(usage.limit) || usage.limit <= 0 || !Number.isFinite(usage.ratio))) {
-    throw new Error("Provider quota could not be confirmed before maintenance");
-  }
+  const quota=confirmedQuota(usage,fullText.length,QUOTA_THRESHOLD);
   if (usage) {
-    const projected = usage.count + fullText.length;
-    if (usage.ratio >= QUOTA_THRESHOLD || projected > usage.limit) {
+    const projected = quota.projected;
+    if (quota.exceeded) {
       logger.error(
           `narration: kvote-grænse nået (${Math.round(usage.ratio * 100)}% brugt, ` +
           `${usage.count}/${usage.limit}) — springer ${slug} over`,
@@ -1179,7 +1180,7 @@ async function generateAndPublishNarration({slug, articleId, name, apiKey, repai
 
   const workDir = fs.mkdtempSync(path.join(os.tmpdir(), `narr-${slugToId(slug)}-`));
   try {
-    const voiceId = english ? englishVoiceID : await resolveVoiceId(apiKey);
+    const voiceId = english ? englishVoiceID : await resolveVoiceId(apiKey,deadlineAt);
     await assertCurrent();
     const speechChunks = audioRecipe.narrationChunks(script, MAX_CHARS_PER_CHUNK);
     logger.info(`narration: ${slug} — ${fullText.length} tegn → ${speechChunks.length} sammenhængende chunk(s), ${audioRecipe.RECIPE_VERSION}/${jingleVersion}`);
@@ -1188,7 +1189,7 @@ async function generateAndPublishNarration({slug, articleId, name, apiKey, repai
       const chunkPath = path.join(workDir, `chunk-${String(i).padStart(3, "0")}.mp3`);
       await assertCurrent();
       await beforeSynthesis();
-      await synthesizeChunk(apiKey, voiceId, speechChunks[i], chunkPath, fullText, {singleAttempt: true, language: address?.language || "da"});
+      await synthesizeChunk(apiKey, voiceId, speechChunks[i], chunkPath, fullText, {singleAttempt: true, language: address?.language || "da",deadlineAt});
       await assertCurrent();
       voicePaths.push(chunkPath);
     }

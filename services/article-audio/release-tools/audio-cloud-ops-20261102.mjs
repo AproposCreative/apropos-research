@@ -22,7 +22,12 @@ export async function google(url,method='GET',body){
 }
 export const getFunction=async name=>(await google(`${base}/functions/${name}`)).json();
 export function configDigest(f){
- const clean=structuredClone(f); delete clean.name;delete clean.state;delete clean.updateTime;delete clean.createTime;delete clean.stateMessages;delete clean.buildConfig?.source;delete clean.buildConfig?.build;delete clean.buildConfig?.sourceProvenance;
+ const clean=structuredClone(f);
+ // These API lists are sets; Google can return the same filters in a new order.
+ // Compare every filter/grant value, without treating presentation order as a mutation.
+ if(clean.eventTrigger?.eventFilters)clean.eventTrigger.eventFilters.sort((a,b)=>canonical(a).localeCompare(canonical(b)));
+ if(clean.serviceConfig?.secretEnvironmentVariables)clean.serviceConfig.secretEnvironmentVariables.sort((a,b)=>canonical(a).localeCompare(canonical(b)));
+ delete clean.name;delete clean.state;delete clean.updateTime;delete clean.createTime;delete clean.stateMessages;delete clean.buildConfig?.source;delete clean.buildConfig?.build;delete clean.buildConfig?.sourceProvenance;
  delete clean.serviceConfig?.revision; delete clean.serviceConfig?.uri; delete clean.url;
  return sha(canonical(clean));
 }
