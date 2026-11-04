@@ -66,49 +66,43 @@ async function readManifestForWrite() {
   };
   // Capture metadata first. If bytes advance while this read is in flight, the
   // captured generation still rejects publication rather than blessing G2 as G1.
-  const manifest = await readManifest(true);
+  const manifest = await readManifest();
   return { file, manifest, generation, metageneration, metadata };
 }
 
 export async function readPodcastManifest(): Promise<PodcastManifest> {
-  return readManifest(false);
+  return readManifest();
 }
 
-/** A publication must not overwrite unreadable or partially normalized history. */
-async function readManifest(forWrite: boolean): Promise<PodcastManifest> {
+/** Readers and writers both require the complete existing catalog. A parse or
+ * source-proof failure must reach the RSS route's 503 handler, not an empty 200. */
+async function readManifest(): Promise<PodcastManifest> {
   const bucket = getPodcastBucket();
   const file = bucket.file(MANIFEST_PATH);
   const [exists] = await file.exists();
-  if (!exists) return emptyManifest();
+  if (!exists) throw new Error('Podcast catalog unavailable');
 
   const [buf] = await file.download();
-  try {
-    const parsed = JSON.parse(buf.toString('utf8')) as Record<string, unknown>;
-    if (forWrite && (!parsed || typeof parsed !== 'object' || Array.isArray(parsed) ||
-        !Array.isArray(parsed.episodes))) {
-      throw new Error('Invalid podcast manifest catalog');
-    }
-    const rawEpisodes = Array.isArray(parsed.episodes) ? parsed.episodes : [];
-    const episodes = rawEpisodes
-      .map((e) => {
-        if (forWrite && (!e || typeof e !== 'object' || Array.isArray(e))) {
-          throw new Error('Invalid podcast manifest episode');
-        }
-        const episode = normalizeManifestEpisode(e as Record<string, unknown>);
-        if (forWrite && !episode) throw new Error('Invalid podcast manifest episode');
-        return episode;
-      })
-      .filter((e): e is PodcastManifestEpisode => e !== null);
-
-    return {
-      version: typeof parsed.version === 'number' ? parsed.version : 1,
-      updatedAt: String(parsed.updatedAt || new Date().toISOString()),
-      episodes,
-    };
-  } catch (error) {
-    if (forWrite) throw error;
-    return emptyManifest();
+  const parsed = JSON.parse(buf.toString('utf8')) as Record<string, unknown>;
+  if (!parsed || typeof parsed !== 'object' || Array.isArray(parsed) || !Array.isArray(parsed.episodes)) {
+    throw new Error('Invalid podcast manifest catalog');
   }
+  const episodes = parsed.episodes.map((raw) => {
+    if (!raw || typeof raw !== 'object' || Array.isArray(raw)) throw new Error('Invalid podcast manifest episode');
+    // Reading an old episode must never assign today's date to it.
+    if (typeof raw.publishedAt !== 'string' || !Number.isFinite(Date.parse(raw.publishedAt))) {
+      throw new Error('Invalid existing podcast publication date');
+    }
+    const episode = normalizeManifestEpisode(raw as Record<string, unknown>);
+    if (!episode) throw new Error('Invalid podcast manifest episode');
+    return episode;
+  });
+
+  return {
+    version: typeof parsed.version === 'number' ? parsed.version : 1,
+    updatedAt: String(parsed.updatedAt || new Date().toISOString()),
+    episodes,
+  };
 }
 
 export function sortEpisodesDesc(episodes: PodcastManifestEpisode[]): PodcastManifestEpisode[] {

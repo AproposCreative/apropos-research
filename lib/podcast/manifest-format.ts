@@ -58,6 +58,18 @@ function sourceBinding(
   return { articleId, sourceContentRevision };
 }
 
+/** Existing, explicitly accepted AI recordings retain their canonical article
+ * identity without asserting a producer text revision. Read this association
+ * without manufacturing one; new publication inputs still use sourceBinding. */
+function readSourceBinding(raw: Record<string, unknown>, kind?: 'ai' | 'human'):
+  { articleId: string; sourceContentRevision?: string } | undefined {
+  if (kind === 'ai' && !Object.hasOwn(raw, 'sourceContentRevision') &&
+      typeof raw.articleId === 'string' && /^[a-f0-9]{24}$/.test(raw.articleId)) {
+    return { articleId: raw.articleId };
+  }
+  return sourceBinding(raw, kind);
+}
+
 /** Normaliser legacy/web entries til iOS-format (+ valgfri RSS-felter). */
 export function normalizeManifestEpisode(raw: Record<string, unknown>): PodcastManifestEpisode | null {
   const articleSlug = String(raw.articleSlug || raw.slug || '').trim();
@@ -74,7 +86,7 @@ export function normalizeManifestEpisode(raw: Record<string, unknown>): PodcastM
   const id = String(raw.id || slugToManifestId(articleSlug));
   const kindRaw = optionalString(raw.kind)?.toLowerCase();
   const kind = kindRaw === 'ai' || kindRaw === 'human' ? kindRaw : undefined;
-  const binding = sourceBinding(raw, kind);
+  const binding = readSourceBinding(raw, kind);
 
   const episode: PodcastManifestEpisode = {
     id,
