@@ -1,3 +1,5 @@
+import { ARTICLE_TRANSLATION_MODEL } from '@/lib/articles/translation-policy';
+
 /** Official list prices checked 2026-09-12. Not an invoice or an FX quote.
  * https://developers.openai.com/api/docs/pricing
  * https://developers.openai.com/api/docs/models/gpt-image-1.5
@@ -23,6 +25,7 @@ const textRates: Record<string, { input: number; output: number }> = {
   // pages below. Existing quote version/policy and Liv rates remain unchanged.
   'gpt-5.4-mini': { input: 0.75, output: 4.5 },
   'gpt-4o-mini': { input: 0.15, output: 0.6 },
+  [ARTICLE_TRANSLATION_MODEL]: { input: 0.75, output: 4.5 },
 };
 export type LivPriceQuote = {
   sourceCheckedAt?: string;
@@ -55,7 +58,7 @@ export function quoteLivOpenAIRequest(endpoint: string, value: unknown): LivPric
   }
   const rates = textRates[model];
   if (!rates) throw new Error('liv_cost_pricing_unknown');
-  const supplemental = model === 'gpt-5.4-mini' || model === 'gpt-4o-mini';
+  const supplemental = model === 'gpt-5.4-mini' || model === 'gpt-4o-mini' || model === ARTICLE_TRANSLATION_MODEL;
   if (!['/chat/completions', '/responses'].includes(endpoint)) throw new Error('liv_cost_endpoint_uncovered');
   const allowed = endpoint === '/responses'
     ? ['model', 'input', 'instructions', 'max_output_tokens', 'tools', 'max_tool_calls', 'reasoning', 'include', 'tool_choice', 'store', 'text', 'service_tier', 'metadata']
@@ -102,7 +105,8 @@ export function quoteLivOpenAIRequest(endpoint: string, value: unknown): LivPric
   const input = tools.length ? (Math.max(promptBound, 128_000) + Number(output)) * (Number(toolCalls) + 1) : promptBound;
   const outputBound = Number(output) * (Number(toolCalls) + 1);
   const fixed = Number(toolCalls) * 0.01;
-  return { ...common, ...(supplemental ? { source: `https://developers.openai.com/api/docs/models/${model}`, sourceCheckedAt: '2026-09-13' } : {}),
+  return { ...common, ...(supplemental ? { source: `https://developers.openai.com/api/docs/models/${model === ARTICLE_TRANSLATION_MODEL ? 'gpt-5.4-mini' : model}`,
+    sourceCheckedAt: model === ARTICLE_TRANSLATION_MODEL ? '2026-11-05' : '2026-09-13' } : {}),
     kind: 'text', inputTokenBound: input, outputTokenBound: outputBound, toolCallBound: Number(toolCalls),
     inputUsdPerMillion: rates.input, outputUsdPerMillion: rates.output, fixedUsdBound: fixed,
     reservedUsdMicros: Math.ceil(input * rates.input + outputBound * rates.output + fixed * 1_000_000) };

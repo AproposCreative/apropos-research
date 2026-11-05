@@ -27,6 +27,7 @@ import { getLivCostPretransportError } from '@/lib/liv/cost-errors';
 import { activateSharedCostPolicy, inspectSharedCostActivation } from '@/lib/liv/cost-activation';
 import { providerHoldId } from '@/lib/ai/provider-hold';
 import { activateManualWriterBudget, readManualWriterBudget, withManualWriterIdentity, MANUAL_WRITER_BUDGET_ID } from '@/lib/ai/manual-writer-budget';
+import { ARTICLE_TRANSLATION_MODEL } from '@/lib/articles/translation-policy';
 const now = new Date('2026-09-12T10:00:00Z');
 const policy = { monthlyLimitDkkMicros: 300_000_000, usdToDkkCeiling: 8, validUntil: '2026-10-01T00:00:00.000Z',
   conversionBasis: 'TEST fixture ceiling; not a market exchange-rate claim', priceVersion: LIV_PRICE_VERSION };
@@ -45,6 +46,48 @@ async function manualPolicy() {
   return activateManualWriterBudget('owner', now);
 }
 const manualCall = (n = 1) => ({ ...call(n), context: { runId: 'manual-request', stage: 'writing', scope: 'writer' as const } });
+
+const translationId = 'b'.repeat(24);
+const translationCall = (n = 1, contentVersion = 'c'.repeat(64)) => ({ ...call(n), context: {
+  stage: 'article-translation', scope: 'article-translation' as const, storyId: translationId,
+  contentVersion, runId: `${translationId}-${contentVersion}`,
+}, quote: quoteLivOpenAIRequest('/chat/completions', { model: ARTICLE_TRANSLATION_MODEL, max_completion_tokens: 8000,
+  messages: [{ role: 'user', content: 'Translate this.' }] }) });
+
+it('reserves once per revision through simultaneous deliveries, timeout and Copenhagen month change', async () => {
+  const writer = await manualPolicy();
+  memory.rows.set('appSettings/articleTranslation', { autoTranslateEn: true });
+  const ledger = createLivCostLedger(() => new Date('2026-11-30T22:59:59Z'), 'article-translation');
+  const nextMonth = createLivCostLedger(() => new Date('2026-11-30T23:00:00Z'), 'article-translation');
+  const concurrent = await Promise.allSettled([ledger.reserve(translationCall()), ledger.reserve(translationCall(2))]);
+  expect(concurrent.filter(result => result.status === 'fulfilled')).toHaveLength(1);
+  const result = concurrent[0];
+  if (result.status !== 'fulfilled') throw result.reason;
+  await ledger.complete(result.value, { ...outcome, responseModel: null, status: 'ambiguous', usage: null, httpStatus: null });
+  await expect(nextMonth.reserve(translationCall(3))).rejects.toThrow('article_translation_version_already_attempted');
+  await expect(nextMonth.reserve(translationCall(4, 'd'.repeat(64)))).resolves.toMatchObject({ month: '2026-12' });
+  expect(memory.rows.get('articleTranslationCostLedger/month-2026-11')).toMatchObject({ calls: 1, unknownCalls: 1,
+    reservedDkkMicros: result.value.reservedDkkMicros });
+  expect(await readManualWriterBudget()).toEqual(writer);
+  expect(memory.rows.has('livCostLedger/month-2026-11')).toBe(false);
+});
+
+it('checks the translation switch and the separate 5 DKK limit in the transport transaction', async () => {
+  await manualPolicy();
+  const ledger = createLivCostLedger(() => now, 'article-translation');
+  await expect(ledger.reserve(translationCall())).rejects.toThrow('article_translation_disabled');
+  memory.rows.set('appSettings/articleTranslation', { autoTranslateEn: true });
+  const monthRef = 'articleTranslationCostLedger/month-2026-09';
+  memory.rows.set(monthRef, { committedDkkMicros: 4_700_000, reservedDkkMicros: 250_000, calls: 9, unknownCalls: 1 });
+  await expect(ledger.reserve(translationCall())).rejects.toThrow('liv_cost_monthly_budget_exceeded');
+  expect(memory.rows.has(`articleTranslationCostLedger/version-${translationCall().context.runId}`)).toBe(false);
+  await expect(ledger.reserve(manualCall())).rejects.toThrow('article_translation_reservation_invalid');
+  await expect(createLivCostLedger(() => now).reserve(translationCall())).rejects.toThrow('liv_cost_shared_policy_unconfigured');
+  memory.rows.set(monthRef, { committedDkkMicros: 1_000_000, reservedDkkMicros: 0, calls: 1, unknownCalls: 0 });
+  const reservation = await ledger.reserve(translationCall());
+  await ledger.complete(reservation, { ...outcome, responseModel: ARTICLE_TRANSLATION_MODEL });
+  expect(memory.rows.get(monthRef)).toMatchObject({ committedDkkMicros: 1_003_600, reservedDkkMicros: 0, unknownCalls: 0 });
+});
 it('activates exactly once, retaining costs, reservations and author across replays/months', async () => {
   const row = await manualPolicy();
   expect(row).toMatchObject({ limitDkkMicros: 50_000_000, id: MANUAL_WRITER_BUDGET_ID });

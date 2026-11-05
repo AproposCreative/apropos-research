@@ -9,10 +9,10 @@ it.each([undefined, '', 'false'])('does not translate automatically with env %s'
   const { resolveAutoTranslateEnabled } = await import('@/lib/webflow/article-translation-settings');
   expect(await resolveAutoTranslateEnabled()).toBe(false);
 });
-it('retains explicit activation and honors an explicit runtime stop', async () => {
+it('requires the stored switch even when legacy env activation is present', async () => {
   vi.stubEnv('WEBFLOW_AUTO_TRANSLATE_EN', 'true');
   const { resolveAutoTranslateEnabled } = await import('@/lib/webflow/article-translation-settings');
-  expect(await resolveAutoTranslateEnabled()).toBe(true);
+  expect(await resolveAutoTranslateEnabled()).toBe(false);
   db.value = false;
   expect(await resolveAutoTranslateEnabled()).toBe(false);
   db.value = true;

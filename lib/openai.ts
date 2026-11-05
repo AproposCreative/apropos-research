@@ -2,9 +2,17 @@ import type OpenAI from 'openai';
 import { config } from '@/lib/config/env';
 import { LivBudgetOpenAI } from '@/lib/liv/cost-openai';
 import { createImageGenCostLedger } from '@/lib/image-gen/budget';
+import { createLivCostLedger } from '@/lib/liv/cost-ledger';
 
 let _client: OpenAI | null = null;
 let _imageClient: OpenAI | null = null;
+let _translationClient: OpenAI | null = null;
+
+export function getArticleTranslationOpenAIClient(): OpenAI | null {
+  if (!config.openai.apiKey) return null;
+  return _translationClient ??= new LivBudgetOpenAI({ apiKey: config.openai.apiKey, maxRetries: 0 },
+    createLivCostLedger(undefined, 'article-translation'));
+}
 
 /** Dedicated ledger; the ordinary client rejects image-gen context instead of charging Liv. */
 export function getImageGenOpenAIClient(): OpenAI | null {

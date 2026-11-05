@@ -3,6 +3,9 @@ import { assertEnglishProse, isDanishArticleCopy, richTextStructure } from '@/li
 import { protectEnglishArticleLocale } from '@/lib/webflow/english-article-guard';
 import { runArticleTranslation } from '@/lib/webflow/article-translation';
 import { WebflowLocaleFetchError } from '@/lib/webflow/locale-items';
+import { currentLivCostContext } from '@/lib/liv/cost-context';
+import { NextRequest } from 'next/server';
+import { POST as receiveWebflowPublish } from '@/app/api/webhooks/webflow/route';
 
 const id = 'a'.repeat(24);
 const dk = 'b'.repeat(24);
@@ -20,10 +23,20 @@ const stamp = '2026-11-05T08:00:00.000Z';
 const item = (fields: Record<string, unknown>, cmsLocaleId: string, live = true) => ({ id, cmsLocaleId, fieldData: fields, isDraft: !live, lastPublished: live ? stamp : null });
 const setup = vi.hoisted(() => ({
   read: vi.fn(), unpublish: vi.fn(), create: vi.fn(), patch: vi.fn(), publish: vi.fn(), reserve: vi.fn(), release: vi.fn(),
-  translate: vi.fn(), client: vi.fn(), setState: vi.fn(), logJob: vi.fn(), policy: vi.fn(),
+  translate: vi.fn(), client: vi.fn(), setState: vi.fn(), readState: vi.fn(), logJob: vi.fn(), enabled: vi.fn(),
+  after: vi.fn(),
 }));
+vi.mock('next/server', async importOriginal => ({ ...await importOriginal<typeof import('next/server')>(), after: setup.after }));
+vi.mock('@/lib/config/env', () => ({ env: { WEBFLOW_API_TOKEN: 'fixture' } }));
+vi.mock('@/lib/webflow/article-image-auto-optimize', () => ({ isArticleCollectionWebhookEvent: () => true,
+  isArticleImageAutoOptimizeEnabled: () => false, isArticleWebhookOptimizeEnabled: () => false }));
+vi.mock('@/lib/webflow/published-image-optimization', () => ({ optimizePublishedArticleImages: vi.fn() }));
+vi.mock('@/lib/seo-engine/settings', () => ({ resolveAutoSeoEngineEnabled: async () => false }));
+vi.mock('@/lib/seo-engine/after-publish', () => ({ maybeEnqueueSeoEngineAfterPublish: vi.fn() }));
+vi.mock('@/lib/seo-engine/opportunity-engine/settings', () => ({ resolveAutomaticOpportunityRuntime: async () => ({ shouldAutoFillOnPublish: false }) }));
 vi.mock('@/lib/webflow/locale-items', () => ({
   resolveWebflowLocaleIds: () => ({ dk, en }), fetchArticleItemByLocale: setup.read,
+  isArticleAutoTranslateEnabledAsync: setup.enabled,
   unpublishEnglishArticle: setup.unpublish, createEnglishArticleVariant: setup.create,
   patchArticleFieldDataForLocale: setup.patch, publishArticleItemForLocale: setup.publish,
   WebflowLocaleFetchError: class extends Error { constructor(message: string, readonly status: number) { super(message); } },
@@ -31,10 +44,10 @@ vi.mock('@/lib/webflow/locale-items', () => ({
 vi.mock('@/lib/seo-engine/cms-write-lease', () => ({
   acquireCmsWriteLease: async () => ({ assertOwned: setup.reserve, release: setup.release }),
 }));
-vi.mock('@/lib/ai/manual-writer-budget', () => ({ readManualWriterBudget: setup.policy }));
-vi.mock('@/lib/openai', () => ({ getOpenAIClient: setup.client }));
+vi.mock('@/lib/webflow/article-translation-settings', () => ({ resolveAutoTranslateEnabled: setup.enabled }));
+vi.mock('@/lib/openai', () => ({ getArticleTranslationOpenAIClient: setup.client }));
 vi.mock('@/lib/firebase-admin', () => ({ getAdminDb: () => ({ collection: (name: string) => name === 'articleTranslationJobs' ? { add: setup.logJob } : {
-  doc: () => ({ get: async () => ({ data: () => undefined }), set: setup.setState }),
+  doc: () => ({ get: async () => ({ data: setup.readState }), set: setup.setState }),
 } }) }));
 vi.mock('@/lib/articles/translate-to-english', () => ({
   translateArticleToEnglish: setup.translate, buildEnglishFieldData: (_input: object, result: Record<string, unknown>) => result,
@@ -43,7 +56,7 @@ vi.mock('@/lib/articles/translate-to-english', () => ({
 beforeEach(() => {
   vi.resetAllMocks();
   setup.logJob.mockResolvedValue(undefined);
-  setup.policy.mockResolvedValue(null);
+  setup.enabled.mockResolvedValue(true);
   setup.client.mockReturnValue({});
   setup.translate.mockResolvedValue(english);
 });
@@ -76,15 +89,15 @@ it('preserves a separately edited English draft and a genuine English live artic
   expect(setup.unpublish).not.toHaveBeenCalled();
 });
 
-it('honours the manual Writer policy before any backend model or publication', async () => {
+it('honours the translation switch before any backend model or publication', async () => {
   setup.read.mockImplementation(async (_id, locale) => locale === dk ? item(danish, dk) : absent());
-  setup.policy.mockResolvedValue({ mode: 'manual-writer-only-v1' });
-  expect(await runArticleTranslation(id)).toMatchObject({ skipped: true, reason: expect.stringContaining('Writer') });
+  setup.enabled.mockResolvedValue(false);
+  expect(await runArticleTranslation(id, { force: true })).toMatchObject({ skipped: true, reason: expect.stringContaining('slået fra') });
   expect(setup.client).not.toHaveBeenCalled();
   expect(setup.publish).not.toHaveBeenCalled();
 });
 
-it('creates an English draft only after translation, then confirms the live EN readback', async () => {
+it('translates a Danish publish webhook, confirms live EN and ignores the resulting EN publish', async () => {
   let created = false;
   let live = false;
   setup.read.mockImplementation(async (_id, locale, options) => {
@@ -93,11 +106,47 @@ it('creates an English draft only after translation, then confirms the live EN r
     return created ? item(english, en, live) : absent();
   });
   setup.create.mockImplementation(async () => { created = true; });
+  setup.translate.mockImplementation(async () => {
+    expect(currentLivCostContext()).toMatchObject({ scope: 'article-translation', storyId: id, contentVersion: expect.any(String) });
+    return english;
+  });
   setup.publish.mockImplementation(async () => { live = true; });
-  expect(await runArticleTranslation(id)).toMatchObject({ skipped: false, enName: 'Example' });
+  vi.stubEnv('WEBFLOW_WEBHOOK_SECRET', 'fixture');
+  try {
+    const delivery = (cmsLocaleId: string) => new NextRequest('https://test.example/api/webhooks/webflow', {
+      method: 'POST', headers: { 'x-webflow-webhook-secret': 'fixture' },
+      body: JSON.stringify({ triggerType: 'collection_item_published', payload: { id, cmsLocaleId } }),
+    });
+    const result = await receiveWebflowPublish(delivery(dk));
+    expect(await result.json()).toMatchObject({ ok: true, translationQueued: [id] });
+    expect(setup.after).toHaveBeenCalledOnce();
+    await setup.after.mock.calls[0][0]();
+    expect(setup.logJob).toHaveBeenCalledWith(expect.objectContaining({ status: 'ok', enName: 'Example', source: 'webhook:collection_item_published' }));
+    const englishResult = await receiveWebflowPublish(delivery(en));
+    expect(await englishResult.json()).toMatchObject({ ok: true, translationQueued: [] });
+    expect(setup.after).toHaveBeenCalledOnce();
+  } finally {
+    vi.unstubAllEnvs();
+  }
   expect(setup.create).toHaveBeenCalledExactlyOnceWith(id, english);
   expect(setup.publish).toHaveBeenCalledExactlyOnceWith(id, en);
   expect(setup.setState).toHaveBeenCalledWith(expect.objectContaining({ targetHash: expect.any(String) }), { merge: true });
+});
+
+it('resumes a confirmed English draft after a publish failure without calling the model again', async () => {
+  let staged = false;
+  let published = false;
+  const saved: Record<string, unknown> = {};
+  setup.readState.mockReturnValue(saved);
+  setup.setState.mockImplementation(async patch => Object.assign(saved, patch));
+  setup.read.mockImplementation(async (_id, locale, options) => locale === dk ? item(danish, dk) :
+    options.live ? (published ? item(english, en) : absent()) : (staged ? item(english, en, published) : absent()));
+  setup.create.mockImplementation(async () => { staged = true; });
+  setup.publish.mockRejectedValueOnce(new Error('CMS timeout')).mockImplementationOnce(async () => { published = true; });
+  await expect(runArticleTranslation(id)).rejects.toThrow('CMS timeout');
+  await expect(runArticleTranslation(id)).resolves.toMatchObject({ skipped: false });
+  expect(setup.translate).toHaveBeenCalledOnce();
+  expect(setup.create).toHaveBeenCalledOnce();
 });
 
 it('does not publish after an editorial edit during the translation', async () => {

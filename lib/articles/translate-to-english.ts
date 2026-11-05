@@ -5,9 +5,8 @@
 import fs from 'fs';
 import path from 'path';
 import type OpenAI from 'openai';
-import { models } from '@/lib/openai';
+import { ARTICLE_TRANSLATION_MODEL, ARTICLE_TRANSLATION_OUTPUT_LIMIT } from '@/lib/articles/translation-policy';
 import { assertEnglishProse, richTextStructure } from '@/lib/articles/english-language';
-import { withSharedCostContext } from '@/lib/liv/cost-context';
 import {
   buildSeoFields,
   calcReadTime,
@@ -114,10 +113,9 @@ export async function translateArticleToEnglish(
 
   if (userPayload.length > 48000) throw new Error('Artiklen er for lang til én oversættelse. Kilden er ikke ændret.');
 
-  const completion = await withSharedCostContext({ scope: 'writer', stage: 'article-translation' }, () => openai.chat.completions.create({
-    model: models.default,
-    max_completion_tokens: 8000,
-    temperature: 0.35,
+  const completion = await openai.chat.completions.create({
+    model: ARTICLE_TRANSLATION_MODEL,
+    max_completion_tokens: ARTICLE_TRANSLATION_OUTPUT_LIMIT,
     response_format: { type: 'json_object' },
     messages: [
       { role: 'system', content: loadSystemPrompt() },
@@ -126,7 +124,7 @@ export async function translateArticleToEnglish(
         content: `Translate this Danish Apropos Magazine article to English. Input JSON:\n${userPayload}`,
       },
     ],
-  }, { maxRetries: 0, timeout: 60000 }));
+  }, { maxRetries: 0, timeout: 60000 });
   if (completion.choices[0]?.finish_reason !== 'stop') throw new Error('Oversættelsen blev ikke færdig. CMS er ikke ændret.');
 
   const raw = completion.choices[0]?.message?.content?.trim();

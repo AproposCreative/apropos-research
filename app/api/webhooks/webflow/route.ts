@@ -130,10 +130,15 @@ export async function POST(req: NextRequest) {
 
   const imageOptOn =
     isArticleWebhookOptimizeEnabled() && isArticleImageAutoOptimizeEnabled();
-  const [legacyAutoSeo, opportunityRuntime, autoTranslateOn] = await Promise.all([
+  const [legacyAutoSeo, opportunityRuntime, translation] = await Promise.all([
     resolveAutoSeoEngineEnabled(),
     resolveAutomaticOpportunityRuntime(),
-    isArticleAutoTranslateEnabledAsync(),
+    triggerType === 'collection_item_published'
+      ? isArticleAutoTranslateEnabledAsync().then(enabled => ({ enabled, unavailable: false })).catch(error => {
+        logger.warn('[webhooks/webflow] translation settings unavailable', { message: String(error) });
+        return { enabled: false, unavailable: true };
+      })
+      : { enabled: false, unavailable: false },
   ]);
   // Unified gate with after-publish — single durable job path (no double CMS writes).
   const autoSeoOn = legacyAutoSeo || opportunityRuntime.shouldAutoFillOnPublish;
@@ -162,7 +167,7 @@ export async function POST(req: NextRequest) {
     const flags = {
       imageOptOn,
       autoSeoOn,
-      autoTranslateOn,
+      autoTranslateOn: translation.enabled,
       isPrimaryLocale: isPrimaryLocalePublish(it.cmsLocaleId),
       triggerType,
     };
@@ -217,9 +222,10 @@ export async function POST(req: NextRequest) {
     seoEngineErrors,
     seoEngineQueued,
   });
+  const needsRetry = !!(http.needsRetry || imageErrors.length || localeErrors.length || translation.unavailable);
   return NextResponse.json(
     {
-      ok: http.ok && imageErrors.length === 0 && localeErrors.length === 0,
+      ok: http.ok && !needsRetry,
       triggerType,
       count: results.length,
       results,
@@ -229,8 +235,9 @@ export async function POST(req: NextRequest) {
       seoEngineErrors: seoEngineErrors.length ? seoEngineErrors : undefined,
       imageErrors: imageErrors.length ? imageErrors : undefined,
       localeErrors: localeErrors.length ? localeErrors : undefined,
-      needsRetry: http.needsRetry || imageErrors.length > 0 || localeErrors.length > 0 || undefined,
+      translationSettingsUnavailable: translation.unavailable || undefined,
+      needsRetry: needsRetry || undefined,
     },
-    { status: imageErrors.length || localeErrors.length ? 503 : http.status }
+    { status: needsRetry ? 503 : http.status }
   );
 }

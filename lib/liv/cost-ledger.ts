@@ -10,6 +10,8 @@ import { livModels } from './model-config';
 import { LivCostPretransportError } from './cost-errors';
 import { providerHoldRef } from '@/lib/ai/provider-hold';
 import { manualWriterBudgetRef, validateManualWriterBudget, assertManualWriterReservation, manualWriterUid } from '@/lib/ai/manual-writer-budget';
+import { ARTICLE_TRANSLATION_LIMIT, ARTICLE_TRANSLATION_MODEL, ARTICLE_TRANSLATION_OUTPUT_LIMIT, ARTICLE_TRANSLATION_USD_CEILING } from '@/lib/articles/translation-policy';
+import { articleTranslationSettingsRef } from '@/lib/webflow/article-translation-settings';
 
 export const LIV_COST_COLLECTION = 'livCostLedger';
 export const LIV_COST_MAX_CALLS_PER_RUN = 40;
@@ -24,7 +26,7 @@ export type LivBudgetPolicy = {
 export type LivCostReservation = {
   manualWriterBudgetId?: string; manualWriterUid?: string;
   purpose?: import('./cost-context').CostPurpose; storyId?: string; contentVersion?: string; submissionId?: string;
-  scope?: 'liv' | 'writer' | 'seo' | 'accreditation' | 'image-gen';
+  scope?: 'liv' | NonNullable<LivCostContext['scope']>;
   callId: string; month: string; runId: string; stage: string; requestHash: string;
   model: string; quote: LivPriceQuote; reservedDkkMicros: number; policy: LivBudgetPolicy; createdAt: string;
 };
@@ -66,8 +68,15 @@ function sharedPolicyReady(value: Record<string, unknown> | undefined, now: Date
     Number.isFinite(Date.parse(value.sharedTrackingStartedAt)) && Date.parse(value.sharedTrackingStartedAt) <= now.getTime();
 }
 
-export function createLivCostLedger(now: () => Date = () => new Date(), bucket: 'liv' | 'image-gen' = 'liv'): LivCostLedger {
-  const collectionName = bucket === 'image-gen' ? 'imageGenCostLedger' : LIV_COST_COLLECTION;
+const translationPolicy: LivBudgetPolicy = {
+  monthlyLimitDkkMicros: ARTICLE_TRANSLATION_LIMIT, usdToDkkCeiling: ARTICLE_TRANSLATION_USD_CEILING,
+  validUntil: '2026-12-05T00:00:00.000Z', priceVersion: LIV_PRICE_VERSION,
+  conversionBasis: 'Conservative 12 DKK per USD ceiling including fees and taxes, with no cache discounts.',
+};
+
+export function createLivCostLedger(now: () => Date = () => new Date(), bucket: 'liv' | 'image-gen' | 'article-translation' = 'liv'): LivCostLedger {
+  const translation = bucket === 'article-translation';
+  const collectionName = { liv: LIV_COST_COLLECTION, 'image-gen': 'imageGenCostLedger', 'article-translation': 'articleTranslationCostLedger' }[bucket];
   return {
     async reserve({ callId, context, quote, requestHash }) {
       assertPaidAiAllowed();
@@ -83,16 +92,27 @@ export function createLivCostLedger(now: () => Date = () => new Date(), bucket: 
       const database = db(), collection = database.collection(collectionName);
       const date = now(), month = copenhagenClock(date).day.slice(0, 7);
       const monthRef = collection.doc(`month-${month}`), callRef = collection.doc(`call-${callId}`);
-      const runRef = collection.doc(`run-${month}-${context.runId}`);
+      if (translation && (context.scope !== bucket || context.stage !== bucket ||
+          !/^[a-f0-9]{24}$/.test(context.storyId || '') || !context.contentVersion ||
+          context.runId !== `${context.storyId}-${context.contentVersion}` || context.submissionId || context.purpose ||
+          quote.model !== ARTICLE_TRANSLATION_MODEL || quote.endpoint !== '/chat/completions' || quote.kind !== 'text' ||
+          quote.outputTokenBound > ARTICLE_TRANSLATION_OUTPUT_LIMIT || quote.toolCallBound !== 0)) {
+        throw new LivCostPretransportError('article_translation_reservation_invalid');
+      }
+      // A new calendar month resets the monetary allowance, never the version lock.
+      const runRef = collection.doc(translation ? `version-${context.runId}` : `run-${month}-${context.runId}`);
       const pilotRef = database.collection('aiCostCampaigns').doc('savings-2026-09');
       return database.runTransaction(async tx => {
         const writerRef = manualWriterBudgetRef(database);
-        const writerData = (await tx.get(writerRef)).data();
+        const writerData = translation ? undefined : (await tx.get(writerRef)).data();
         const writer = writerData === undefined ? null : validateManualWriterBudget(writerData);
         const hold = (await tx.get(providerHoldRef(database))).data();
         if (hold?.blocked === true) throw new LivCostPretransportError('liv_cost_provider_quota_exhausted');
-        const policyRow = (await tx.get(collection.doc('policy'))).data();
-        const policy = policyOf(policyRow);
+        if (translation && (await tx.get(articleTranslationSettingsRef(database))).data()?.autoTranslateEn !== true) {
+          throw new LivCostPretransportError('article_translation_disabled');
+        }
+        const policyRow = translation ? undefined : (await tx.get(collection.doc('policy'))).data();
+        const policy = translation ? translationPolicy : policyOf(policyRow);
         if (bucket === 'image-gen' && (context.scope !== 'image-gen' || policy.monthlyLimitDkkMicros > 150_000_000)) {
           throw new LivCostPretransportError('liv_cost_shared_policy_unconfigured');
         }
@@ -108,11 +128,12 @@ export function createLivCostLedger(now: () => Date = () => new Date(), bucket: 
         if (![totals.committedDkkMicros, totals.reservedDkkMicros, totals.calls, totals.unknownCalls].every(safeCount) || totals.blocked) {
           throw new Error('liv_cost_ledger_requires_reconciliation');
         }
+        if (translation && run.calls !== 0) throw new LivCostPretransportError('article_translation_version_already_attempted');
         if (!safeCount(run.calls) || run.calls >= LIV_COST_MAX_CALLS_PER_RUN || totals.calls >= LIV_COST_MAX_CALLS_PER_MONTH) {
           throw new LivCostPretransportError('liv_cost_call_limit_exceeded');
         }
         const amount = Math.ceil(quote.reservedUsdMicros * policy.usdToDkkCeiling);
-        if (writer) assertManualWriterReservation(writer, context, bucket, quote.model, amount);
+        if (writer && bucket !== 'article-translation') assertManualWriterReservation(writer, context, bucket, quote.model, amount);
         // Additional owner-accepted package ceiling, across BOTH ledgers. A
         // nested image/cleanup/internal HTTP call cannot escape this binding.
         const submissionRef = context.submissionId ? database.collection('editorialSubmissions').doc(context.submissionId) : null;
@@ -153,14 +174,15 @@ export function createLivCostLedger(now: () => Date = () => new Date(), bucket: 
           calls: writer.calls + 1, unknownCalls: writer.unknownCalls + 1, updatedAt: date.toISOString() });
         if (submissionRef) tx.update(submissionRef, { packageReservedDkkMicros: submission!.packageReservedDkkMicros + amount });
         if (pilot) tx.set(pilotRef, { ...pilot, reservedDkkMicros: pilot.reservedDkkMicros + amount });
-        tx.set(runRef, { calls: run.calls + 1, updatedAt: date.toISOString() });
+        tx.set(runRef, { calls: run.calls + 1, updatedAt: date.toISOString(), ...(translation ? { callId, month } : {}) });
         tx.set(monthRef, { ...totals, reservedDkkMicros: totals.reservedDkkMicros + amount, calls: totals.calls + 1,
           unknownCalls: totals.unknownCalls + 1, trackingStartedAt: totals.trackingStartedAt || date.toISOString(), updatedAt: date.toISOString() });
         return reservation;
       });
     },
     async complete(reservation, outcome) {
-      if ((reservation.scope === 'image-gen') !== (bucket === 'image-gen')) throw new Error('liv_cost_ledger_bucket_mismatch');
+      if ((reservation.scope === 'image-gen') !== (bucket === 'image-gen') ||
+          (reservation.scope === 'article-translation') !== translation) throw new Error('liv_cost_ledger_bucket_mismatch');
       const database = db(), collection = database.collection(collectionName);
       const callRef = collection.doc(`call-${reservation.callId}`), monthRef = collection.doc(`month-${reservation.month}`);
       await database.runTransaction(async tx => {

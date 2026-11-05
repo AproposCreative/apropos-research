@@ -4,7 +4,7 @@ import { LivCostPretransportError } from './cost-errors';
 
 export type SharedCostScope = 'writer' | 'seo' | 'accreditation' | 'image-gen';
 export type CostPurpose = 'production' | 'editorial-change' | 'development-pilot';
-export type LivCostContext = { runId: string; stage: string; scope?: SharedCostScope; blocked?: boolean;
+export type LivCostContext = { runId: string; stage: string; scope?: SharedCostScope | 'article-translation'; blocked?: boolean;
   purpose?: CostPurpose; storyId?: string; contentVersion?: string; submissionId?: string };
 const storage = new AsyncLocalStorage<LivCostContext>();
 export const LIV_COST_HEADER = 'x-liv-cost-context';
@@ -21,7 +21,7 @@ export function withLivCostContext<T>(context: Omit<LivCostContext, 'blocked'>, 
       storyId: parent.storyId, purpose: parent.purpose };
   }
   if (!valid(context.runId) || !valid(context.stage) ||
-    (context.scope !== undefined && !['writer', 'seo', 'accreditation', 'image-gen'].includes(context.scope)) ||
+    (context.scope !== undefined && !['writer', 'seo', 'accreditation', 'image-gen', 'article-translation'].includes(context.scope)) ||
     (context.purpose !== undefined && !['production', 'editorial-change', 'development-pilot'].includes(context.purpose)) ||
     (context.storyId !== undefined && !valid(context.storyId)) ||
     (context.submissionId !== undefined && !/^[a-f0-9]{64}$/.test(context.submissionId)) ||
@@ -70,7 +70,7 @@ function equal(a: string, b: string) {
 export function livCostHeaders(path: string, now = Date.now()): Record<string, string> {
   const context = storage.getStore();
   if (!context) return {};
-  if (context.blocked || !/^\/api\/[a-z0-9/-]+$/i.test(path)) throw new Error('liv_cost_context_blocked');
+  if (context.blocked || context.scope === 'article-translation' || !/^\/api\/[a-z0-9/-]+$/i.test(path)) throw new Error('liv_cost_context_blocked');
   const payload = Buffer.from(JSON.stringify({ v: 1, runId: context.runId, ...(context.scope ? { scope: context.scope } : {}),
     ...(context.purpose ? { purpose: context.purpose } : {}), ...(context.storyId ? { storyId: context.storyId } : {}),
     ...(context.contentVersion ? { contentVersion: context.contentVersion } : {}),
@@ -94,6 +94,7 @@ export function withLivCostRequest<T>(request: { url: string; headers: Headers }
   try { data = JSON.parse(Buffer.from(payload, 'base64url').toString('utf8')); }
   catch { throw new Error('liv_cost_context_invalid'); }
   if (!data || data.v !== 1 || typeof data.runId !== 'string' || data.path !== new URL(request.url).pathname ||
+    (data.scope !== undefined && !['writer', 'seo', 'accreditation', 'image-gen'].includes(data.scope)) ||
     typeof data.issuedAt !== 'number' || typeof data.expiresAt !== 'number' || !Number.isSafeInteger(data.issuedAt) ||
     !Number.isSafeInteger(data.expiresAt) || data.issuedAt > now || data.expiresAt <= now ||
     data.expiresAt - data.issuedAt !== 300_000) throw new Error('liv_cost_context_invalid');

@@ -1,14 +1,16 @@
 import { FieldValue } from 'firebase-admin/firestore';
-import { readManualWriterBudget } from '@/lib/ai/manual-writer-budget';
 import { articleVisibleText, assertEnglishProse, isDanishArticleCopy, richTextStructure } from '@/lib/articles/english-language';
 import { computeTranslationSourceHash } from '@/lib/articles/translation-source-hash';
 import { buildEnglishFieldData, translateArticleToEnglish } from '@/lib/articles/translate-to-english';
 import { getAdminDb } from '@/lib/firebase-admin';
 import { cmsFieldHash } from '@/lib/liv/cms-field-hash';
 import { logger } from '@/lib/logger';
-import { getOpenAIClient } from '@/lib/openai';
+import { withLivCostContext } from '@/lib/liv/cost-context';
+import { getLivCostPretransportError } from '@/lib/liv/cost-errors';
+import { getArticleTranslationOpenAIClient } from '@/lib/openai';
 import { acquireCmsWriteLease } from '@/lib/seo-engine/cms-write-lease';
 import { readArticleLocale } from './english-article-guard';
+import { resolveAutoTranslateEnabled } from './article-translation-settings';
 import { createEnglishArticleVariant, patchArticleFieldDataForLocale, publishArticleItemForLocale, resolveWebflowLocaleIds, type WebflowLocaleItem } from './locale-items';
 
 export type ArticleTranslationResult = {
@@ -28,10 +30,13 @@ function snapshot(item: WebflowLocaleItem | null) {
 
 function matchesTranslation(actual: WebflowLocaleItem | null, expected: Record<string, unknown>) {
   if (!actual) return false;
-  return ENGLISH_FIELDS.filter(key => Object.hasOwn(expected, key)).every(key => {
+  return Object.keys(expected).every(key => {
     const value = expected[key];
     const observed = actual.fieldData[key];
     if (value === observed) return true;
+    if (value && observed && typeof value === 'object' && typeof observed === 'object') {
+      return cmsFieldHash({ value }) === cmsFieldHash({ value: observed });
+    }
     return key === 'content' && typeof value === 'string' && typeof observed === 'string' &&
       articleVisibleText(value) === articleVisibleText(observed) && richTextStructure(value) === richTextStructure(observed);
   });
@@ -61,6 +66,8 @@ export async function runArticleTranslation(
     return { itemId, skipped: true, reason, ...(sourceHash ? { sourceHash } : {}) };
   };
 
+  if (!await resolveAutoTranslateEnabled()) return await skip('Automatisk oversættelse er slået fra.');
+
   const lease = await acquireCmsWriteLease(itemId, 'en').catch(error => {
     if (error?.code === 'write_busy') return null;
     throw error;
@@ -80,8 +87,9 @@ export async function runArticleTranslation(
     if (previous?.inProgress && Number.isFinite(lastUpdate) && Date.now() - lastUpdate < 300_000) {
       return await skip('Oversættelse allerede i gang.', sourceHash);
     }
-    if (live && snapshot(target) !== snapshot(live)) return await skip('Der ligger en separat engelsk kladde.', sourceHash);
-    if (!options.force) {
+    const saved = previous?.pending?.sourceHash === sourceHash ? previous.pending : null;
+    if (!saved) {
+      if (live && snapshot(target) !== snapshot(live)) return await skip('Der ligger en separat engelsk kladde.', sourceHash);
       const targetHash = live ? computeTranslationSourceHash(live.fieldData) : null;
       if (targetHash && targetHash === previous?.targetHash && previous?.sourceHash === sourceHash) {
         return await skip('Den verificerede engelske version er allerede aktuel.', sourceHash);
@@ -94,43 +102,73 @@ export async function runArticleTranslation(
         return await skip('Et tidligere forsøg på samme version kræver kontrol.', sourceHash);
       }
     }
-    if (await readManualWriterBudget()) return await skip('Betalt automatisk oversættelse er ikke aktiveret under Writer-politikken.', sourceHash);
-    const openai = getOpenAIClient();
-    if (!openai) throw new Error('Oversættelsestjenesten er ikke konfigureret.');
-    await state({ inProgress: true, attemptedSourceHash: sourceHash });
-    running = true;
-
-    const translated = await translateArticleToEnglish(openai, fields);
-    const complete = buildEnglishFieldData(fields, translated);
-    const patch = target ? Object.fromEntries(ENGLISH_FIELDS.filter(key => key !== 'slug' && Object.hasOwn(complete, key))
-      .map(key => [key, complete[key]])) : complete;
+    let pending: { sourceHash: string; targetSnapshot: string | null; uneditedHash: string | null; patch: Record<string, unknown> };
+    if (saved) {
+      pending = { ...saved, patch: JSON.parse(saved.patchJson) };
+    } else {
+      const openai = getArticleTranslationOpenAIClient();
+      if (!openai) throw new Error('Oversættelsestjenesten er ikke konfigureret.');
+      await state({ inProgress: true });
+      running = true;
+      const translated = await withLivCostContext({ runId: `${itemId}-${sourceHash}`, stage: 'article-translation',
+        scope: 'article-translation', storyId: itemId, contentVersion: sourceHash }, () => translateArticleToEnglish(openai, fields));
+      const complete = buildEnglishFieldData(fields, translated);
+      const patch = target ? Object.fromEntries(ENGLISH_FIELDS.filter(key => key !== 'slug' && Object.hasOwn(complete, key))
+        .map(key => [key, complete[key]])) : complete;
+      assertEnglishProse(fields, patch);
+      pending = { sourceHash, targetSnapshot: snapshot(target), uneditedHash: target ? uneditedFields(target, patch) : null, patch };
+      // Commit the validated output before writing to Webflow. A redelivery can
+      // reconcile an interrupted write with this output without a new model call.
+      await state({ pending: { sourceHash, targetSnapshot: pending.targetSnapshot, uneditedHash: pending.uneditedHash,
+        patchJson: JSON.stringify(patch) } });
+    }
+    const { patch } = pending;
     assertEnglishProse(fields, patch);
     const [sourceNow, targetNow] = await Promise.all([readArticleLocale(itemId, dk, true), readArticleLocale(itemId, en, false)]);
-    if (!sourceNow || computeTranslationSourceHash(sourceNow.fieldData) !== sourceHash || snapshot(targetNow) !== snapshot(target)) {
+    if (!sourceNow || computeTranslationSourceHash(sourceNow.fieldData) !== sourceHash) {
       throw new Error('Artiklen blev ændret under oversættelsen.');
     }
-    await lease.assertOwned();
-    if (target) await patchArticleFieldDataForLocale(itemId, patch, en);
-    else await createEnglishArticleVariant(itemId, patch);
+    const matchesStaged = (item: WebflowLocaleItem | null) => !!item && matchesTranslation(item, patch) &&
+      (pending.uneditedHash === null || uneditedFields(item, patch) === pending.uneditedHash);
+    if (!matchesStaged(targetNow)) {
+      if (snapshot(targetNow) !== pending.targetSnapshot) throw new Error('Den engelske kladde blev ændret under oversættelsen.');
+      await lease.assertOwned();
+      if (targetNow) await patchArticleFieldDataForLocale(itemId, patch, en);
+      else await createEnglishArticleVariant(itemId, patch);
+    }
 
     const [sourceBeforePublish, staged] = await Promise.all([readArticleLocale(itemId, dk, true), readArticleLocale(itemId, en, false)]);
     if (!sourceBeforePublish || computeTranslationSourceHash(sourceBeforePublish.fieldData) !== sourceHash ||
-        !staged || !matchesTranslation(staged, patch) ||
-        (target && uneditedFields(staged, patch) !== uneditedFields(target, patch))) {
+        !matchesStaged(staged)) {
       throw new Error('Den engelske kladde matchede ikke den kontrollerede oversættelse.');
     }
-    await lease.assertOwned();
-    await publishArticleItemForLocale(itemId, en);
-    const published = await readArticleLocale(itemId, en, true);
+    let published = await readArticleLocale(itemId, en, true);
+    if (!matchesTranslation(published, patch)) {
+      await lease.assertOwned();
+      try {
+        await publishArticleItemForLocale(itemId, en);
+      } catch (error) {
+        published = await readArticleLocale(itemId, en, true);
+        if (!matchesTranslation(published, patch)) throw error;
+      }
+      for (const delay of [0, 750, 2000]) {
+        if (delay) await new Promise(resolve => setTimeout(resolve, delay));
+        published = await readArticleLocale(itemId, en, true);
+        if (matchesTranslation(published, patch)) break;
+      }
+    }
     if (!published || !matchesTranslation(published, patch)) throw new Error('Den engelske publicering kunne ikke bekræftes.');
     assertEnglishProse(fields, published.fieldData);
 
     const durationMs = Date.now() - started;
     await state({ sourceHash, targetHash: computeTranslationSourceHash(published.fieldData), lastTranslatedAt: FieldValue.serverTimestamp(),
-      enName: translated.name, enSlug: published.fieldData.slug, lastError: null });
-    await record({ status: 'ok', sourceHash, enName: translated.name, durationMs });
-    return { itemId, skipped: false, sourceHash, enName: translated.name, durationMs };
+      enName: patch.name, enSlug: published.fieldData.slug, lastError: null, pending: FieldValue.delete() });
+    const enName = String(patch.name);
+    await record({ status: 'ok', sourceHash, enName, durationMs });
+    return { itemId, skipped: false, sourceHash, enName, durationMs };
   } catch (error) {
+    const denial = getLivCostPretransportError(error);
+    if (denial) return await skip(denial.code);
     const message = error instanceof Error ? error.message : String(error);
     await state({ lastError: message });
     await record({ status: 'error', error: message });

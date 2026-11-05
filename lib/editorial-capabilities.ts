@@ -24,6 +24,7 @@ export function canOpenEditorialApp(app: string, capabilities: EditorialCapabili
 export function requiresEditorialOwner(path: string, method: string): boolean {
   if (path === '/api/ai-cost/writer') return !['GET', 'HEAD'].includes(method);
   if (path === '/api/webflow/article-translation/status') return !['GET', 'HEAD'].includes(method);
+  if (path === '/api/webflow/article-translation/run') return true;
   const trees = ['/api/seo', '/api/seo-engine', '/api/podcast', '/api/newsletter', '/api/image-gen',
     '/api/liv-inbox', '/api/accreditation', '/api/editorial/mail', '/api/editorial/accreditation', '/api/push', '/api/push-desk', '/api/admin', '/api/editorial/operations',
     '/api/ai-cost', '/api/editorial/desk', '/api/editorial/tips/select', '/api/webflow/config', '/api/instagram/config',

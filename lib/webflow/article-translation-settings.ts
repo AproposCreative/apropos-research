@@ -1,26 +1,14 @@
-/**
- * Runtime-indstilling for auto-oversættelse (Firestore override af env).
- */
-
 import { FieldValue } from 'firebase-admin/firestore';
 import { env } from '@/lib/config/env';
 import { getAdminDb } from '@/lib/firebase-admin';
 
-const SETTINGS_DOC = 'articleTranslation';
+export const articleTranslationSettingsRef = (db: NonNullable<ReturnType<typeof getAdminDb>>) =>
+  db.collection('appSettings').doc('articleTranslation');
 
 export async function resolveAutoTranslateEnabled(): Promise<boolean> {
   const db = getAdminDb();
-  if (db) {
-    try {
-      const snap = await db.collection('appSettings').doc(SETTINGS_DOC).get();
-      if (snap.exists && typeof snap.data()?.autoTranslateEn === 'boolean') {
-        return snap.data()!.autoTranslateEn;
-      }
-    } catch {
-      /* fallback til env */
-    }
-  }
-  return env.WEBFLOW_AUTO_TRANSLATE_EN === 'true';
+  if (!db) throw new Error('Oversættelsesindstillingen kunne ikke læses.');
+  return (await articleTranslationSettingsRef(db).get()).data()?.autoTranslateEn === true;
 }
 
 export async function setAutoTranslateEnabled(enabled: boolean): Promise<void> {
@@ -28,7 +16,7 @@ export async function setAutoTranslateEnabled(enabled: boolean): Promise<void> {
   if (!db) {
     throw new Error('Firestore er ikke tilgængelig — kan ikke gemme indstilling.');
   }
-  await db.collection('appSettings').doc(SETTINGS_DOC).set(
+  await articleTranslationSettingsRef(db).set(
     {
       autoTranslateEn: enabled,
       updatedAt: FieldValue.serverTimestamp(),
