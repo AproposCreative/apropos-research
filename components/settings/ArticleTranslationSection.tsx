@@ -31,7 +31,10 @@ function statusLabel(status: string): string {
   return status;
 }
 
-function ResultsTable({ rows }: { rows: Array<Record<string, unknown>> }) {
+function ResultsTable({ rows, translate }: {
+  rows: Array<Record<string, unknown>>;
+  translate?: (id: string) => void;
+}) {
   if (rows.length === 0) return null;
   return (
     <div className="rounded-xl border border-white/10 overflow-hidden max-h-52 overflow-y-auto nice-scrollbar">
@@ -54,7 +57,15 @@ function ResultsTable({ rows }: { rows: Array<Record<string, unknown>> }) {
             return (
               <tr key={id} className="border-t border-white/[0.06]">
                 <td className="px-2.5 py-1.5 text-white/80 font-medium truncate max-w-[180px]">{title}</td>
-                <td className="px-2.5 py-1.5 text-white/50">{status}</td>
+                <td className="px-2.5 py-1.5 text-white/50">
+                  {status}
+                  {translate && row.status === 'ready' && typeof row.id === 'string' && (
+                    <button type="button" className={`${secondaryBtn} ml-2`} onClick={() => translate(id)}>Oversæt</button>
+                  )}
+                  {typeof row.enSlug === 'string' && /^[a-z0-9-]+$/.test(row.enSlug) && (
+                    <a className="ml-2 underline" href={`https://www.aproposmagazine.com/en/articles/${row.enSlug}`} target="_blank" rel="noreferrer">Se engelsk artikel</a>
+                  )}
+                </td>
               </tr>
             );
           })}
@@ -81,7 +92,7 @@ function AutoTranslateToggle({
       <div className="min-w-0 text-left">
         <p className="text-[12px] font-medium text-white/80">Auto-oversættelse</p>
         <p className="text-[10px] text-white/30 truncate">
-          {loading ? 'Tjekker…' : saving ? 'Gemmer…' : enabled ? 'Slået til ved DK-publish' : 'Slået fra'}
+          {loading ? 'Tjekker…' : saving ? 'Gemmer…' : enabled ? 'Slået til ved dansk udgivelse' : 'Slået fra'}
         </p>
       </div>
       <div className="touch-target flex shrink-0 items-center justify-center">
@@ -109,7 +120,7 @@ function AutoTranslateToggle({
 
 export default function ArticleTranslationSection({ variant = 'panel' }: { variant?: 'panel' | 'page' }) {
   const resultsRef = useRef<HTMLDivElement>(null);
-  const [autoEnabled, setAutoEnabled] = useState(true);
+  const [autoEnabled, setAutoEnabled] = useState(false);
   const [autoLoading, setAutoLoading] = useState(true);
   const [autoSaving, setAutoSaving] = useState(false);
 
@@ -118,6 +129,7 @@ export default function ArticleTranslationSection({ variant = 'panel' }: { varia
   const [result, setResult] = useState<ApiResult | null>(null);
   const [error, setError] = useState<string | null>(null);
   const [mode, setMode] = useState<'preview' | 'run' | null>(null);
+  const [singleId, setSingleId] = useState<string | null>(null);
 
   const scrollToResults = useCallback(() => {
     requestAnimationFrame(() => {
@@ -135,7 +147,7 @@ export default function ArticleTranslationSection({ variant = 'panel' }: { varia
           setAutoEnabled(!!data.enabled);
         }
       } catch {
-        if (!cancelled) setAutoEnabled(true);
+        if (!cancelled) setError('Oversættelsesstatus kunne ikke læses.');
       } finally {
         if (!cancelled) setAutoLoading(false);
       }
@@ -205,7 +217,23 @@ export default function ArticleTranslationSection({ variant = 'panel' }: { varia
     }
   };
 
-  const busy = previewLoading || runLoading;
+  const translate = async (itemId: string) => {
+    setSingleId(itemId);
+    setError(null);
+    try {
+      const response = await callApi('/api/internal/translate-article', { itemId, source: 'settings-single' });
+      const receipt = response.data as { skipped?: boolean; reason?: string; enSlug?: string } | undefined;
+      if (!receipt) throw new Error('Oversættelsen returnerede ingen kvittering.');
+      setResult(old => old && { ...old, results: (old.results as Array<Record<string, unknown>>).map(row =>
+        row.id === itemId ? { ...row, ...receipt, status: receipt.skipped ? 'Sprunget over' : 'Oversat' } : row) });
+    } catch (e) {
+      setError(e instanceof Error ? e.message : String(e));
+    } finally {
+      setSingleId(null);
+    }
+  };
+
+  const busy = previewLoading || runLoading || singleId !== null;
   const rows = (result?.results || result?.candidates || []) as Array<Record<string, unknown>>;
   const processed = Number(result?.processed ?? 0);
   const succeeded = Number(result?.succeeded ?? 0);
@@ -249,7 +277,7 @@ export default function ArticleTranslationSection({ variant = 'panel' }: { varia
         </div>
         <p className="text-[10px] text-white/35 leading-snug">
           Oversætter titel, intro, brødtekst, SEO m.m. i Apropos EN-stemme. Kør behandler op til 3 artikler ad gangen.
-          Artikler der mangler engelsk locale i Webflow kan ikke oversættes via API — tilføj EN i Designer først.
+          Oversættelse har et særskilt loft på 5 kr. om måneden og højst ét betalt forsøg pr. artikelversion.
         </p>
         {error ? <p className="text-red-400/95 text-[11px]">{error}</p> : null}
         {result ? (
@@ -274,7 +302,7 @@ export default function ArticleTranslationSection({ variant = 'panel' }: { varia
                 value={String(result.skipNoEn ?? '—')}
               />
             </div>
-            <ResultsTable rows={rows} />
+            <ResultsTable rows={rows} translate={autoEnabled && !busy && mode === 'preview' ? id => void translate(id) : undefined} />
           </div>
         ) : null}
       </div>

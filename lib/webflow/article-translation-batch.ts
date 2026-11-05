@@ -122,7 +122,7 @@ async function buildCandidates(options: { force?: boolean }): Promise<Translatio
   const stateMap = await getTranslationStateMap(items.map((i) => i.id));
   const candidates: TranslationCandidate[] = [];
 
-  for (const item of items) {
+  for (const item of items.sort((a, b) => (b.lastPublished || '').localeCompare(a.lastPublished || ''))) {
     const fd = item.fieldData;
     const title =
       typeof fd.name === 'string' && fd.name.trim() ? fd.name.trim() : item.id;

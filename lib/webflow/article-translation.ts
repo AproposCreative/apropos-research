@@ -19,6 +19,7 @@ export type ArticleTranslationResult = {
   reason?: string;
   sourceHash?: string;
   enName?: string;
+  enSlug?: string;
   durationMs?: number;
 };
 
@@ -165,7 +166,7 @@ export async function runArticleTranslation(
       enName: patch.name, enSlug: published.fieldData.slug, lastError: null, pending: FieldValue.delete() });
     const enName = String(patch.name);
     await record({ status: 'ok', sourceHash, enName, durationMs });
-    return { itemId, skipped: false, sourceHash, enName, durationMs };
+    return { itemId, skipped: false, sourceHash, enName, enSlug: String(published.fieldData.slug), durationMs };
   } catch (error) {
     const denial = getLivCostPretransportError(error);
     if (denial) return await skip(denial.code);
