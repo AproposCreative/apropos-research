@@ -16,6 +16,7 @@ import { createEnglishArticleVariant, patchArticleFieldDataForLocale, publishArt
 export type ArticleTranslationResult = {
   itemId: string;
   skipped: boolean;
+  retryable?: boolean;
   reason?: string;
   sourceHash?: string;
   enName?: string;
@@ -62,9 +63,9 @@ export async function runArticleTranslation(
   const jobs = db.collection('articleTranslationJobs');
   const record = (fields: Record<string, unknown>) => jobs.add({ itemId, source, ...fields, createdAt: FieldValue.serverTimestamp() }).catch(() => {});
   const state = (fields: Record<string, unknown>) => ref.set({ ...fields, updatedAt: FieldValue.serverTimestamp() }, { merge: true });
-  const skip = async (reason: string, sourceHash?: string) => {
+  const skip = async (reason: string, sourceHash?: string, retryable = false) => {
     await record({ status: 'skipped', reason, ...(sourceHash ? { sourceHash } : {}) });
-    return { itemId, skipped: true, reason, ...(sourceHash ? { sourceHash } : {}) };
+    return { itemId, skipped: true, reason, ...(retryable ? { retryable } : {}), ...(sourceHash ? { sourceHash } : {}) };
   };
 
   if (!await resolveAutoTranslateEnabled()) return await skip('Automatisk oversættelse er slået fra.');
@@ -73,7 +74,7 @@ export async function runArticleTranslation(
     if (error?.code === 'write_busy') return null;
     throw error;
   });
-  if (!lease) return { itemId, skipped: true, reason: 'Den engelske version behandles allerede.' };
+  if (!lease) return { itemId, skipped: true, retryable: true, reason: 'Den engelske version behandles allerede.' };
 
   let running = false;
   try {
@@ -81,12 +82,12 @@ export async function runArticleTranslation(
       readArticleLocale(itemId, dk, true), readArticleLocale(itemId, en, false),
       readArticleLocale(itemId, en, true), ref.get().then(snap => snap.data()),
     ]);
-    if (!original) return await skip('Den danske artikel er ikke publiceret.');
+    if (!original) return await skip('Den danske artikel er ikke publiceret.', undefined, true);
     const fields = original.fieldData;
     const sourceHash = computeTranslationSourceHash(fields);
     const lastUpdate = previous?.updatedAt?.toMillis?.();
     if (previous?.inProgress && Number.isFinite(lastUpdate) && Date.now() - lastUpdate < 300_000) {
-      return await skip('Oversættelse allerede i gang.', sourceHash);
+      return await skip('Oversættelse allerede i gang.', sourceHash, true);
     }
     const saved = previous?.pending?.sourceHash === sourceHash ? previous.pending : null;
     if (!saved) {
@@ -162,10 +163,16 @@ export async function runArticleTranslation(
     assertEnglishProse(fields, published.fieldData);
 
     const durationMs = Date.now() - started;
-    await state({ sourceHash, targetHash: computeTranslationSourceHash(published.fieldData), lastTranslatedAt: FieldValue.serverTimestamp(),
-      enName: patch.name, enSlug: published.fieldData.slug, lastError: null, pending: FieldValue.delete() });
     const enName = String(patch.name);
-    await record({ status: 'ok', sourceHash, enName, durationMs });
+    // Keep the publication receipt and the removal of the recovery data atomic.
+    const completion = db.batch();
+    completion.set(ref, {
+      sourceHash, targetHash: computeTranslationSourceHash(published.fieldData),
+      lastTranslatedAt: FieldValue.serverTimestamp(), updatedAt: FieldValue.serverTimestamp(),
+      enName, enSlug: published.fieldData.slug, lastError: null, pending: FieldValue.delete(),
+    }, { merge: true });
+    completion.set(jobs.doc(), { itemId, source, status: 'ok', sourceHash, enName, durationMs, createdAt: FieldValue.serverTimestamp() });
+    await completion.commit();
     return { itemId, skipped: false, sourceHash, enName, enSlug: String(published.fieldData.slug), durationMs };
   } catch (error) {
     const denial = getLivCostPretransportError(error);

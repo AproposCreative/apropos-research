@@ -5,6 +5,10 @@
   "installCommand": "npm ci --ignore-scripts",
   "crons": [
     {
+      "path": "/api/cron/article-translation",
+      "schedule": "*/5 * * * *"
+    },
+    {
       "path": "/api/cron/social-stories",
       "schedule": "* * * * *"
     },

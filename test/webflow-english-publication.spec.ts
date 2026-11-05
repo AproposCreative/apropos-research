@@ -6,6 +6,7 @@ import { WebflowLocaleFetchError } from '@/lib/webflow/locale-items';
 import { currentLivCostContext } from '@/lib/liv/cost-context';
 import { NextRequest } from 'next/server';
 import { POST as receiveWebflowPublish } from '@/app/api/webhooks/webflow/route';
+import { GET as recoverTranslations } from '@/app/api/cron/article-translation/route';
 
 const id = 'a'.repeat(24);
 const dk = 'b'.repeat(24);
@@ -24,7 +25,7 @@ const item = (fields: Record<string, unknown>, cmsLocaleId: string, live = true)
 const setup = vi.hoisted(() => ({
   read: vi.fn(), unpublish: vi.fn(), create: vi.fn(), patch: vi.fn(), publish: vi.fn(), reserve: vi.fn(), release: vi.fn(),
   translate: vi.fn(), client: vi.fn(), setState: vi.fn(), readState: vi.fn(), logJob: vi.fn(), enabled: vi.fn(),
-  after: vi.fn(),
+  after: vi.fn(), saveQueued: vi.fn(),
 }));
 vi.mock('next/server', async importOriginal => ({ ...await importOriginal<typeof import('next/server')>(), after: setup.after }));
 vi.mock('@/lib/config/env', () => ({ env: { WEBFLOW_API_TOKEN: 'fixture' } }));
@@ -46,19 +47,73 @@ vi.mock('@/lib/seo-engine/cms-write-lease', () => ({
 }));
 vi.mock('@/lib/webflow/article-translation-settings', () => ({ resolveAutoTranslateEnabled: setup.enabled }));
 vi.mock('@/lib/openai', () => ({ getArticleTranslationOpenAIClient: setup.client }));
-vi.mock('@/lib/firebase-admin', () => ({ getAdminDb: () => ({ collection: (name: string) => name === 'articleTranslationJobs' ? { add: setup.logJob } : {
-  doc: () => ({ get: async () => ({ data: setup.readState }), set: setup.setState }),
-} }) }));
+type FixtureRow = Record<string, unknown>;
+type QueueRef = { id: string };
+const queued = new Map<string, FixtureRow>();
+vi.mock('@/lib/firebase-admin', () => ({
+  getAdminDb: () => {
+    const state = { get: async () => ({ data: setup.readState }), set: setup.setState };
+    const receipt = { set: setup.logJob };
+    const makeQueueRef = (jobId: string) => ({
+      id: jobId,
+      create: async (value: FixtureRow) => {
+        await setup.saveQueued();
+        if (queued.has(jobId)) throw Object.assign(new Error('Already exists'), { code: 6 });
+        queued.set(jobId, value);
+      },
+      firestore: {
+        runTransaction: async (callback: (tx: {
+          get: (ref: QueueRef) => Promise<{ data: () => FixtureRow | undefined }>;
+          update: (ref: QueueRef, patch: FixtureRow) => void;
+        }) => Promise<unknown>) => callback({
+          get: async ref => ({ data: () => queued.get(ref.id) }),
+          update: (ref, patch) => { queued.set(ref.id, { ...queued.get(ref.id), ...patch }); },
+        }),
+      },
+    });
+    return {
+      collection: (name: string) => {
+        if (name === 'articleTranslationJobs') return { add: setup.logJob, doc: () => receipt };
+        if (name === 'articleTranslationQueue') return {
+          doc: makeQueueRef,
+          where: (_key: string, _op: string, due: number) => ({ orderBy: () => ({ limit: () => ({
+            get: async () => {
+              const docs = [...queued.entries()].filter(([, row]) => typeof row.dueAt === 'number' && row.dueAt <= due)
+                .map(([id]) => ({ id, ref: makeQueueRef(id) }));
+              return { docs, size: docs.length };
+            },
+          }) }) }),
+        };
+        return { doc: () => state };
+      },
+      batch: () => {
+        const writes: Array<() => unknown> = [];
+        return {
+          set: (ref: typeof state | typeof receipt, fields: FixtureRow, options?: object) => {
+            writes.push(() => ref.set(fields, ...(options ? [options] : [])));
+          },
+          commit: async () => Promise.all(writes.map(write => write())),
+        };
+      },
+    };
+  },
+}));
 vi.mock('@/lib/articles/translate-to-english', () => ({
   translateArticleToEnglish: setup.translate, buildEnglishFieldData: (_input: object, result: Record<string, unknown>) => result,
 }));
 
 beforeEach(() => {
   vi.resetAllMocks();
+  queued.clear();
   setup.logJob.mockResolvedValue(undefined);
   setup.enabled.mockResolvedValue(true);
   setup.client.mockReturnValue({});
   setup.translate.mockResolvedValue(english);
+});
+
+const publishDelivery = (cmsLocaleId = dk) => new NextRequest('https://test.example/api/webhooks/webflow', {
+  method: 'POST', headers: { 'x-webflow-webhook-secret': 'fixture', 'x-webflow-timestamp': 'fixture-delivery' },
+  body: JSON.stringify({ triggerType: 'collection_item_published', payload: { id, cmsLocaleId } }),
 });
 
 it('detects the same Danish prose even when Webflow changed the image file', () => {
@@ -113,16 +168,12 @@ it('translates a Danish publish webhook, confirms live EN and ignores the result
   setup.publish.mockImplementation(async () => { live = true; });
   vi.stubEnv('WEBFLOW_WEBHOOK_SECRET', 'fixture');
   try {
-    const delivery = (cmsLocaleId: string) => new NextRequest('https://test.example/api/webhooks/webflow', {
-      method: 'POST', headers: { 'x-webflow-webhook-secret': 'fixture' },
-      body: JSON.stringify({ triggerType: 'collection_item_published', payload: { id, cmsLocaleId } }),
-    });
-    const result = await receiveWebflowPublish(delivery(dk));
+    const result = await receiveWebflowPublish(publishDelivery());
     expect(await result.json()).toMatchObject({ ok: true, translationQueued: [id] });
     expect(setup.after).toHaveBeenCalledOnce();
     await setup.after.mock.calls[0][0]();
     expect(setup.logJob).toHaveBeenCalledWith(expect.objectContaining({ status: 'ok', enName: 'Example', source: 'webhook:collection_item_published' }));
-    const englishResult = await receiveWebflowPublish(delivery(en));
+    const englishResult = await receiveWebflowPublish(publishDelivery(en));
     expect(await englishResult.json()).toMatchObject({ ok: true, translationQueued: [] });
     expect(setup.after).toHaveBeenCalledOnce();
   } finally {
@@ -131,6 +182,56 @@ it('translates a Danish publish webhook, confirms live EN and ignores the result
   expect(setup.create).toHaveBeenCalledExactlyOnceWith(id, english);
   expect(setup.publish).toHaveBeenCalledExactlyOnceWith(id, en);
   expect(setup.setState).toHaveBeenCalledWith(expect.objectContaining({ targetHash: expect.any(String) }), { merge: true });
+});
+
+it('recovers a persisted webhook after its background execution never starts and retries a CMS timeout without buying a second translation', async () => {
+  const clock = vi.spyOn(Date, 'now').mockReturnValue(Date.parse(stamp));
+  vi.stubEnv('WEBFLOW_WEBHOOK_SECRET', 'fixture');
+  vi.stubEnv('CRON_SECRET', 'cron-fixture');
+  const tick = () => recoverTranslations(new NextRequest('https://test.example/api/cron/article-translation', {
+    headers: { authorization: 'Bearer cron-fixture' },
+  }));
+  try {
+    let staged = false;
+    let live = false;
+    const saved: FixtureRow = {};
+    setup.readState.mockReturnValue(saved);
+    setup.setState.mockImplementation(async patch => Object.assign(saved, patch));
+    setup.read.mockImplementation(async (_id, locale, options) => locale === dk ? item(danish, dk) :
+      options.live ? (live ? item(english, en) : absent()) : (staged ? item(english, en, live) : absent()));
+    setup.create.mockImplementation(async () => { staged = true; });
+    setup.publish.mockRejectedValueOnce(new Error('Webflow unavailable')).mockImplementationOnce(async () => { live = true; });
+
+    expect((await receiveWebflowPublish(publishDelivery())).status).toBe(200);
+    expect((await receiveWebflowPublish(publishDelivery())).status).toBe(200);
+    expect(queued.size).toBe(1);
+    expect(setup.translate).not.toHaveBeenCalled();
+    expect(await (await tick()).json()).toMatchObject({ considered: 1 });
+    expect(await (await tick()).json()).toMatchObject({ considered: 0 });
+    clock.mockReturnValue(Date.parse(stamp) + 5 * 60_000);
+    expect(await (await tick()).json()).toMatchObject({ considered: 1 });
+    expect(await (await tick()).json()).toMatchObject({ considered: 0 });
+    expect(setup.translate).toHaveBeenCalledOnce();
+    expect(setup.create).toHaveBeenCalledOnce();
+    expect(setup.logJob).toHaveBeenCalledWith(expect.objectContaining({ status: 'ok', source: 'webhook:collection_item_published' }));
+  } finally {
+    clock.mockRestore();
+    vi.unstubAllEnvs();
+  }
+});
+
+it('asks Webflow to redeliver when the job could not be saved', async () => {
+  vi.stubEnv('WEBFLOW_WEBHOOK_SECRET', 'fixture');
+  setup.read.mockImplementation(async (_id, locale) => locale === dk ? item(danish, dk) : absent());
+  setup.saveQueued.mockRejectedValueOnce(new Error('Firestore unavailable'));
+  try {
+    const response = await receiveWebflowPublish(publishDelivery());
+    expect(response.status).toBe(503);
+    expect(await response.json()).toMatchObject({ needsRetry: true, translationQueued: [], translationErrors: [id] });
+    expect(setup.after).not.toHaveBeenCalled();
+  } finally {
+    vi.unstubAllEnvs();
+  }
 });
 
 it('resumes a confirmed English draft after a publish failure without calling the model again', async () => {

@@ -145,6 +145,7 @@ export async function POST(req: NextRequest) {
 
   const results = [];
   const translationQueued: string[] = [];
+  const translationErrors: string[] = [];
   const seoEngineQueued: string[] = [];
   const seoEngineErrors: Array<{ itemId: string; error: string }> = [];
   const imageErrors: Array<{ itemId: string; error: string }> = [];
@@ -186,9 +187,15 @@ export async function POST(req: NextRequest) {
       results.push({ itemId, skipped: true, reason: 'image_opt_off' });
     }
 
-    if (shouldEnqueueTranslation(flags) && !translationQueued.includes(itemId)) {
-      enqueueArticleTranslation(itemId, `webhook:${triggerType}`);
-      translationQueued.push(itemId);
+    if (shouldEnqueueTranslation(flags) && !translationQueued.includes(itemId) && !translationErrors.includes(itemId)) {
+      try {
+        const timestamp = req.headers.get('x-webflow-timestamp');
+        await enqueueArticleTranslation(itemId, timestamp ? `${timestamp}:${rawBody}` : null);
+        translationQueued.push(itemId);
+      } catch {
+        logger.warn('[webhooks/webflow] translation enqueue failed', { itemId });
+        translationErrors.push(itemId);
+      }
     }
 
     // Auto-SEO: prefer the locale that was just published; after-publish still
@@ -222,7 +229,7 @@ export async function POST(req: NextRequest) {
     seoEngineErrors,
     seoEngineQueued,
   });
-  const needsRetry = !!(http.needsRetry || imageErrors.length || localeErrors.length || translation.unavailable);
+  const needsRetry = !!(http.needsRetry || imageErrors.length || localeErrors.length || translationErrors.length || translation.unavailable);
   return NextResponse.json(
     {
       ok: http.ok && !needsRetry,
@@ -230,6 +237,7 @@ export async function POST(req: NextRequest) {
       count: results.length,
       results,
       translationQueued,
+      translationErrors: translationErrors.length ? translationErrors : undefined,
       englishCopiesWithdrawn,
       seoEngineQueued,
       seoEngineErrors: seoEngineErrors.length ? seoEngineErrors : undefined,
