@@ -10,11 +10,12 @@ vi.mock('@/lib/seo-engine/post-publish/google-context', () => ({ readArticleGoog
 vi.mock('@/lib/seo-engine/post-publish/cms', () => ({ readPublishedArticle: m.read, applyPublishedMetadata: m.apply, reconcilePublishedMetadata: m.reconcile }));
 vi.mock('@/lib/seo-engine/post-publish/uniqueness', () => ({ checkLiveMetadataDuplicates: m.duplicates, createMetadataReviewInventory: () => m.reviewDuplicates }));
 vi.mock('@/lib/seo-engine/cms-write-lease', () => ({ acquireCmsWriteLease: async () => ({ assertOwned: async () => {}, release: async () => {} }) }));
-import { claimSeoTasks, getSeoTask, saveSeoReview, applySeoReview, activateChatSeo } from '../../../lib/seo-engine/post-publish/chat';
+import { claimSeoTasks, getSeoTask, saveSeoReview, reviseSeoReview, applySeoReview, activateChatSeo } from '../../../lib/seo-engine/post-publish/chat';
 import { enqueueQualityJob, claimQualityJob } from '../../../lib/seo-engine/post-publish/jobs';
 import { assertLegacySeoProcessor, seoStateId } from '../../../lib/seo-engine/post-publish/processor';
 import { assertPaidAiAllowed } from '../../../lib/ai/no-paid-calls';
 import { reviewKey } from '../../../lib/seo-engine/post-publish/policy';
+import { copenhagenClock } from '../../../lib/liv/delivery-policy';
 const store = memoryFirestore(), itemId = 'a'.repeat(24), uid = 'owner';
 const body = 'Filmen følger en familie i København og skildrer deres hverdag med varme og humor. Anmeldelsen fremhæver især skuespillernes præcise samspil og kritiserer en forudsigelig slutning.';
 const quote = 'Filmen følger en familie i København';
@@ -112,6 +113,35 @@ it('preserves personally approved publication metadata and refuses premature pro
   store.rows.set(stateKey, { publicationPreservedKey: reviewKey(m.current.snapshot) });
   expect((await claimSeoTasks(uid, { requestId: 'preserved-1', articleId: itemId })).tasks).toHaveLength(0);
   await expect(activateChatSeo(uid, { appliedTaskId: 'f'.repeat(64), keptTaskId: 'e'.repeat(64) })).rejects.toThrow('seo_chat_task_not_found');
+});
+
+it('continues a scheduled run past twelve skipped publication candidates without resetting them', async () => {
+  const ids = Array.from({ length: 14 }, (_, index) => (index + 1).toString(16).padStart(24, '0'));
+  const jobs: string[] = [];
+  m.read.mockImplementation(async (id: string) => ({ ...structuredClone(m.current),
+    snapshot: { ...structuredClone(m.current.snapshot), itemId: id } }));
+  for (const [index, id] of ids.entries()) {
+    const snapshot = { ...structuredClone(m.current.snapshot), itemId: id };
+    const result = await enqueueQualityJob({ source: 'webhook', mode: 'publication_quality', snapshot,
+      article: { editorialTitle: 'Familien', body, locale: 'da', metadata: snapshot.metadata } });
+    jobs.push(result.jobId!);
+    store.rows.get(`seoPostPublishJobs/${result.jobId}`).createdAt = `2026-11-05T06:${String(index).padStart(2, '0')}:00Z`;
+    if (index < 13) store.rows.set(`seoPostPublishArticles/${seoStateId(id, 'da')}`, { publicationPreservedKey: reviewKey(snapshot) });
+  }
+  const before = structuredClone(store.rows.get(`seoPostPublishJobs/${jobs[0]}`));
+  const prefix = `apropos-seo-${copenhagenClock().day}-h09`;
+  for (let attempt = 0; attempt < 3; attempt++) {
+    const batch = await claimSeoTasks(uid, { requestId: `${prefix}-b1` });
+    expect(batch.tasks).toHaveLength(0); expect(batch.hasMore).toBe(true);
+  }
+  const second = await claimSeoTasks(uid, { requestId: `${prefix}-b2` });
+  expect(second.tasks.map(task => task.article.itemId)).toEqual([ids[13]]);
+  expect(second.skipped).toHaveLength(1); expect(second.hasMore).toBe(false);
+  expect(m.read).toHaveBeenCalledTimes(14);
+  const replay = await claimSeoTasks(uid, { requestId: `${prefix}-b2` });
+  expect(replay.tasks[0].taskId).toBe(second.tasks[0].taskId); expect(m.read).toHaveBeenCalledTimes(14);
+  expect(store.rows.get(`seoPostPublishJobs/${jobs[0]}`)).toEqual(before);
+  expect(m.apply).not.toHaveBeenCalled(); expect(m.paid).not.toHaveBeenCalled();
 });
 it('closes a stale performance job without inventing missing data or acquiring a model', async () => {
   const job = await enqueueQualityJob({ source: 'performance', manualRequested: true, mode: 'performance', snapshot: m.current.snapshot,
@@ -216,4 +246,174 @@ it('stops a Danish body on EN even if a model approves its metadata proposal', a
   expect(result.status).toBe('needs_editor'); expect(result.reason).toBe('locale_content_mismatch');
   expect(result.publicReceipt).toBeNull(); expect(m.apply).not.toHaveBeenCalled();
   expect(m.current.live.fieldData.content).toBe(`<p>${danish}</p>`);
+});
+
+it.each(['–', '—', '&ndash;', '&#8212;'])('rejects review typography before durably saving a proposal: %s', async dash => {
+  const task = await claim(), input = proposal(task);
+  input.assessments[1].proposedValue = `Filmen følger familien ${dash} med varme og humor.`;
+  await expect(saveSeoReview(uid, input)).rejects.toThrow('seo_review_long_dash_forbidden');
+  expect((await getSeoTask(uid, task.taskId)).proposal).toBeNull();
+  expect(m.apply).not.toHaveBeenCalled();
+});
+
+async function legacyInvalidProposal() {
+  const saved = await saveSeoReview(uid, proposal(await claim()));
+  const row = store.rows.get(`seoPostPublishJobs/${saved.taskId}`);
+  row.chatReview.proposal.assessments[1].proposedValue = 'Familien skildrer København – med varme og humor.';
+  row.chatReview.proposal.hash = 'e'.repeat(64);
+  row.chatReview.proposal.after.metaDescription = row.chatReview.proposal.assessments[1].proposedValue;
+  row.reason = 'seo_review_long_dash_forbidden';
+  return getSeoTask(uid, saved.taskId);
+}
+function revisionInput(task: Awaited<ReturnType<typeof getSeoTask>>) {
+  return { ...proposal(task), requestId: 'revision-stable-1', expectedPreviousProposalHash: task.proposal!.hash,
+    reason: 'Retter et afvist tegnsætningsforslag uden ændring af fakta eller artikeltekst.' };
+}
+
+it('settles a historical forbidden proposal as actionable without sending it to CMS or monopolizing the queue', async () => {
+  const saved = await legacyInvalidProposal();
+  const result = await applySeoReview(uid, applyInput(saved));
+  expect(result.status).toBe('needs_editor'); expect(result.reason).toBe('seo_review_long_dash_forbidden');
+  expect(result.nextAction).toBe('revise_rejected_proposal');
+  expect(result.writeStartedAt).toBeNull(); expect(result.publicReceipt).toBeNull();
+  expect(store.rows.get(stateKey).chatJobId).toBeNull();
+  expect(m.apply).not.toHaveBeenCalled(); expect(m.paid).not.toHaveBeenCalled();
+});
+
+it.each(['queued', 'needs_editor'])('revises an unwritten %s rejection with immutable history, a fresh recheck and idempotent replay', async status => {
+  let rejected = await legacyInvalidProposal();
+  rejected = await applySeoReview(uid, applyInput(rejected));
+  const row = store.rows.get(`seoPostPublishJobs/${rejected.taskId}`);
+  row.status = status;
+  const previous = structuredClone({ proposal: row.chatReview.proposal, recheck: row.chatReview.recheck, reason: row.reason, status });
+  const input = revisionInput(rejected);
+  const revised = await reviseSeoReview(uid, input);
+  expect(revised.status).toBe('queued'); expect(revised.reason).toBe('proposal_saved_not_published');
+  expect(revised.recheck).toBeNull(); expect(revised.proposal!.hash).not.toBe(previous.proposal.hash);
+  expect(revised.contextHash).toBe(rejected.contextHash);
+  const auditKey = `seoPostPublishJobs/${rejected.taskId}/proposalRevisions/${revised.revisionHash}`;
+  const history = structuredClone(store.rows.get(auditKey));
+  expect(history.previous).toEqual(previous); expect(history.reason).toBe(input.reason);
+  expect(history.proposalHash).toBe(revised.proposal!.hash);
+  expect(store.rows.get(stateKey).chatJobId).toBe(rejected.taskId);
+  expect(m.apply).not.toHaveBeenCalled();
+  const beforeReplay = structuredClone([...store.rows]);
+  expect(await reviseSeoReview(uid, input)).toEqual(revised);
+  expect([...store.rows]).toEqual(beforeReplay);
+  await expect(reviseSeoReview(uid, { ...input, reason: 'Et andet indhold på samme revisionsidentitet er ikke en genoptagelse.' }))
+    .rejects.toThrow('seo_chat_revision_request_changed');
+  await expect(applySeoReview(uid, applyInput(rejected))).rejects.toThrow('seo_chat_proposal_changed');
+  const applied = await applySeoReview(uid, applyInput(revised));
+  expect(applied.status).toBe('applied'); expect(applied.publicReceipt).toBeTruthy();
+  expect(store.rows.get(auditKey)).toEqual(history); expect(m.apply).toHaveBeenCalledOnce();
+  // A replay after publication is read-only and returns the current receipt.
+  expect((await reviseSeoReview(uid, input)).publicReceipt).toEqual(applied.publicReceipt);
+  expect(m.apply).toHaveBeenCalledOnce(); expect(m.paid).not.toHaveBeenCalled();
+});
+
+it.each(['write', 'pending', 'lease', 'other_owner', 'applied', 'kept', 'other_issue', 'other_reservation', 'not_rejected'])('refuses unsafe revision: %s', async issue => {
+  const saved = await legacyInvalidProposal(), row = store.rows.get(`seoPostPublishJobs/${saved.taskId}`);
+  const state = store.rows.get(stateKey);
+  if (issue === 'write') row.writeStartedAt = new Date().toISOString();
+  if (issue === 'pending') state.pendingJobId = saved.taskId;
+  if (issue === 'lease') row.leaseUntil = Date.now() + 60_000;
+  if (issue === 'other_reservation') state.chatJobId = 'f'.repeat(64);
+  if (issue === 'applied' || issue === 'kept') row.status = issue;
+  if (issue === 'other_issue') { row.status = 'needs_editor'; row.reason = 'locale_content_mismatch'; }
+  if (issue === 'not_rejected') row.reason = 'proposal_saved_not_published';
+  const before = structuredClone([...store.rows]);
+  await expect(reviseSeoReview(issue === 'other_owner' ? 'other' : uid, revisionInput(saved))).rejects.toThrow('seo_');
+  expect([...store.rows]).toEqual(before); expect(m.apply).not.toHaveBeenCalled();
+});
+
+it.each(['content', 'metadata', 'staged', 'context', 'previous_proposal', 'lock', 'preserved', 'invalid_candidate'])('rejects revision after changed %s without replacing saved evidence', async change => {
+  const saved = await legacyInvalidProposal(), input = revisionInput(saved);
+  if (change === 'content') m.current.snapshot.contentVersion = 'changed-article';
+  if (change === 'metadata') m.current.snapshot.metadata.seoTitle = 'Redaktionens rettede titel';
+  if (change === 'staged') m.current.snapshot.hasUnpublishedChanges = true;
+  if (change === 'context') input.expectedContextHash = 'f'.repeat(64);
+  if (change === 'previous_proposal') input.expectedPreviousProposalHash = 'f'.repeat(64);
+  if (change === 'lock') store.rows.get(stateKey).lockedFields = ['metaDescription'];
+  if (change === 'preserved') store.rows.get(stateKey).publicationPreservedKey = reviewKey(m.current.snapshot);
+  if (change === 'invalid_candidate') input.assessments[1].proposedValue = 'Familien i København – en ny forkert tankestreg.';
+  const before = structuredClone([...store.rows]);
+  await expect(reviseSeoReview(uid, input)).rejects.toThrow('seo_');
+  expect([...store.rows]).toEqual(before); expect(m.apply).not.toHaveBeenCalled();
+});
+
+it('serializes concurrent identical revisions without duplicate history or resetting the next proposal', async () => {
+  const saved = await legacyInvalidProposal(), input = revisionInput(saved);
+  const [a, b] = await Promise.all([reviseSeoReview(uid, input), reviseSeoReview(uid, input)]);
+  expect(a.proposal!.hash).toBe(b.proposal!.hash); expect(a.revisionHash).toBe(b.revisionHash);
+  expect([...store.rows.keys()].filter(key => key.includes('/proposalRevisions/'))).toHaveLength(1);
+  const next = { ...input, requestId: 'revision-concurrent-2' };
+  await expect(reviseSeoReview(uid, next)).rejects.toThrow('seo_chat_revision_status_invalid');
+});
+
+it('does not let an apply started before revision overwrite or publish the revised proposal', async () => {
+  const saved = await legacyInvalidProposal(), input = revisionInput(saved);
+  const transaction = store.db.runTransaction;
+  let revised: Awaited<ReturnType<typeof reviseSeoReview>> | undefined;
+  const race = vi.spyOn(store.db, 'runTransaction').mockImplementationOnce(async fn => {
+    revised = await reviseSeoReview(uid, input);
+    return transaction(fn);
+  });
+  try {
+    await expect(applySeoReview(uid, applyInput(saved))).rejects.toThrow('seo_chat_proposal_changed');
+    const current = await getSeoTask(uid, saved.taskId);
+    expect(current.proposal!.hash).toBe(revised!.proposal!.hash); expect(current.recheck).toBeNull();
+    expect(current.status).toBe('queued'); expect(current.reason).toBe('proposal_saved_not_published');
+    expect(store.rows.get(`seoPostPublishJobs/${saved.taskId}`).leaseUntil).toBe(0);
+    expect(m.apply).not.toHaveBeenCalled();
+    expect((await applySeoReview(uid, applyInput(current))).status).toBe('applied');
+    expect(m.apply).toHaveBeenCalledOnce();
+  } finally { race.mockRestore(); }
+});
+
+it.each([false, true])('a technical performance rejection preserves existing cooldown (%s) and permits correcting the same proposal', async priorReview => {
+  const previous = priorReview ? new Date(Date.now() - 45 * 86400_000).toISOString() : undefined;
+  if (previous) store.rows.set(stateKey, { lastPerformanceReviewedAt: previous });
+  await enqueueQualityJob({ source: 'performance', manualRequested: true, mode: 'performance', snapshot: m.current.snapshot,
+    article: { editorialTitle: 'Familien', body, locale: 'da', metadata: m.current.snapshot.metadata },
+    evidence: { fetchedAt: new Date().toISOString(), comparable: true, currentDays: 28, previousDays: 28,
+      currentImpressions: 500, previousImpressions: 400 } });
+  const task = (await claimSeoTasks(uid, { requestId: 'performance-revision-1', limit: 1 })).tasks[0];
+  const saved = await saveSeoReview(uid, proposal(task));
+  m.duplicates.mockResolvedValueOnce({ seoTitle: [], metaDescription: ['duplicate-article'] });
+  const rejected = await applySeoReview(uid, applyInput(saved));
+  expect(rejected.status).toBe('needs_editor'); expect(rejected.reason).toBe('seo_metadata_duplicate');
+  expect(store.rows.get(stateKey).lastPerformanceReviewedAt).toBe(previous);
+  const revised = await reviseSeoReview(uid, revisionInput(rejected));
+  expect(revised.proposal!.technicalDecision.reason).toBe('eligible_pending_chatgpt_recheck');
+  const result = await applySeoReview(uid, applyInput(revised));
+  expect(result.status).toBe('applied'); expect(result.publicReceipt).toBeTruthy();
+  expect(store.rows.get(stateKey).lastPerformanceReviewedAt).not.toBe(previous);
+  expect(m.apply).toHaveBeenCalledOnce();
+});
+
+it('keeps ambiguous writes on readback even when an error code otherwise denotes a deterministic prewrite failure', async () => {
+  const saved = await saveSeoReview(uid, proposal(await claim()));
+  m.apply.mockImplementationOnce(async args => {
+    await args.beforeWrite(m.current.snapshot);
+    throw Error('seo_review_long_dash_forbidden');
+  });
+  const result = await applySeoReview(uid, applyInput(saved));
+  expect(result.status).toBe('verify_pending'); expect(result.writeStartedAt).toBeTruthy();
+  expect(result.nextAction).not.toBe('revise_rejected_proposal');
+  expect(store.rows.get(stateKey).pendingJobId).toBe(saved.taskId);
+  await expect(reviseSeoReview(uid, revisionInput(result))).rejects.toThrow('seo_chat_revision_write_pending');
+});
+
+it('registers a scheduled batch once in the current Copenhagen day without admitting arbitrary or historical request IDs', async () => {
+  const day = copenhagenClock(new Date()).day;
+  const input = { requestId: `apropos-seo-${day}-h13-b2`, limit: 2 };
+  const first = await claimSeoTasks(uid, input);
+  const registry = store.rows.get(`seoPostPublishControl/chat-runs-${day}`);
+  expect(Object.keys(registry.entries)).toEqual([first.batchId]);
+  expect(registry.entries[first.batchId]).toMatchObject({ batchId: first.batchId, requestId: input.requestId, slotHour: 13, batchNumber: 2 });
+  const before = structuredClone(registry);
+  await claimSeoTasks(uid, input);
+  expect(store.rows.get(`seoPostPublishControl/chat-runs-${day}`)).toEqual(before);
+  await claimSeoTasks(uid, { requestId: 'apropos-seo-2020-01-01-h09-b1', limit: 2 });
+  expect(store.rows.has('seoPostPublishControl/chat-runs-2020-01-01')).toBe(false);
 });

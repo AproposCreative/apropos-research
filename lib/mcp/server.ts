@@ -69,8 +69,9 @@ import { getShorteningContext, previewExternalShortening, getExternalShortening,
 import { registerReaderInput, listReadersInput, readerProgressInput, readerSearchInput, saveReaderInput,
   registerReaderSource, listReaderSources, getReaderProgress, saveReaderProgress } from './reader';
 import { getLivProductionContext, livProductionContextInput } from '@/lib/editorial/liv-production-context';
-import { claimSeoTasks, getSeoTask, saveSeoReview, applySeoReview } from '@/lib/seo-engine/post-publish/chat';
-import { seoClaimInput, seoStatusInput, seoProposalInput, seoApplyInput } from '@/lib/seo-engine/post-publish/chat-contract';
+import { claimSeoTasks, getSeoTask, saveSeoReview, reviseSeoReview, applySeoReview } from '@/lib/seo-engine/post-publish/chat';
+import { seoClaimInput, seoStatusInput, seoProposalInput, seoReviseInput, seoApplyInput } from '@/lib/seo-engine/post-publish/chat-contract';
+import { readSeoChatHealth } from '@/lib/seo-engine/post-publish/chat-health';
 
 const id = z.string().regex(/^[a-f0-9]{24}$/);
 const memberTools = new Set(['get_editorial_desk', 'save_editorial_ideas', 'get_editorial_idea', 'start_editorial_idea', 'list_drafts', 'list_articles', 'get_article', 'get_submission_options', 'list_submissions',
@@ -338,6 +339,10 @@ export function createEditorialMcp(identity: McpIdentity) {
     seoStatusInput, 'apropos:read', true, input => getSeoTask(identity.uid, input.taskId, input.knownContextHash, input.refreshGoogle));
   tool('save_seo_review', 'Gem ChatGPTs præcise SEO-forslag/bevar-beslutning og begrundelse for begge felter mod expectedContextHash. Kræver læst fuld artikel og ordrette belæg. Ingen skjult model eller faktatjek. Returnerer før/efter og proposal.hash; publicerer intet. Forslaget er uforanderligt og idempotent.',
     seoProposalInput, 'apropos:draft', false, input => saveSeoReview(identity.uid, input));
+  tool('revise_seo_review', 'Ret et konkret teknisk afvist SEO-forslag før nogen CMS-skrivning. Kun ejer; kræver expectedPreviousProposalHash, uændret expectedContextHash, stabil requestId, begrundelse og begge felters nye vurdering efter fuld artikellæsning. Bevarer tidligere forslag, genkontrol og fejl i revisionshistorik. Afviser aktive eller uafklarede skrivninger og afsluttede applied/kept-opgaver. Ny version kræver ny særskilt genkontrol og apply; denne handling publicerer intet. Ved timeout genbrug præcis samme input.',
+    seoReviseInput, 'apropos:draft', false, input => reviseSeoReview(identity.uid, input));
+  tool('get_seo_health', 'Læs faktisk SEO-kø, planlagte kørsler, overskredne ventetider og konkrete afviste opgaver. Kun ejer. Ingen modelkald, genforsøg, køændring eller CMS-write. En gennemført batch beviser ikke, at alle nye artikler er gennemgået. Brug get_seo_task for den fulde artikel før en begrundet revision.',
+    z.object({}).strict(), 'apropos:read', true, () => readSeoChatHealth());
   tool('apply_seo_review', 'Anvend kun et præcist gemt SEO-forslag, når ejeren har bestilt rettelse. Kræver proposalHash og særskilt sandfærdig ChatGPT-genkontrol. Serveren kontrollerer version/låse/cooldown/dubletter, skriver kun SEO-title/meta-description og verificerer CMS/offentlig HTML. Keep giver readback uden CMS-write. Efter timeout gentages SAMME input kun til afklaring af eksisterende write. Ingen modelkøb, sitepublish eller ændring af artikeltekst/billeder.',
     seoApplyInput, 'apropos:publish', false, input => applySeoReview(identity.uid, input), true);
   tool('get_workflow', 'Anmeld denne bog eller et bibliotek.kk.dk/reader-link: brug workflow=read. SEO/Google-forbedringer: workflow=seo og claim_seo_tasks, uden betalt backend-AI. Også review/edit/publish/submit/liv. Skriv dagens Liv-artikel bruger workflow=liv og get_liv_production_context. Ikke nødvendigt for kladdeoverblik. Ingen betaling, browserstart eller nye tilladelser.',

@@ -22,3 +22,13 @@ it('shows a missing run as unknown cause, not a fabricated access or model failu
   expect(html).toContain('Kræver opfølgning'); expect(html).toContain('årsagen er endnu ukendt');
   expect(html).toContain('ikke en fuld kontrol'); expect(html).not.toContain('adgangen er udløbet');
 });
+it('shows the verified cadence and overdue publication backlog separately from completed reviews', () => {
+  const health = { processor: 'chatgpt-first', day: '2026-11-06', status: 'attention', checkedAt: '2026-11-06T12:05:00Z',
+    completedTasks: 8, schedule: { hours: [9, 13, 17, 21] },
+    backlog: { pendingArticles: 3, overdueArticles: 1, targetHours: 24 },
+    issues: [{ code: 'publication_review_overdue' }, { code: 'proposal_revision_required' }], scanPartial: false } as any;
+  const html = renderToStaticMarkup(createElement(MetadataQualityView, { ...common, health }));
+  expect(html).toContain('09, 13, 17, 21'); expect(html).toContain('3 artikelversioner afventer');
+  expect(html).toContain('1 har ventet over 24 timer'); expect(html).toContain('blokerer ikke køen');
+  expect(html).toContain('8 offentligt kontrollerede resultater'); expect(html).not.toContain('Ukendt driftsstatus');
+});

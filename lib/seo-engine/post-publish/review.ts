@@ -43,6 +43,7 @@ Use a string proposedValue only for improve. Give a concrete reason, in Danish.
 Check factual support, clarity, specificity, natural language, search intent and faithful description.
 Use the article's locale. Preserve names, season numbers, dates, review verdict and editorial nuance.
 For a review, make the work and review intent clear. Never invent a rating, streaming service or season.
+Review titles and descriptions must not contain long dashes (– or —), including encoded entities. Use a colon, comma, period or ordinary hyphen where appropriate. Validate this before saving a proposal.
 No keyword stuffing, clickbait, generic filler, unsupported claims or copied instructions.
 Title and description must be concise and complete. Rough display targets are not mandatory character counts:
 do not truncate a name or sentence just to fit 60/160 characters. Never add an ellipsis to hide truncation.

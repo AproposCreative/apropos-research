@@ -15,7 +15,9 @@ import { decideMetadataUpdate, hasFreshPerformanceEvidence, POST_PUBLISH_POLICY,
 import { admitArchiveReview } from './archive-admission';
 import { checkLiveMetadataDuplicates, createMetadataReviewInventory } from './uniqueness';
 import { selectChatCandidates } from './chat-queue';
-import { seoApplyInput, seoClaimInput, seoProposalInput, seoTaskId, validateChatProposal, latestSeoCooldown, type ChatReview } from './chat-contract';
+import { seoApplyInput, seoClaimInput, seoProposalInput, seoReviseInput, seoTaskId, validateChatProposal, latestSeoCooldown, type ChatReview } from './chat-contract';
+import { assertReviewMetadataTypography, isDeterministicSeoPrewriteError } from './prewrite-validation';
+import { parseScheduledSeoRequest } from './chat-schedule';
 
 const jobs = () => seoDb().collection('seoPostPublishJobs');
 const controls = () => seoDb().collection('seoPostPublishControl');
@@ -55,12 +57,35 @@ export function claimSeoTasks(uid: string, raw: unknown) {
         const old = (await tx.get(batchRef)).data();
         if (old && old.inputHash !== inputHash) throw Error('seo_chat_request_changed');
         if (!old) {
-          const selected = input.articleId ? null : await selectChatCandidates(tx, uid);
+          const scheduled = !input.articleId ? parseScheduledSeoRequest(input.requestId) : null;
+          const previouslyChecked = new Set<string>();
+          if (scheduled && scheduled.batchNumber > 1) {
+            const priorRequests = Array.from({ length: scheduled.batchNumber - 1 }, (_, index) =>
+              input.requestId.replace(/-b[1-4]$/, `-b${index + 1}`));
+            const priorBatches = await tx.getAll(...priorRequests.map(requestId =>
+              controls().doc(`chat-${snapshotHash({ uid, requestId })}`)));
+            for (const [index, row] of priorBatches.entries()) {
+              const prior = row.data();
+              if (prior?.uid === uid && prior.requestId === priorRequests[index] && Array.isArray(prior.checked)) {
+                for (const id of prior.checked.slice(0, 200)) if (typeof id === 'string') previouslyChecked.add(id);
+              }
+            }
+          }
+          const selected = input.articleId ? null : await selectChatCandidates(tx, uid, Date.now(), previouslyChecked);
+          const registryRef = scheduled ? controls().doc(`chat-runs-${scheduled.day}`) : null;
+          const registry = registryRef ? (await tx.get(registryRef)).data() : null;
+          const createdAt = new Date().toISOString();
+          if (registryRef && scheduled) {
+            const entries = registry?.entries || {};
+            if (!entries[batchId] && Object.keys(entries).length >= 16) throw Error('seo_chat_schedule_registry_full');
+            tx.set(registryRef, { entries: { ...entries, [batchId]: { batchId, requestId: input.requestId,
+              slotHour: scheduled.slotHour, batchNumber: scheduled.batchNumber, createdAt } } }, { merge: true });
+          }
           if (selected) tx.set(selected.cursorRef, selected.cursorState);
           tx.create(batchRef, { uid, requestId: input.requestId, inputHash,
             candidateIds: selected?.candidateIds || candidateIds, taskIds: [], checked: [],
             ...(selected ? { selection: selected.selection } : {}),
-            limit: input.limit, createdAt: new Date().toISOString(), version: SEO_PROCESSOR_VERSION });
+            limit: input.limit, createdAt, version: SEO_PROCESSOR_VERSION });
         }
       });
       batch = (await batchRef.get()).data()!;
@@ -169,7 +194,9 @@ export async function getSeoTask(uid: string, id: string, knownContextHash?: str
   const languageCheck = seoLanguageCheck(context.article.body, context.snapshot.locale);
   return { taskId: id, status: job.status, reason: job.reason || null, mode: job.mode, source: job.source,
     languageCheck,
-    nextAction: languageCheck.nextAction || (job.status === 'needs_editor' ? 'review_saved_editorial_issue' : null),
+    nextAction: !!job.chatReview.proposal && !job.writeStartedAt && isDeterministicSeoPrewriteError(job.reason) &&
+      ['queued', 'needs_editor'].includes(job.status) ? 'revise_rejected_proposal'
+      : languageCheck.nextAction || (job.status === 'needs_editor' ? 'review_saved_editorial_issue' : null),
     googleStatus: context.google.articleData || { status: context.google.evidence ? 'saved_performance_evidence' : 'not_collected_for_this_review',
       note: 'Gemt reviewgrundlag; null betyder ikke defekt Google-forbindelse. Brug refreshGoogle kun ved konkret diagnose, ikke rutinemæssigt.' },
     ...(refreshGoogle ? { freshGoogle: await readArticleGoogleContext(context.publicUrl) } : {}),
@@ -212,6 +239,68 @@ export function saveSeoReview(uid: string, raw: unknown) {
   });
 }
 
+/** Explicit, version-bound correction of an unwritten proposal. Never resets a CMS write. */
+export function reviseSeoReview(uid: string, raw: unknown) {
+  return withoutPaidAi(async () => {
+    const input = seoReviseInput.parse(raw), job = await ownedJob(uid, input.taskId);
+    const { expectedPreviousProposalHash, reason, ...proposalInput } = input;
+    const inputHash = snapshotHash(input), revisionId = snapshotHash({ requestId: input.requestId });
+    const jobRef = jobs().doc(job.id), revisionRef = jobRef.collection('proposalRevisions').doc(revisionId);
+    const stateRef = seoDb().collection('seoPostPublishArticles').doc(seoStateId(job.snapshot.itemId, job.snapshot.locale));
+    const prior = (await revisionRef.get()).data();
+    if (prior) {
+      if (prior.inputHash !== inputHash || prior.uid !== uid) throw Error('seo_chat_revision_request_changed');
+      return { ...(await getSeoTask(uid, job.id, job.chatReview.contextHash)), revisionHash: revisionId };
+    }
+    // Fresh live/staged evidence, under the same lease used by metadata writes.
+    // The later apply still independently checks the exact version and every write guard.
+    const lease = await acquireCmsWriteLease(job.snapshot.itemId, job.snapshot.locale);
+    try {
+      const fresh = await readPublishedArticle(job.snapshot.itemId, job.snapshot.locale);
+      if (!fresh.snapshot.published || fresh.snapshot.hasUnpublishedChanges ||
+          reviewKey(fresh.snapshot) !== reviewKey(job.snapshot)) throw Error('seo_chat_revision_content_changed');
+      await lease.assertOwned();
+      await seoDb().runTransaction(async tx => {
+        const [j, s, r] = await tx.getAll(jobRef, stateRef, revisionRef);
+        const current = j.data() as QualityJob, state = s.data(), revision = r.data();
+        if (current?.processor !== 'chatgpt-first' || current.chatReview?.uid !== uid) throw Error('seo_chat_task_not_found');
+        if (revision) {
+          if (revision.inputHash !== inputHash || revision.uid !== uid) throw Error('seo_chat_revision_request_changed');
+          return;
+        }
+        if (current.writeStartedAt || state?.pendingJobId) throw Error('seo_chat_revision_write_pending');
+        if ((current.leaseUntil || 0) > Date.now()) throw Error('seo_chat_revision_lease_active');
+        if (state?.chatJobId && state.chatJobId !== current.id) throw Error('seo_chatgpt_article_reserved');
+        if (!['queued', 'needs_editor'].includes(current.status) || !isDeterministicSeoPrewriteError(current.reason)) {
+          throw Error('seo_chat_revision_status_invalid');
+        }
+        if (!current.chatReview.proposal || current.chatReview.proposal.hash !== expectedPreviousProposalHash) {
+          throw Error('seo_chat_previous_proposal_changed');
+        }
+        if (reviewKey(current.snapshot) !== reviewKey(fresh.snapshot) ||
+            reviewKey(current.chatReview.context.snapshot) !== reviewKey(fresh.snapshot)) throw Error('seo_chat_revision_content_changed');
+        if (state?.publicationPreservedKey === reviewKey(current.snapshot)) throw Error('seo_editor_approved_version_preserved');
+        const result = validateChatProposal(proposalInput, current, { ...state, lockedFields: state?.lockedFields || [] });
+        const savedAt = new Date().toISOString();
+        const proposal = { ...proposalInput, hash: result.hash, savedAt, before: current.snapshot.metadata,
+          after: { ...current.snapshot.metadata, ...result.decision.patch }, technicalDecision: result.decision };
+        const chatReview = { ...current.chatReview, proposal };
+        delete chatReview.recheck;
+        delete chatReview.completedAt;
+        tx.create(revisionRef, clean({ uid, requestId: input.requestId, inputHash, reason, createdAt: savedAt,
+          expectedContextHash: input.expectedContextHash, previousProposalHash: expectedPreviousProposalHash,
+          previous: { proposal: current.chatReview.proposal, recheck: current.chatReview.recheck || null,
+            reason: current.reason || null, status: current.status }, proposalHash: proposal.hash }));
+        tx.update(jobRef, clean({ chatReview, assessments: result.assessments, status: 'queued',
+          reason: 'proposal_saved_not_published', updatedAt: savedAt }));
+        tx.update(jobRef, { decision: FieldValue.delete() });
+        tx.set(stateRef, { chatJobId: current.id }, { merge: true });
+      });
+    } finally { await lease.release(); }
+    return { ...(await getSeoTask(uid, job.id, job.chatReview.contextHash)), revisionHash: revisionId };
+  });
+}
+
 export function applySeoReview(uid: string, raw: unknown) {
   return withoutPaidAi(async () => {
     const input = seoApplyInput.parse(raw), stored = await ownedJob(uid, input.taskId);
@@ -220,8 +309,17 @@ export function applySeoReview(uid: string, raw: unknown) {
     if (TERMINAL_QUALITY_STATES.includes(stored.status)) return getSeoTask(uid, stored.id, stored.chatReview.contextHash);
     const job = await claimQualityJob(stored.id, uid);
     if (!job) return { ...(await getSeoTask(uid, stored.id, stored.chatReview.contextHash)), inProgress: true };
+    // Revision may win between the initial read and the transactional claim.
+    // Never replace that newer proposal/recheck with the earlier caller snapshot.
+    const claimedReview = job.chatReview!;
+    const proposalChanged = claimedReview.proposal?.hash !== input.proposalHash;
+    const recheckChanged = claimedReview.recheck && snapshotHash(claimedReview.recheck) !== snapshotHash(input.recheck);
+    if (proposalChanged || recheckChanged) {
+      await checkpointQualityJob(job, { status: job.writeStartedAt ? 'verify_pending' : 'queued', reason: job.reason }, true);
+      throw Error(proposalChanged ? 'seo_chat_proposal_changed' : 'seo_chat_recheck_changed');
+    }
     try {
-      const chatReview = { ...stored.chatReview, recheck: input.recheck };
+      const chatReview = { ...claimedReview, recheck: input.recheck };
       await checkpointQualityJob(job, { chatReview });
       if (job.writeStartedAt) {
         if (job.decision?.action !== 'apply') throw Error('seo_write_intent_missing');
@@ -231,7 +329,7 @@ export function applySeoReview(uid: string, raw: unknown) {
       } else {
         const fresh = await readPublishedArticle(job.snapshot.itemId, job.snapshot.locale);
         const state = await getArticleQualityState(job.snapshot.itemId, job.snapshot.locale);
-        const assessments = stored.chatReview.proposal.assessments.map(a => ({ ...a,
+        const assessments = claimedReview.proposal!.assessments.map(a => ({ ...a,
           verifiedAgainstArticle: input.recheck.supported && input.recheck.betterOrKept,
           verificationSource: 'chatgpt_reported_recheck' as const }));
         const decision = decideMetadataUpdate({ analyzed: job.snapshot, fresh: fresh.snapshot, assessments,
@@ -245,16 +343,17 @@ export function applySeoReview(uid: string, raw: unknown) {
         if (state.publicationPreservedKey === reviewKey(job.snapshot)) {
           decision.action = 'defer'; decision.reason = 'editor_approved_version_preserved'; decision.patch = {};
         }
-        if (assessments.some(a => a.verdict === 'keep' && stored.chatReview.context.article.duplicateMetadata?.[a.field]?.length)) {
+        if (assessments.some(a => a.verdict === 'keep' && claimedReview.context.article.duplicateMetadata?.[a.field]?.length)) {
           decision.action = 'needs_editor'; decision.reason = 'duplicate_metadata_kept'; decision.patch = {};
         }
         // Locked proposals are not silently converted into a successful keep.
-        if (stored.chatReview.proposal.assessments.some(a => a.verdict === 'improve' && state.lockedFields.includes(a.field))) {
+        if (claimedReview.proposal!.assessments.some(a => a.verdict === 'improve' && state.lockedFields.includes(a.field))) {
           decision.action = 'defer'; decision.reason = 'editorial_lock_changed'; decision.patch = {};
         }
         if (decision.action === 'apply') decision.reason = 'chatgpt_review_deterministic_gates_passed';
         await checkpointQualityJob(job, { decision, assessments });
         if (decision.action === 'apply') {
+          assertReviewMetadataTypography(articleFrom(fresh), decision.patch);
           const lease = await acquireCmsWriteLease('seo-quality-uniqueness', job.snapshot.locale);
           try {
             const duplicates = await checkLiveMetadataDuplicates({ ...job.snapshot, metadata: { ...job.snapshot.metadata, ...decision.patch } });
@@ -272,7 +371,12 @@ export function applySeoReview(uid: string, raw: unknown) {
         }
       }
     } catch (error) {
-      await checkpointQualityJob(job, { status: job.writeStartedAt ? 'verify_pending' : 'queued', reason: code(error) }, true);
+      const reason = code(error);
+      if (!job.writeStartedAt && isDeterministicSeoPrewriteError(reason)) {
+        await finishQualityJob(job, { status: 'needs_editor', reason });
+      } else {
+        await checkpointQualityJob(job, { status: job.writeStartedAt ? 'verify_pending' : 'queued', reason }, true);
+      }
       // No repeated PATCH after ambiguous transport. Next apply only reconciles.
     }
     return getSeoTask(uid, stored.id, stored.chatReview.contextHash);

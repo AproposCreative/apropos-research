@@ -6,6 +6,7 @@ import { qualityPriorityReadyAt } from './priority';
 import { hasFreshPerformanceEvidence, POST_PUBLISH_POLICY, reviewKey, type PublishedArticle, type MetadataField, type PolicyDecision, type PerformanceEvidence, type FieldAssessment } from './policy';
 import type { ReviewArticle } from './review';
 import type { ChatReview } from './chat-contract';
+import { isDeterministicSeoPrewriteError } from './prewrite-validation';
 
 export type QualityJob = {
   id: string;
@@ -187,12 +188,14 @@ export async function finishQualityJob(job: QualityJob, patch: Partial<QualityJo
     const state = (await tx.get(articleRef)).data() as ArticleQualityState | undefined;
     if (!current || !job.owner || current.owner !== job.owner || (current.leaseUntil ?? 0) <= Date.now()) throw new Error('seo_job_lease_lost');
     const now = new Date().toISOString();
+    const rejectedBeforeWrite = !current.writeStartedAt && patch.status === 'needs_editor' &&
+      isDeterministicSeoPrewriteError(patch.reason);
     tx.update(jobRef, { ...JSON.parse(JSON.stringify(patch)), updatedAt: now, leaseUntil: 0, readyAt: FieldValue.delete(), priorityReadyAt: FieldValue.delete() });
     tx.set(articleRef, { lastJobId: job.id, lastReviewedKey: reviewKey(job.snapshot),
       ...(state?.chatJobId === job.id && (!current.writeStartedAt || patch.status === 'applied') ? { chatJobId: null } : {}),
       ...(patch.status === 'applied' && state?.pendingJobId === job.id ? { pendingJobId: null } : {}),
       ...(patch.status === 'applied' ? { lastAppliedAt: job.writeStartedAt || now } : {}),
-      ...(job.mode === 'performance' && ['kept', 'applied', 'needs_editor'].includes(patch.status || '')
+      ...(job.mode === 'performance' && !rejectedBeforeWrite && ['kept', 'applied', 'needs_editor'].includes(patch.status || '')
         ? { lastPerformanceReviewedAt: now } : {}) }, { merge: true });
   });
 }

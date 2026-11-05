@@ -663,18 +663,19 @@ export default function LivPostingClient({ embedded = false, onClose, initialTab
     }
   }, [sourceUrl]);
 
+  const previewDayKey = preview?.dayKey;
   const todayLabel = useMemo(() => {
-    if (!preview?.dayKey) return null;
+    if (!previewDayKey) return null;
     try {
-      return new Date(`${preview.dayKey}T00:00:00Z`).toLocaleDateString('da-DK', {
+      return new Date(`${previewDayKey}T00:00:00Z`).toLocaleDateString('da-DK', {
         weekday: 'long',
         day: '2-digit',
         month: 'long',
       });
     } catch {
-      return preview.dayKey;
+      return previewDayKey;
     }
-  }, [preview?.dayKey]);
+  }, [previewDayKey]);
 
   const anyBusy = previewLoading || generateLoading;
 

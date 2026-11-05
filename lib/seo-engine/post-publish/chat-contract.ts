@@ -3,6 +3,7 @@ import { snapshotHash } from './snapshot';
 import { decideMetadataUpdate, reviewKey, type FieldAssessment } from './policy';
 import type { QualityJob, ArticleQualityState } from './jobs';
 import type { ArticleGoogleContext } from './google-context';
+import { assertReviewMetadataTypography } from './prewrite-validation';
 
 export const seoTaskId = z.string().regex(/^[a-f0-9]{64}$/);
 const reason = z.string().trim().min(15).max(1500);
@@ -19,6 +20,7 @@ const assessment = z.object({ field: z.enum(['seoTitle','metaDescription']), ver
 export const seoProposalInput = z.object({ taskId: seoTaskId, expectedContextHash: seoTaskId,
   requestId: z.string().regex(/^[a-zA-Z0-9_-]{8,100}$/), readFullArticle: z.literal(true),
   assessments: z.array(assessment).length(2) }).strict();
+export const seoReviseInput = seoProposalInput.extend({ expectedPreviousProposalHash: seoTaskId, reason }).strict();
 export const seoApplyInput = z.object({ taskId: seoTaskId, proposalHash: seoTaskId,
   recheck: z.object({ readFullArticle: z.literal(true), supported: z.boolean(), betterOrKept: z.boolean(), reason }).strict() }).strict();
 export type ChatProposal = z.infer<typeof seoProposalInput> & { hash: string; savedAt: string; before: QualityJob['snapshot']['metadata'];
@@ -51,6 +53,8 @@ export function validateChatProposal(input: z.infer<typeof seoProposalInput>, jo
   const decision = decideMetadataUpdate({ analyzed: job.snapshot, fresh: job.chatReview.context.snapshot,
     assessments: assessments.map(a => ({ ...a, verifiedAgainstArticle: a.verdict === 'improve' })),
     mode: job.mode, evidence: job.evidence, nowMs: Date.now(), lockedFields: state.lockedFields, lastAppliedAt: latestSeoCooldown(job, state) });
+  assertReviewMetadataTypography(job.chatReview.context.article,
+    Object.fromEntries(assessments.filter(a => a.verdict === 'improve').map(a => [a.field, a.proposedValue!])));
   // This is an eligibility preview only. It is not the existing model's
   // independent candidate-verification evidence and cannot authorize a write.
   if (decision.action === 'apply') decision.reason = 'eligible_pending_chatgpt_recheck';

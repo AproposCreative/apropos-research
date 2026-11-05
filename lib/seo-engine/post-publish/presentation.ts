@@ -19,6 +19,8 @@ export const seoReasonLabels: Record<string, string> = {
   article_write_pending: 'En tidligere opdatering af artiklen afventer kontrol.',
   seo_public_metadata_pending: 'Opdateringen er endnu ikke bekræftet på den offentlige side.',
   seo_metadata_duplicate: 'Forslaget matcher en anden artikels metadata og er ikke gemt.',
+  seo_review_long_dash_forbidden: 'SEO-forslaget indeholder en lang tankestreg, som ikke er tilladt i anmeldelser. Ret det gemte forslag gennem SEO-revision; artiklen er ikke ændret.',
+  seo_chat_invalid_candidate: 'Forslaget opfylder ikke feltkravene. Ret forslaget før en ny genkontrol og anvendelse.',
 };
 const labels: Record<string, string> = { queued: 'I kø', waiting_budget: 'Afventer', running: 'Vurderes',
   verify_pending: 'Afventer live-kontrol', kept: 'Beholdt', applied: 'Verificeret live',
@@ -40,4 +42,7 @@ export const seoHealthLabels: Record<string, string> = {
   write_readback_pending: 'En påbegyndt opdatering mangler readback. Kontrollér resultatet før en eventuel ny skrivning.',
   review_stalled: 'En reserveret vurdering har stået stille i over to timer.',
   editorial_attention: 'Et forslag kræver redaktionel opfølgning eller nyt versionsgrundlag.',
+  proposal_revision_required: 'Et teknisk afvist forslag kræver en rettet version. Det er bevaret og blokerer ikke køen for nye artikler.',
+  publication_review_overdue: 'En eller flere udgivelser har ventet over 24 timer på SEO-gennemgang. Køen er ikke færdigbehandlet.',
+  queue_scan_partial: 'Status dækker kun en del af køen. Hele køen kan endnu ikke bekræftes gennemgået.',
 };

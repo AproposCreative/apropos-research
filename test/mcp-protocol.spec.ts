@@ -2,7 +2,7 @@ import { beforeEach, expect, it, vi } from 'vitest';
 import { z } from 'zod';
 const mock = vi.hoisted(() => ({ identity: null as any, rate: vi.fn(), audit: vi.fn(), drafts: vi.fn(), workspace: vi.fn(), context: vi.fn(), publish: vi.fn(), publicationStatus: vi.fn(), shortening: vi.fn(), shorteningContext: vi.fn(), shorteningPreview: vi.fn(), shorteningApply: vi.fn() }));
 const reader = vi.hoisted(() => ({ register: vi.fn(), list: vi.fn(), get: vi.fn(), save: vi.fn() }));
-const seo = vi.hoisted(() => ({ claim: vi.fn(), status: vi.fn(), save: vi.fn(), apply: vi.fn() }));
+const seo = vi.hoisted(() => ({ claim: vi.fn(), status: vi.fn(), save: vi.fn(), revise: vi.fn(), apply: vi.fn(), health: vi.fn() }));
 const ideas = vi.hoisted(() => ({ desk: vi.fn(), save: vi.fn(), get: vi.fn(), start: vi.fn() }));
 const mail = vi.hoisted(() => ({ search: vi.fn(), read: vi.fn(), save: vi.fn(), status: vi.fn(), preview: vi.fn(), confirm: vi.fn() }));
 const accreditation = vi.hoisted(() => ({ preview: vi.fn(), confirm: vi.fn() }));
@@ -15,7 +15,8 @@ vi.mock('@/lib/editorial/image-attempt-resume', async original => ({ ...await or
 vi.mock('@/lib/editorial/chat-image-brief', async original => ({ ...await original<any>(), getChatImageBrief: imageBrief }));
 vi.mock('@/lib/editorial/ideas', async original => ({ ...await original<any>(), getEditorialDesk: ideas.desk,
   saveEditorialIdeas: ideas.save, getEditorialIdea: ideas.get, startEditorialIdea: ideas.start }));
-vi.mock('@/lib/seo-engine/post-publish/chat', () => ({ claimSeoTasks: seo.claim, getSeoTask: seo.status, saveSeoReview: seo.save, applySeoReview: seo.apply }));
+vi.mock('@/lib/seo-engine/post-publish/chat', () => ({ claimSeoTasks: seo.claim, getSeoTask: seo.status, saveSeoReview: seo.save, reviseSeoReview: seo.revise, applySeoReview: seo.apply }));
+vi.mock('@/lib/seo-engine/post-publish/chat-health', () => ({ readSeoChatHealth: seo.health }));
 vi.mock('@/lib/mcp/reader', async original => ({ ...await original<any>(), registerReaderSource: reader.register,
   listReaderSources: reader.list, getReaderProgress: reader.get, saveReaderProgress: reader.save }));
 vi.mock('@/lib/editorial/chat-preview', async original => ({ ...await original<any>(), chatSubmissionPreview: async () => ({
@@ -212,7 +213,7 @@ it('negotiates the real SDK protocol and lists strict schemas on independent sta
   expect(social.properties.square.maxLength).toBe(90);
   expect(social.properties.story.maxLength).toBe(130);
   expect(tools.find((t: any) => t.name === 'update_submission').inputSchema.properties.article.properties.socialSubtitles).toBeDefined();
-  expect(tools.length).toBe(90); expect(tools.find((t: any) => t.name === 'publish_article').annotations.destructiveHint).toBe(true);
+  expect(tools.length).toBe(92); expect(tools.find((t: any) => t.name === 'publish_article').annotations.destructiveHint).toBe(true);
   expect(tools.find((t: any) => t.name === 'link_staged_submission').inputSchema.required).toEqual(
     expect.arrayContaining(['submissionId', 'expectedRevision', 'itemId']));
   expect(tools.find((t: any) => t.name === 'resume_submission_cms').inputSchema.required).toContain('expectedCmsHash');
@@ -366,6 +367,30 @@ it('advertises optional compact SEO transport and forwards a known hash without 
   const workflow = JSON.parse((await (await call('get_workflow', { workflow: 'seo' })).json()).result.content[0].text);
   expect(workflow.instructions).toContain('mistet grundlag'); expect(workflow.instructions).toContain('frisk dubletkontrol');
   expect(workflow.instructions).toContain('no_rows'); expect(workflow.instructions).toContain('locale_mismatch');
+});
+it('exposes audited SEO revision and queue health only to the owner, with no paid calls', async () => {
+  const listed = (await (await POST(message('tools/list'))).json()).result.tools;
+  expect(listed.find((t: any) => t.name === 'revise_seo_review')._meta.securitySchemes).toEqual([{ type: 'oauth2', scopes: ['apropos:draft'] }]);
+  expect(listed.find((t: any) => t.name === 'get_seo_health').annotations.readOnlyHint).toBe(true);
+  const args = { taskId: 'a'.repeat(64), expectedPreviousProposalHash: 'b'.repeat(64), expectedContextHash: 'c'.repeat(64),
+    requestId: 'revise-rejected-1', reason: 'Ret den afviste tegnsætning uden indholdsændring.', readFullArticle: true,
+    assessments: [{ field: 'seoTitle', verdict: 'keep', reason: 'Titlen er præcis og indholdsdækkende.', articleQuotes: ['Konkret citat fra hele artiklen.'] },
+      { field: 'metaDescription', verdict: 'keep', reason: 'Beskrivelsen dækker artikelens vurdering.', articleQuotes: ['Konkret citat fra hele artiklen.'] }] };
+  mock.identity.owner = false;
+  expect((await (await call('revise_seo_review', args)).json()).result.isError).toBe(true);
+  expect((await (await call('get_seo_health', {})).json()).result.isError).toBe(true);
+  expect(seo.revise).not.toHaveBeenCalled(); expect(seo.health).not.toHaveBeenCalled();
+  mock.identity.owner = true;
+  seo.revise.mockImplementation(async () => assertPaidAiAllowed());
+  expect((await (await call('revise_seo_review', args)).json()).result.content[0].text).toContain('mcp_paid_call_requires_separate_approval');
+  expect(seo.revise).toHaveBeenCalledExactlyOnceWith('frederik', args);
+  seo.health.mockResolvedValue({ status: 'attention', issues: [{ code: 'publication_review_overdue' }] });
+  const health = JSON.parse((await (await call('get_seo_health', {})).json()).result.content[0].text);
+  expect(health.status).toBe('attention'); expect(seo.claim).not.toHaveBeenCalled();
+  const workflow = JSON.parse((await (await call('get_workflow', { workflow: 'seo' })).json()).result.content[0].text);
+  expect(workflow.instructions).toContain('revise_seo_review');
+  expect(workflow.instructions).toContain('hasMore gælder kun');
+  expect(workflow.runContext.requestIds).toHaveLength(4);
 });
 it('exposes private cloud-reading tools to team members with exact scopes, no-paid guard and metadata-only audit', async () => {
   mock.identity.owner = false; mock.identity.uid = 'casper'; mock.identity.scopes = ['apropos:read'];

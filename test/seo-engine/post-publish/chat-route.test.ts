@@ -1,8 +1,9 @@
 import { beforeEach, expect, it, vi } from 'vitest';
 import { NextRequest } from 'next/server';
-const m = vi.hoisted(() => ({ access: vi.fn(), claim: vi.fn(), get: vi.fn(), save: vi.fn(), apply: vi.fn(), activate: vi.fn() }));
+const m = vi.hoisted(() => ({ access: vi.fn(), claim: vi.fn(), get: vi.fn(), save: vi.fn(), revise: vi.fn(), apply: vi.fn(), activate: vi.fn(), health: vi.fn() }));
 vi.mock('@/lib/editorial-access', () => ({ editorialRequestAccess: m.access }));
-vi.mock('@/lib/seo-engine/post-publish/chat', () => ({ claimSeoTasks: m.claim, getSeoTask: m.get, saveSeoReview: m.save, applySeoReview: m.apply, activateChatSeo: m.activate }));
+vi.mock('@/lib/seo-engine/post-publish/chat', () => ({ claimSeoTasks: m.claim, getSeoTask: m.get, saveSeoReview: m.save, reviseSeoReview: m.revise, applySeoReview: m.apply, activateChatSeo: m.activate }));
+vi.mock('@/lib/seo-engine/post-publish/chat-health', () => ({ readSeoChatHealth: m.health }));
 vi.mock('@/lib/seo-engine/post-publish/processor', () => ({ seoProcessorMode: async () => 'api' }));
 import { GET, POST } from '../../../app/api/seo-engine/chat/route';
 const request = (data: unknown) => new NextRequest('https://ai.aproposmagazine.com/api/seo-engine/chat', { method: 'POST', headers: { 'Content-Type': 'application/json' }, body: JSON.stringify(data) });
@@ -38,4 +39,21 @@ it('allows an explicit authenticated Google refresh, never an anonymous or membe
   expect(m.get).toHaveBeenCalledExactlyOnceWith('owner', 'task', undefined, true);
   m.get.mockClear(); m.access.mockResolvedValue(null);
   expect((await GET(request)).status).toBe(403); expect(m.get).not.toHaveBeenCalled();
+});
+it('allows only the authenticated owner to revise a rejected proposal', async () => {
+  const input = { taskId: 'a'.repeat(64), expectedPreviousProposalHash: 'b'.repeat(64), reason: 'Correct rejected punctuation' };
+  m.revise.mockResolvedValue({ status: 'queued', reason: 'proposal_saved_not_published' });
+  expect((await POST(request({ action: 'revise', input }))).status).toBe(200);
+  expect(m.revise).toHaveBeenCalledExactlyOnceWith('owner', input);
+  m.revise.mockClear(); m.access.mockResolvedValue({ uid: 'member', owner: false });
+  expect((await POST(request({ action: 'revise', input }))).status).toBe(403);
+  expect(m.revise).not.toHaveBeenCalled();
+});
+it('returns private queue health without starting work', async () => {
+  m.health.mockResolvedValue({ status: 'attention', issues: [{ code: 'publication_review_overdue' }] });
+  const response = await GET(new NextRequest('https://ai.aproposmagazine.com/api/seo-engine/chat'));
+  expect(response.status).toBe(200);
+  expect(response.headers.get('cache-control')).toBe('private, no-store');
+  expect((await response.json()).health.status).toBe('attention');
+  expect(m.claim).not.toHaveBeenCalled(); expect(m.apply).not.toHaveBeenCalled();
 });

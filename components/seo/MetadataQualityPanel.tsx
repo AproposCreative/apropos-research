@@ -75,7 +75,8 @@ export function MetadataQualityView({ rows, health, cursor, busy, error, authent
       <h3 className="font-medium">{health.processor === 'chatgpt-first' ? 'ChatGPT-first' : 'API-behandling'} · Driftsstatus</h3>
       <p className="mt-1 text-white/75">{health.day}: {({ completed: 'Modtaget kørsel afsluttet', waiting: 'Afventer dagens kørsel',
         not_due: 'Ny daglig tidsplan er endnu ikke forfalden', in_progress: 'Modtaget kørsel er i gang', attention: 'Kræver opfølgning' } as Record<string, string>)[health.status]} · {health.completedTasks} offentligt kontrollerede resultater.</p>
-      <p className="mt-1 text-white/65">Dagligt kl. 09 dansk tid. Manglende kørsel markeres efter kl. 10. Status kontrolleret {new Date(health.checkedAt).toLocaleString('da-DK')}.</p>
+      <p className="mt-1 text-white/65">Dagligt kl. {(health.schedule?.hours || [9]).map(hour => String(hour).padStart(2, '0')).join(', ')} dansk tid. Manglende kørsel markeres efter en time. Status kontrolleret {new Date(health.checkedAt).toLocaleString('da-DK')}.</p>
+      {health.backlog && <p className="mt-1 text-white/75">{health.backlog.pendingArticles} artikelversioner afventer gennemgang. {health.backlog.overdueArticles} har ventet over {health.backlog.targetHours} timer. Danske og engelske versioner tælles hver for sig.</p>}
       {[health, ...(health.previousDay?.issues.length ? [health.previousDay] : [])].map(day => day.issues.length > 0 &&
         <ul key={day.day} className="mt-2 list-disc space-y-1 pl-5 text-amber-200">{day.issues.map((issue, i) =>
           <li key={`${issue.code}-${i}`}>{day.day}: {seoHealthLabels[issue.code] || 'Ukendt driftsstatus kræver kontrol.'}</li>)}</ul>)}

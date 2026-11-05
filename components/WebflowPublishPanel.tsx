@@ -369,7 +369,7 @@ export default function WebflowPublishPanel({ articleData, onPublish, onClose, e
     );
   }
 
-  const PanelInner = () => (
+  const panelInner = (
     <>
       {!embed && (
         <div className="p-6">
@@ -414,13 +414,13 @@ export default function WebflowPublishPanel({ articleData, onPublish, onClose, e
   );
 
   if (embed) {
-    return <PanelInner />;
+    return panelInner;
   }
 
   return (
     <div className="fixed inset-0 bg-black/50 flex items-center justify-center z-50 p-4">
       <div className="bg-black border border-white/20 rounded-lg w-full max-w-4xl max-h-[90vh] overflow-y-auto">
-        <PanelInner />
+        {panelInner}
       </div>
     </div>
   );
