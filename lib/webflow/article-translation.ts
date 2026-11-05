@@ -1,24 +1,15 @@
-/**
- * Orkestrering: DK-artikel → EN oversættelse → Webflow PATCH + publish.
- */
-
 import { FieldValue } from 'firebase-admin/firestore';
-import { getOpenAIClient } from '@/lib/openai';
-import { getAdminDb } from '@/lib/firebase-admin';
-import { logger } from '@/lib/logger';
+import { readManualWriterBudget } from '@/lib/ai/manual-writer-budget';
+import { articleVisibleText, assertEnglishProse, isDanishArticleCopy, richTextStructure } from '@/lib/articles/english-language';
 import { computeTranslationSourceHash } from '@/lib/articles/translation-source-hash';
-import {
-  buildEnglishFieldData,
-  translateArticleToEnglish,
-} from '@/lib/articles/translate-to-english';
-import {
-  articleLocaleExists,
-  fetchArticleItemByLocale,
-  isWebflowLocalePublished,
-  patchArticleFieldDataForLocale,
-  publishArticleItemForLocale,
-  resolveWebflowLocaleIds,
-} from '@/lib/webflow/locale-items';
+import { buildEnglishFieldData, translateArticleToEnglish } from '@/lib/articles/translate-to-english';
+import { getAdminDb } from '@/lib/firebase-admin';
+import { cmsFieldHash } from '@/lib/liv/cms-field-hash';
+import { logger } from '@/lib/logger';
+import { getOpenAIClient } from '@/lib/openai';
+import { acquireCmsWriteLease } from '@/lib/seo-engine/cms-write-lease';
+import { readArticleLocale } from './english-article-guard';
+import { createEnglishArticleVariant, patchArticleFieldDataForLocale, publishArticleItemForLocale, resolveWebflowLocaleIds, type WebflowLocaleItem } from './locale-items';
 
 export type ArticleTranslationResult = {
   itemId: string;
@@ -29,141 +20,127 @@ export type ArticleTranslationResult = {
   durationMs?: number;
 };
 
-const STATE_COLLECTION = 'articleTranslationState';
-const JOBS_COLLECTION = 'articleTranslationJobs';
+const ENGLISH_FIELDS = ['name', 'slug', 'subtitle', 'intro', 'content', 'seo-title', 'meta-description', 'foto-credit', 'location', 'minutes-to-read'];
 
-async function getTranslationState(itemId: string): Promise<{
-  sourceHash?: string;
-  inProgress?: boolean;
-} | null> {
-  const db = getAdminDb();
-  if (!db) return null;
-  const snap = await db.collection(STATE_COLLECTION).doc(itemId).get();
-  if (!snap.exists) return null;
-  return snap.data() as { sourceHash?: string; inProgress?: boolean };
+function snapshot(item: WebflowLocaleItem | null) {
+  return item && cmsFieldHash({ fields: item.fieldData, draft: item.isDraft ?? null, published: item.lastPublished ?? null });
 }
 
-async function setTranslationState(
-  itemId: string,
-  data: Record<string, unknown>
-): Promise<void> {
-  const db = getAdminDb();
-  if (!db) return;
-  await db
-    .collection(STATE_COLLECTION)
-    .doc(itemId)
-    .set({ ...data, updatedAt: FieldValue.serverTimestamp() }, { merge: true });
+function matchesTranslation(actual: WebflowLocaleItem | null, expected: Record<string, unknown>) {
+  if (!actual) return false;
+  return ENGLISH_FIELDS.filter(key => Object.hasOwn(expected, key)).every(key => {
+    const value = expected[key];
+    const observed = actual.fieldData[key];
+    if (value === observed) return true;
+    return key === 'content' && typeof value === 'string' && typeof observed === 'string' &&
+      articleVisibleText(value) === articleVisibleText(observed) && richTextStructure(value) === richTextStructure(observed);
+  });
 }
 
-async function logTranslationJob(data: Record<string, unknown>): Promise<void> {
-  const db = getAdminDb();
-  if (!db) return;
-  await db.collection(JOBS_COLLECTION).add({
-    ...data,
-    createdAt: FieldValue.serverTimestamp(),
-  }).catch(() => {});
+function uneditedFields(item: WebflowLocaleItem, patch: Record<string, unknown>) {
+  return cmsFieldHash(Object.fromEntries(Object.entries(item.fieldData).filter(([key]) => !Object.hasOwn(patch, key))));
 }
 
-/**
- * Oversæt og publicér EN-version af en artikel.
- * Spring over hvis dansk kildeindhold er uændret (hash).
- */
 export async function runArticleTranslation(
   itemId: string,
-  options: { source?: string; force?: boolean } = {}
+  options: { source?: string; force?: boolean } = {},
 ): Promise<ArticleTranslationResult> {
+  if (!/^[a-f0-9]{24}$/.test(itemId)) throw new Error('Ugyldigt artikel-id.');
+  const { dk, en } = resolveWebflowLocaleIds();
+  if (dk === en) throw new Error('Dansk og engelsk Webflow-locale skal være forskellige.');
+  const db = getAdminDb();
+  if (!db) throw new Error('Oversættelse kræver adgang til joblageret.');
   const started = Date.now();
-  const locales = resolveWebflowLocaleIds();
   const source = options.source || 'unknown';
+  const ref = db.collection('articleTranslationState').doc(itemId);
+  const jobs = db.collection('articleTranslationJobs');
+  const record = (fields: Record<string, unknown>) => jobs.add({ itemId, source, ...fields, createdAt: FieldValue.serverTimestamp() }).catch(() => {});
+  const state = (fields: Record<string, unknown>) => ref.set({ ...fields, updatedAt: FieldValue.serverTimestamp() }, { merge: true });
+  const skip = async (reason: string, sourceHash?: string) => {
+    await record({ status: 'skipped', reason, ...(sourceHash ? { sourceHash } : {}) });
+    return { itemId, skipped: true, reason, ...(sourceHash ? { sourceHash } : {}) };
+  };
 
-  const existing = await getTranslationState(itemId);
-  if (existing?.inProgress && !options.force) {
-    return { itemId, skipped: true, reason: 'Oversættelse allerede i gang' };
-  }
+  const lease = await acquireCmsWriteLease(itemId, 'en').catch(error => {
+    if (error?.code === 'write_busy') return null;
+    throw error;
+  });
+  if (!lease) return { itemId, skipped: true, reason: 'Den engelske version behandles allerede.' };
 
-  await setTranslationState(itemId, { inProgress: true });
-
+  let running = false;
   try {
-    const hasEnLocale = await articleLocaleExists(itemId, locales.en);
-    if (!hasEnLocale) {
-      const reason =
-        'Artiklen har ingen engelsk locale-variant i Webflow — tilføj EN i CMS (Designer) eller opret artiklen med begge locales.';
-      await setTranslationState(itemId, { inProgress: false, lastSkipReason: reason });
-      await logTranslationJob({ itemId, source, status: 'skipped', reason: 'en_locale_missing' });
-      logger.warn('[article-translation] skipped — no EN locale', { itemId, source });
-      return { itemId, skipped: true, reason };
+    const [original, target, live, previous] = await Promise.all([
+      readArticleLocale(itemId, dk, true), readArticleLocale(itemId, en, false),
+      readArticleLocale(itemId, en, true), ref.get().then(snap => snap.data()),
+    ]);
+    if (!original) return await skip('Den danske artikel er ikke publiceret.');
+    const fields = original.fieldData;
+    const sourceHash = computeTranslationSourceHash(fields);
+    const lastUpdate = previous?.updatedAt?.toMillis?.();
+    if (previous?.inProgress && Number.isFinite(lastUpdate) && Date.now() - lastUpdate < 300_000) {
+      return await skip('Oversættelse allerede i gang.', sourceHash);
     }
-
-    const dkItem = await fetchArticleItemByLocale(itemId, locales.dk);
-    if (!isWebflowLocalePublished(dkItem)) {
-      const reason = 'Dansk artikel er ikke publiceret — EN oversættes og publiceres ikke.';
-      await setTranslationState(itemId, { inProgress: false, lastSkipReason: reason });
-      await logTranslationJob({ itemId, source, status: 'skipped', reason: 'dk_not_published' });
-      logger.info('[article-translation] skipped — DK not published', { itemId, source });
-      return { itemId, skipped: true, reason };
+    if (live && snapshot(target) !== snapshot(live)) return await skip('Der ligger en separat engelsk kladde.', sourceHash);
+    if (!options.force) {
+      const targetHash = live ? computeTranslationSourceHash(live.fieldData) : null;
+      if (targetHash && targetHash === previous?.targetHash && previous?.sourceHash === sourceHash) {
+        return await skip('Den verificerede engelske version er allerede aktuel.', sourceHash);
+      }
+      if (target && articleVisibleText(target.fieldData.content) && !isDanishArticleCopy(fields, target.fieldData) &&
+          (!targetHash || targetHash !== previous?.targetHash)) {
+        return await skip('Den eksisterende engelske redigering bevares.', sourceHash);
+      }
+      if (previous?.attemptedSourceHash === sourceHash && previous?.sourceHash !== sourceHash) {
+        return await skip('Et tidligere forsøg på samme version kræver kontrol.', sourceHash);
+      }
     }
-
-    const { fieldData: dk } = dkItem;
-    const sourceHash = computeTranslationSourceHash(dk);
-
-    if (!options.force && existing?.sourceHash === sourceHash) {
-      await setTranslationState(itemId, { inProgress: false, sourceHash });
-      await logTranslationJob({ itemId, source, status: 'skipped', reason: 'hash_unchanged', sourceHash });
-      return { itemId, skipped: true, reason: 'Indhold uændret siden sidste oversættelse', sourceHash };
-    }
-
+    if (await readManualWriterBudget()) return await skip('Betalt automatisk oversættelse er ikke aktiveret under Writer-politikken.', sourceHash);
     const openai = getOpenAIClient();
-    if (!openai) throw new Error('OPENAI_API_KEY mangler — kan ikke oversætte.');
+    if (!openai) throw new Error('Oversættelsestjenesten er ikke konfigureret.');
+    await state({ inProgress: true, attemptedSourceHash: sourceHash });
+    running = true;
 
-    logger.info('[article-translation] translating', { itemId, source, sourceHash: sourceHash.slice(0, 12) });
-
-    const en = await translateArticleToEnglish(openai, dk);
-    const enFieldData = buildEnglishFieldData(dk, en);
-
-    await patchArticleFieldDataForLocale(itemId, enFieldData, locales.en);
-
-    const dkLive = await fetchArticleItemByLocale(itemId, locales.dk);
-    if (!isWebflowLocalePublished(dkLive)) {
-      const reason = 'Dansk artikel blev afpubliceret under oversættelse — EN gemmes som kladde.';
-      await setTranslationState(itemId, { inProgress: false, sourceHash, lastSkipReason: reason });
-      await logTranslationJob({ itemId, source, status: 'skipped', reason: 'dk_unpublished_before_en_publish', sourceHash });
-      logger.warn('[article-translation] EN not published — DK no longer live', { itemId, source });
-      return { itemId, skipped: true, reason, sourceHash };
+    const translated = await translateArticleToEnglish(openai, fields);
+    const complete = buildEnglishFieldData(fields, translated);
+    const patch = target ? Object.fromEntries(ENGLISH_FIELDS.filter(key => key !== 'slug' && Object.hasOwn(complete, key))
+      .map(key => [key, complete[key]])) : complete;
+    assertEnglishProse(fields, patch);
+    const [sourceNow, targetNow] = await Promise.all([readArticleLocale(itemId, dk, true), readArticleLocale(itemId, en, false)]);
+    if (!sourceNow || computeTranslationSourceHash(sourceNow.fieldData) !== sourceHash || snapshot(targetNow) !== snapshot(target)) {
+      throw new Error('Artiklen blev ændret under oversættelsen.');
     }
+    await lease.assertOwned();
+    if (target) await patchArticleFieldDataForLocale(itemId, patch, en);
+    else await createEnglishArticleVariant(itemId, patch);
 
-    await publishArticleItemForLocale(itemId, locales.en);
+    const [sourceBeforePublish, staged] = await Promise.all([readArticleLocale(itemId, dk, true), readArticleLocale(itemId, en, false)]);
+    if (!sourceBeforePublish || computeTranslationSourceHash(sourceBeforePublish.fieldData) !== sourceHash ||
+        !staged || !matchesTranslation(staged, patch) ||
+        (target && uneditedFields(staged, patch) !== uneditedFields(target, patch))) {
+      throw new Error('Den engelske kladde matchede ikke den kontrollerede oversættelse.');
+    }
+    await lease.assertOwned();
+    await publishArticleItemForLocale(itemId, en);
+    const published = await readArticleLocale(itemId, en, true);
+    if (!published || !matchesTranslation(published, patch)) throw new Error('Den engelske publicering kunne ikke bekræftes.');
+    assertEnglishProse(fields, published.fieldData);
 
     const durationMs = Date.now() - started;
-    await setTranslationState(itemId, {
-      inProgress: false,
-      sourceHash,
-      lastTranslatedAt: FieldValue.serverTimestamp(),
-      enName: en.name,
-      enSlug: en.slug,
-    });
-    await logTranslationJob({
-      itemId,
-      source,
-      status: 'ok',
-      sourceHash,
-      enName: en.name,
-      durationMs,
-    });
-
-    logger.info('[article-translation] complete', { itemId, enName: en.name, durationMs });
-
-    return {
-      itemId,
-      skipped: false,
-      sourceHash,
-      enName: en.name,
-      durationMs,
-    };
-  } catch (err) {
-    const message = err instanceof Error ? err.message : String(err);
-    await setTranslationState(itemId, { inProgress: false, lastError: message });
-    await logTranslationJob({ itemId, source, status: 'error', error: message });
-    logger.error('[article-translation] failed', err instanceof Error ? err : new Error(message));
-    throw err;
+    await state({ sourceHash, targetHash: computeTranslationSourceHash(published.fieldData), lastTranslatedAt: FieldValue.serverTimestamp(),
+      enName: translated.name, enSlug: published.fieldData.slug, lastError: null });
+    await record({ status: 'ok', sourceHash, enName: translated.name, durationMs });
+    return { itemId, skipped: false, sourceHash, enName: translated.name, durationMs };
+  } catch (error) {
+    const message = error instanceof Error ? error.message : String(error);
+    await state({ lastError: message });
+    await record({ status: 'error', error: message });
+    logger.error('[article-translation] failed', error instanceof Error ? error : new Error(message));
+    throw error;
+  } finally {
+    try {
+      if (running) await state({ inProgress: false });
+    } finally {
+      await lease.release();
+    }
   }
 }

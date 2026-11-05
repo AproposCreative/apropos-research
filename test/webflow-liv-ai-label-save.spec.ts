@@ -90,7 +90,7 @@ it.each([
   expect(typeof state.fields!['ai-generated']).toBe('boolean');
   const writes = state.fetch.mock.calls.filter(([, init]) => init?.method === 'POST');
   expect(writes).toHaveLength(1);
-  expect(JSON.parse(writes[0][1].body)).toMatchObject({ isDraft: true, cmsLocaleIds: [state.localeId, '555555555555555555555555'],
+  expect(JSON.parse(writes[0][1].body)).toMatchObject({ isDraft: true, cmsLocaleIds: [state.localeId],
     fieldData: { name: baseArticle.title, slug: baseArticle.slug, content: baseArticle.content, 'ai-generated': expected } });
   expect(state.readback).toHaveBeenCalledTimes(1);
   const saved = await state.readback.mock.results[0].value;

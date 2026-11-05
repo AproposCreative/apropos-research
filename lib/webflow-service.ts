@@ -908,13 +908,13 @@ export async function publishArticleToWebflow(articleData: WebflowArticleFields,
 
     // Determine if this is an update or create
     const isUpdate = articleData.webflowId && articleData.webflowId !== '';
-    // Create MUST use /items/bulk with cmsLocaleIds — single-item POST creates only primary (DK)
-    // and then auto-translate / UI skip with "Mangler EN". Existing items cannot gain EN via API.
+    // Stage the Danish article alone. The translation workflow adds EN with
+    // completed English fields instead of creating a Danish copy in that locale.
     const url = isUpdate
       ? `https://api.webflow.com/v2/collections/${articlesCollectionId}/items/${articleData.webflowId}`
       : `https://api.webflow.com/v2/collections/${articlesCollectionId}/items/bulk`;
     const method = isUpdate ? 'PATCH' : 'POST';
-    const localeIds = [env.WEBFLOW_CMS_LOCALE_DK, env.WEBFLOW_CMS_LOCALE_EN].filter(Boolean);
+    const localeIds = [env.WEBFLOW_CMS_LOCALE_DK];
     
     console.log(`🔄 ${isUpdate ? 'Updating' : 'Creating'} article in Webflow:`, {
       url,

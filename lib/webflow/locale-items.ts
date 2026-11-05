@@ -57,6 +57,7 @@ export type WebflowLocaleItem = {
   lastPublished?: string | null;
   lastUpdated?: string | null;
   isDraft?: boolean;
+  isArchived?: boolean;
 };
 
 /** Locale er live på sitet (ikke kun kladde). */
@@ -97,15 +98,18 @@ export function parseRetryAfterMs(headerValue: string | null): number | null {
 
 export async function fetchArticleItemByLocale(
   itemId: string,
-  cmsLocaleId: string
+  cmsLocaleId: string,
+  options: { live?: boolean; exact?: boolean } = {}
 ): Promise<WebflowLocaleItem> {
   const { token, collectionId } = await resolveRuntime();
   const qs = new URLSearchParams({ cmsLocaleId });
-  const itemUrl = `https://api.webflow.com/v2/collections/${collectionId}/items/${itemId}?${qs}`;
+  const itemUrl = `https://api.webflow.com/v2/collections/${collectionId}/items/${itemId}${options.live ? '/live' : ''}?${qs}`;
   let res: Response;
   try {
     res = await fetch(itemUrl, {
       headers: { Authorization: `Bearer ${token}`, 'Accept-Version': '1.0.0' },
+      cache: 'no-store',
+      signal: AbortSignal.timeout(15_000),
     });
   } catch (err) {
     const msg = err instanceof Error ? err.message : String(err);
@@ -126,16 +130,59 @@ export async function fetchArticleItemByLocale(
     lastPublished?: string | null;
     lastUpdated?: string | null;
     isDraft?: boolean;
+    isArchived?: boolean;
     fieldData?: Record<string, unknown>;
   } = await res.json();
+  if (options.exact && (item.id !== itemId || item.cmsLocaleId !== cmsLocaleId ||
+      !item.fieldData || typeof item.fieldData !== 'object' || Array.isArray(item.fieldData) ||
+      (options.live && (item.isDraft !== false || item.isArchived === true || !Number.isFinite(Date.parse(item.lastPublished || '')))))) {
+    throw new Error('Webflow returnerede en anden artikel eller sprogversion.');
+  }
   return {
     id: String(item.id || itemId),
     cmsLocaleId: item.cmsLocaleId,
     lastPublished: item.lastPublished ?? null,
     lastUpdated: item.lastUpdated ?? null,
     isDraft: item.isDraft,
+    isArchived: item.isArchived,
     fieldData: (item.fieldData || {}) as Record<string, unknown>,
   };
+}
+
+/** Only an explicitly qualified English live copy may use this operation. */
+export async function unpublishEnglishArticle(itemId: string): Promise<void> {
+  const { token, collectionId } = await resolveRuntime();
+  const { dk, en } = resolveWebflowLocaleIds();
+  if (!/^[a-f0-9]{24}$/.test(itemId) || !/^[a-f0-9]{24}$/.test(en) || en === dk) {
+    throw new Error('Engelsk artikelidentitet kunne ikke bekræftes.');
+  }
+  const qs = new URLSearchParams({ cmsLocaleId: en });
+  const res = await fetch(`https://api.webflow.com/v2/collections/${collectionId}/items/${itemId}/live?${qs}`, {
+    method: 'DELETE', headers: { Authorization: `Bearer ${token}` },
+    redirect: 'error', signal: AbortSignal.timeout(15_000),
+  });
+  if (res.status !== 204) throw new Error(`Webflow afpublicerede ikke EN (${res.status}).`);
+}
+
+/** Attach a translated English draft to an existing article identity. */
+export async function createEnglishArticleVariant(itemId: string, fieldData: Record<string, unknown>): Promise<void> {
+  const { token, collectionId } = await resolveRuntime();
+  const { dk, en } = resolveWebflowLocaleIds();
+  if (!/^[a-f0-9]{24}$/.test(itemId) || !/^[a-f0-9]{24}$/.test(en) || en === dk) {
+    throw new Error('Engelsk artikelidentitet kunne ikke bekræftes.');
+  }
+  const res = await fetch(`https://api.webflow.com/v2/collections/${collectionId}/items/insert`, {
+    method: 'POST',
+    headers: { Authorization: `Bearer ${token}`, 'Content-Type': 'application/json' },
+    body: JSON.stringify({ items: [{ id: itemId, cmsLocaleIds: [en], isDraft: true, fieldData }] }),
+    redirect: 'error', signal: AbortSignal.timeout(15_000),
+  });
+  if (!res.ok) throw new Error(`Webflow kunne ikke oprette den engelske kladde (${res.status}).`);
+  const result = await res.json();
+  if (!Array.isArray(result.items) || result.items.length !== 1 ||
+      result.items[0].id !== itemId || result.items[0].cmsLocaleId !== en) {
+    throw new Error('Webflow bekræftede ikke den forventede engelske kladde.');
+  }
 }
 
 export async function patchArticleFieldDataForLocale(

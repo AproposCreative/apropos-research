@@ -5,7 +5,7 @@
 import { computeTranslationSourceHash } from '@/lib/articles/translation-source-hash';
 import { getAdminDb } from '@/lib/firebase-admin';
 import { runArticleTranslation } from '@/lib/webflow/article-translation';
-import { isWebflowLocalePublished, resolveWebflowLocaleIds } from '@/lib/webflow/locale-items';
+import { isWebflowLocalePublished } from '@/lib/webflow/locale-items';
 
 export type TranslationCandidateStatus =
   | 'ready'
@@ -30,42 +30,6 @@ export type TranslationBatchRunResult = TranslationCandidate & {
 };
 
 const STATE_COLLECTION = 'articleTranslationState';
-
-async function fetchArticleIdsForLocale(cmsLocaleId: string): Promise<Set<string>> {
-  const { getWebflowConfig } = await import('@/lib/webflow-config');
-  const { env } = await import('@/lib/config/env');
-  const file = getWebflowConfig();
-  const token = (file.apiToken !== undefined ? file.apiToken : env.WEBFLOW_API_TOKEN) || undefined;
-  const collectionId =
-    (file.articlesCollectionId !== undefined ? file.articlesCollectionId : env.WEBFLOW_ARTICLES_COLLECTION_ID) ||
-    undefined;
-  if (!token || !collectionId) {
-    throw new Error('Manglende Webflow API token eller Articles Collection ID');
-  }
-
-  const headers = { Authorization: `Bearer ${token}`, 'Accept-Version': '1.0.0' } as const;
-  const pageSize = 100;
-  let offset = 0;
-  const ids = new Set<string>();
-
-  while (offset < 5000) {
-    const url = `https://api.webflow.com/v2/collections/${collectionId}/items?cmsLocaleId=${cmsLocaleId}&limit=${pageSize}&offset=${offset}`;
-    const res = await fetch(url, { headers });
-    if (!res.ok) {
-      const j = await res.json().catch(() => ({}));
-      throw new Error(j?.message || `Webflow items error ${res.status}`);
-    }
-    const data: { items?: Array<{ id?: string }> } = await res.json();
-    const page = data.items || [];
-    for (const item of page) {
-      if (item?.id) ids.add(item.id);
-    }
-    if (page.length < pageSize) break;
-    offset += pageSize;
-  }
-
-  return ids;
-}
 
 async function fetchDkArticleItems(): Promise<
   Array<{
@@ -154,11 +118,7 @@ async function getTranslationStateMap(
 }
 
 async function buildCandidates(options: { force?: boolean }): Promise<TranslationCandidate[]> {
-  const locales = resolveWebflowLocaleIds();
-  const [items, enIds] = await Promise.all([
-    fetchDkArticleItems(),
-    fetchArticleIdsForLocale(locales.en),
-  ]);
+  const items = await fetchDkArticleItems();
   const stateMap = await getTranslationStateMap(items.map((i) => i.id));
   const candidates: TranslationCandidate[] = [];
 
@@ -167,11 +127,6 @@ async function buildCandidates(options: { force?: boolean }): Promise<Translatio
     const title =
       typeof fd.name === 'string' && fd.name.trim() ? fd.name.trim() : item.id;
     const slug = typeof fd.slug === 'string' ? fd.slug : '';
-
-    if (!enIds.has(item.id)) {
-      candidates.push({ id: item.id, title, slug, status: 'skip-no-en' });
-      continue;
-    }
 
     if (!isWebflowLocalePublished(item)) {
       candidates.push({ id: item.id, title, slug, status: 'skip-dk-unpublished' });
@@ -247,11 +202,7 @@ export async function runArticleTranslationBatch(options: {
   if (queue.length === 0) {
     let skippedReason: string | null = null;
     if (preview.ready === 0) {
-      if (preview.skipNoEn > 0) {
-        skippedReason =
-          `${preview.skipNoEn} artikler mangler engelsk locale i Webflow. ` +
-          `API'et kan ikke tilføje EN på eksisterende items — åbn artiklen i Designer → Localization → Add English, publicér DK, og kør igen.`;
-      } else if (preview.skipDkUnpublished > 0) {
+      if (preview.skipDkUnpublished > 0) {
         skippedReason = `${preview.skipDkUnpublished} artikler er ikke publiceret på dansk (kun kladde).`;
       } else {
         skippedReason = 'Ingen artikler mangler oversættelse lige nu.';

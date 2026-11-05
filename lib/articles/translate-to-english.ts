@@ -6,6 +6,7 @@ import fs from 'fs';
 import path from 'path';
 import type OpenAI from 'openai';
 import { models } from '@/lib/openai';
+import { assertEnglishProse, richTextStructure } from '@/lib/articles/english-language';
 import { withSharedCostContext } from '@/lib/liv/cost-context';
 import {
   buildSeoFields,
@@ -146,7 +147,13 @@ export async function translateArticleToEnglish(
     (strField(dkFieldData, 'intro') && (typeof parsed.intro !== 'string' || !parsed.intro.trim()))) {
     throw new Error('Oversættelsen mangler nødvendige tekstfelter. CMS er ikke ændret.');
   }
-  return normalizeTranslation(parsed, dkFieldData);
+  const translation = normalizeTranslation(parsed, dkFieldData);
+  const fields = buildEnglishFieldData(dkFieldData, translation);
+  assertEnglishProse(dkFieldData, fields);
+  if (richTextStructure(strField(dkFieldData, 'content')) !== richTextStructure(translation.content)) {
+    throw new Error('Oversættelsen ændrede artiklens struktur, links eller billeder.');
+  }
+  return translation;
 }
 
 /** CMS-felter der kopieres uændret fra DK (referencer, billeder, metadata). */

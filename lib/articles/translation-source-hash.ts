@@ -1,7 +1,7 @@
 import { createHash } from 'crypto';
 
 /** Felter der udløser genoversættelse når de ændres (billeder ignoreres). */
-const HASH_KEYS = ['name', 'subtitle', 'intro', 'content', 'seo-title', 'meta-description'] as const;
+const HASH_KEYS = ['name', 'subtitle', 'intro', 'content', 'seo-title', 'meta-description', 'foto-credit', 'location'] as const;
 
 export function buildTranslationSourcePayload(fieldData: Record<string, unknown>): Record<string, string> {
   const out: Record<string, string> = {};

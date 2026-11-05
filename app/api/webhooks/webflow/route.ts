@@ -8,6 +8,7 @@ import {
 } from '@/lib/webflow/article-image-auto-optimize';
 import { optimizePublishedArticleImages } from '@/lib/webflow/published-image-optimization';
 import { enqueueArticleTranslation } from '@/lib/webflow/enqueue-article-translation';
+import { protectEnglishArticleLocale } from '@/lib/webflow/english-article-guard';
 import { resolveAutoSeoEngineEnabled } from '@/lib/seo-engine/settings';
 import { maybeEnqueueSeoEngineAfterPublish } from '@/lib/seo-engine/after-publish';
 import { resolveAutomaticOpportunityRuntime } from '@/lib/seo-engine/opportunity-engine/settings';
@@ -70,11 +71,7 @@ function extractItems(body: WebflowWebhookBody): WebflowItem[] {
 }
 
 function isPrimaryLocalePublish(cmsLocaleId?: string | null): boolean {
-  const { dk, en } = resolveWebflowLocaleIds();
-  if (!cmsLocaleId) return true;
-  if (cmsLocaleId === en) return false;
-  if (cmsLocaleId === dk) return true;
-  return true;
+  return !cmsLocaleId || cmsLocaleId === resolveWebflowLocaleIds().dk;
 }
 
 function verifyRequest(req: NextRequest, rawBody: string): boolean {
@@ -146,9 +143,22 @@ export async function POST(req: NextRequest) {
   const seoEngineQueued: string[] = [];
   const seoEngineErrors: Array<{ itemId: string; error: string }> = [];
   const imageErrors: Array<{ itemId: string; error: string }> = [];
+  const localeErrors: Array<{ itemId: string; error: string }> = [];
+  const englishCopiesWithdrawn: string[] = [];
+  const checkedLocales = new Set<string>();
 
   for (const it of items) {
     const itemId = it.id as string;
+    if (triggerType === 'collection_item_published' && !checkedLocales.has(itemId)) {
+      checkedLocales.add(itemId);
+      try {
+        if (await protectEnglishArticleLocale(itemId)) englishCopiesWithdrawn.push(itemId);
+      } catch (error) {
+        const message = error instanceof Error ? error.message : String(error);
+        logger.warn('[webhooks/webflow] English locale check failed', { itemId, message });
+        localeErrors.push({ itemId, error: message });
+      }
+    }
     const flags = {
       imageOptOn,
       autoSeoOn,
@@ -171,7 +181,7 @@ export async function POST(req: NextRequest) {
       results.push({ itemId, skipped: true, reason: 'image_opt_off' });
     }
 
-    if (shouldEnqueueTranslation(flags)) {
+    if (shouldEnqueueTranslation(flags) && !translationQueued.includes(itemId)) {
       enqueueArticleTranslation(itemId, `webhook:${triggerType}`);
       translationQueued.push(itemId);
     }
@@ -209,16 +219,18 @@ export async function POST(req: NextRequest) {
   });
   return NextResponse.json(
     {
-      ok: http.ok && imageErrors.length === 0,
+      ok: http.ok && imageErrors.length === 0 && localeErrors.length === 0,
       triggerType,
       count: results.length,
       results,
       translationQueued,
+      englishCopiesWithdrawn,
       seoEngineQueued,
       seoEngineErrors: seoEngineErrors.length ? seoEngineErrors : undefined,
       imageErrors: imageErrors.length ? imageErrors : undefined,
-      needsRetry: http.needsRetry || imageErrors.length > 0 || undefined,
+      localeErrors: localeErrors.length ? localeErrors : undefined,
+      needsRetry: http.needsRetry || imageErrors.length > 0 || localeErrors.length > 0 || undefined,
     },
-    { status: imageErrors.length ? 503 : http.status }
+    { status: imageErrors.length || localeErrors.length ? 503 : http.status }
   );
 }
