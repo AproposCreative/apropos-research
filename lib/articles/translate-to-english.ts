@@ -4,9 +4,11 @@
 
 import fs from 'fs';
 import path from 'path';
+import { load } from 'cheerio';
 import type OpenAI from 'openai';
 import { ARTICLE_TRANSLATION_MODEL, ARTICLE_TRANSLATION_OUTPUT_LIMIT } from '@/lib/articles/translation-policy';
 import { assertEnglishProse, richTextStructure } from '@/lib/articles/english-language';
+import { containsLongDash, isReviewText } from '@/lib/editorial/review-typography';
 import {
   buildSeoFields,
   calcReadTime,
@@ -45,6 +47,18 @@ function strField(fd: Record<string, unknown>, key: string): string {
   return typeof v === 'string' ? v.trim() : '';
 }
 
+function reviewPunctuation(value: string, html: boolean): string {
+  if (!containsLongDash(value)) return value;
+  const replace = (text: string) => text.replace(/(\d)\s*[\u2013\u2014]\s*(?=\d)/gu, '$1 to ')
+    .replace(/\s*[\u2013\u2014]\s*/gu, ', ');
+  if (!html) return replace(value.replace(/&(?:[mn]dash|#821[12]|#x201[34]);/giu, '\u2014'));
+  const $ = load(value);
+  const elements = $('body').add($('body *').not('script, style, script *, style *'));
+  elements.contents().each((_index, node) => { if (node.type === 'text') node.data = replace(node.data); });
+  $('img[alt]').each((_index, node) => { $(node).attr('alt', replace($(node).attr('alt') || '')); });
+  return $('body').html() ?? value;
+}
+
 function buildUserPayload(dk: Record<string, unknown>): string {
   const imageUrls = [...String(dk.content || '').matchAll(/<img[^>]+src=["']([^"']+)["']/gi)].map((m) => m[1]);
   return JSON.stringify(
@@ -70,18 +84,23 @@ function normalizeTranslation(
   parsed: Partial<EnglishTranslation> & Record<string, unknown>,
   dk: Record<string, unknown>
 ): EnglishTranslation {
-  const name = String(parsed.name || parsed.title || dk.name || '').trim();
-  const content = String(parsed.content || '').trim();
-  const intro = String(parsed.intro || '').trim();
-  const subtitle = parsed.subtitle != null ? String(parsed.subtitle).trim() || null : null;
+  const review = isReviewText({ title: dk.name, rating: dk.stjerne });
+  const clean = (value: unknown, html = false) => {
+    const text = String(value ?? '').trim();
+    return review ? reviewPunctuation(text, html) : text;
+  };
+  const name = clean(parsed.name || parsed.title || dk.name);
+  const content = clean(parsed.content, true);
+  const intro = clean(parsed.intro);
+  const subtitle = clean(parsed.subtitle) || null;
 
   const seo = buildSeoFields({
     title: name,
     subtitle,
     intro,
     content,
-    seoTitle: parsed.seoTitle != null ? String(parsed.seoTitle) : null,
-    seoDescription: parsed.metaDescription != null ? String(parsed.metaDescription) : null,
+    seoTitle: clean(parsed.seoTitle) || null,
+    seoDescription: clean(parsed.metaDescription) || null,
   });
 
   const slug = deriveSlug(String(parsed.slug || name || ''));
@@ -95,8 +114,8 @@ function normalizeTranslation(
     content,
     seoTitle: clampLength(seo.seoTitle, SEO_TITLE_MAX),
     metaDescription: clampLength(seo.seoDescription, SEO_DESCRIPTION_MAX),
-    fotoCredit: parsed.fotoCredit != null ? String(parsed.fotoCredit).trim() || null : null,
-    location: parsed.location != null ? String(parsed.location).trim() || null : null,
+    fotoCredit: clean(parsed.fotoCredit) || null,
+    location: clean(parsed.location) || null,
     minutesToRead: calcReadTime(wordCount),
   };
 }
@@ -118,7 +137,7 @@ export async function translateArticleToEnglish(
     max_completion_tokens: ARTICLE_TRANSLATION_OUTPUT_LIMIT,
     response_format: { type: 'json_object' },
     messages: [
-      { role: 'system', content: loadSystemPrompt() },
+      { role: 'system', content: `${loadSystemPrompt()}\nIn reviews, never use U+2013 or U+2014 in prose or metadata. Use standard sentence punctuation and spell out numerical ranges.` },
       {
         role: 'user',
         content: `Translate this Danish Apropos Magazine article to English. Input JSON:\n${userPayload}`,
