@@ -46,8 +46,8 @@ export default function ChatGPTConnection({ requestId, publicationId, shortening
     finally { setBusy(false); }
   }
   const current = context?.current;
-  return <main className={`${toolStyles.surface} min-h-dvh bg-black px-2 py-2 text-white sm:p-3`}>
-    <section className={`mx-auto overflow-hidden ${submissionId || review ? 'max-w-4xl bg-black' : 'max-w-2xl rounded-2xl border border-white/15 bg-[#080808]'}`}>
+  return <main className={`${toolStyles.surface} min-h-dvh bg-pure-black px-2 py-2 text-white sm:p-3`}>
+    <section className={`mx-auto overflow-hidden ${submissionId || review ? 'max-w-4xl' : 'max-w-2xl rounded-2xl border border-white/15 bg-[#080808]'}`}>
       <EmbeddedAppHeader embedded={false} title={mailId ? 'Privat mailpreview' : submissionId || review ? 'Redaktionelt preview' : publicationId ? 'Bekræft udgivelse' : shorteningId ? 'Godkend forkortelse' : 'Apropos i ChatGPT'} />
       <div className={`space-y-3 ${submissionId || review ? 'px-1 py-3 sm:px-3' : 'p-3'}`}>
         {loading ? <p role="status">Kontrollerer din adgang …</p> : !user ? <ConnectionLogin signIn={signIn} signInWithGoogle={signInWithGoogle} accessError={accessError} />
