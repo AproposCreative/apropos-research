@@ -1,8 +1,8 @@
 import { beforeEach, expect, it, vi } from 'vitest';
 import sharp from 'sharp';
 import { memoryFirestore } from './helpers/mcp-firestore';
-const state = vi.hoisted(() => ({ db: null as any, hold: false, images: new Map<string, Buffer>(), checks: vi.fn(), visual: vi.fn(), save: vi.fn(), upload: vi.fn(), claim: vi.fn(), publish: vi.fn() }));
-vi.mock('@/lib/mcp/publication', () => ({ assertPublicationEnabled: vi.fn() }));
+const state = vi.hoisted(() => ({ db: null as any, hold: false, images: new Map<string, Buffer>(), checks: vi.fn(), visual: vi.fn(), save: vi.fn(), upload: vi.fn(), claim: vi.fn(), publish: vi.fn(), assertDailyEnabled: vi.fn() }));
+vi.mock('@/lib/mcp/publication', () => ({ assertPublicationEnabled: state.assertDailyEnabled }));
 vi.mock('@/lib/liv/publish-verified', () => ({ publishVerifiedLivArticle: (...args: unknown[]) => state.publish(...args), verifyLiveLivArticle: vi.fn() }));
 vi.mock('@/lib/firebase-admin', () => ({ getAdminDb: () => state.db }));
 vi.mock('@/lib/mcp/oauth', () => ({ activeMember: async () => ({ owner: true }) }));
@@ -32,6 +32,7 @@ const id = 'a'.repeat(64), hash = 'b'.repeat(64), path = `editorialSubmissions/$
 let memory: ReturnType<typeof memoryFirestore>;
 beforeEach(async () => {
   vi.clearAllMocks(); memory = memoryFirestore(); state.db = memory.db; state.hold = false;
+  state.assertDailyEnabled.mockReset();
   for (const [index, color] of ['red', 'blue', 'green'].entries()) state.images.set(`https://images.test/${index}.webp`, await sharp({ create: { width: 1200, height: 675, channels: 3, background: color } }).webp().toBuffer());
   const article = { title: 'En koncert', subtitle: 'En konkret vurdering', intro: 'Min indledning', slug: 'en-koncert', seoTitle: 'En koncert', seoDescription: 'Vurdering af koncerten',
     author: 'author', category: 'category', subjectType: 'music', articleFormat: 'article',
@@ -50,12 +51,13 @@ beforeEach(async () => {
     return { articleId: 'c'.repeat(24) };
   });
 });
-it('runs one personal consent through the real preparation and publication orchestration, no second click or paid call', async () => {
+it('runs a personal web approval through preparation and publication while Liv is paused', async () => {
+  state.assertDailyEnabled.mockImplementation(() => { throw Error('mcp_publication_disabled'); });
   const row = memory.rows.get(path); row.status = 'draft'; delete row.approval;
   row.executionPolicy = 'chatgpt-first-v1'; row.choices.aiFinalChecks = 'human'; state.hold = true;
   const original = structuredClone(row.article);
   const offer = (await submissionConsentOffer('owner', id))!;
-  await acceptSubmissionConsent('owner', id, row.revision, offer.id, 'chat-preview');
+  await acceptSubmissionConsent('owner', id, row.revision, offer.id, 'external-preview');
   state.publish.mockImplementation(async (input: any) => {
     expect(() => assertPaidAiAllowed()).toThrow(); await input.beforePublish(cmsFieldHash({ name: 'En koncert' }));
     return { publicationVerified: true, publicUrl: 'https://example.com/en-koncert' };
@@ -66,7 +68,19 @@ it('runs one personal consent through the real preparation and publication orche
   await continueSubmissionWorkflow('owner', id);
   await acceptSubmissionConsent('owner', id, row.revision, offer.id, 'external-preview');
   expect(state.save).toHaveBeenCalledTimes(1); expect(state.publish).toHaveBeenCalledTimes(1);
+  expect(state.assertDailyEnabled).not.toHaveBeenCalled();
   expect(state.visual).not.toHaveBeenCalled(); expect(state.checks).not.toHaveBeenCalled(); expect(state.upload).not.toHaveBeenCalled();
+});
+it('continues to reject approval for a submission tied to Liv production while Liv is paused', async () => {
+  state.assertDailyEnabled.mockImplementation(() => { throw Error('mcp_publication_disabled'); });
+  const row = memory.rows.get(path);
+  Object.assign(row, { status: 'draft', executionPolicy: 'chatgpt-first-v1', livProduction: { kind: 'scheduled', day: '2026-11-07' } });
+  delete row.approval;
+  row.choices.aiFinalChecks = 'human';
+  await expect(acceptSubmissionConsent('owner', id, row.revision, 'c'.repeat(64), 'external-preview')).rejects.toThrow('mcp_publication_disabled');
+  expect(row.publicationConsent).toBeUndefined();
+  expect(state.save).not.toHaveBeenCalled();
+  expect(state.publish).not.toHaveBeenCalled();
 });
 it('resumes a crash after preparation from the same consent, with no new CMS save or click', async () => {
   const row = memory.rows.get(path); row.status = 'draft'; delete row.approval;

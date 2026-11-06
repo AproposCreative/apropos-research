@@ -69,11 +69,12 @@ export async function submissionConsentOffer(uid: string, id: string) {
  * existing worker; no network side effect can be duplicated on a lost response. */
 export async function acceptSubmissionConsent(uid: string, id: string, expectedRevision: number, consentId: string,
   source: PublicationConsent['source'], localTime = 'now') {
-  assertPublicationEnabled();
   const acceptedAt = new Date().toISOString();
   if (!await activeMember(uid, Date.parse(acceptedAt))) throw Error('mcp_submission_owner_access_changed');
   const { db, collection } = submissionStore(), ref = collection.doc(id);
   const before = await readSubmission(uid, id);
+  // Liv's pause controls its daily production, not a personal editorial submission.
+  if (before.livProduction) assertPublicationEnabled();
   const prior = (before as SubmissionRecord & { publicationConsent?: PublicationConsent }).publicationConsent;
   if (prior?.id === consentId && prior.uid === uid && prior.revision === expectedRevision && before.revision === expectedRevision && prior.contentHash === before.contentHash && prior.localTime === localTime) {
     return { accepted: true, replay: true, submissionId: id, queuedOnServer: true, paidAiCalls: 0 };

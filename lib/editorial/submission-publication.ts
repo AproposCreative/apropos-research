@@ -20,7 +20,7 @@ import { assertPublicationConsent } from './submission-consent';
 
 type Prepared = { itemId: string; expected: WebflowArticleFields; proof: { fieldDataHash: string } };
 type Publication = { uid: string; preparedHash: string; contentHash: string; cmsHash: string; publishAt: string;
-  acceptedAt: string; attempted?: boolean; fieldDataHash?: string; receipt?: unknown };
+  acceptedAt: string; consentId?: string; attempted?: boolean; fieldDataHash?: string; receipt?: unknown };
 export async function readSubmissionPublication(uid: string, id: string) {
   const row = await readSubmission(uid, id) as Awaited<ReturnType<typeof readSubmission>> & { prepared?: Prepared; publication?: Publication };
   if (row.status !== 'published' || !row.prepared || !row.publication?.fieldDataHash) return { publicationVerified: false as const };
@@ -55,7 +55,7 @@ export async function submissionPublicationPreview(uid: string, id: string) {
 
 /** Authenticated personal UI only: first-party or a version-bound MCP App click. */
 export async function approveSubmissionPublication(uid: string, id: string, preparedHash: string, localTime: string, consentId?: string) {
-  assertPublicationEnabled();
+  if (!consentId) assertPublicationEnabled();
   const preview = await submissionPublicationPreview(uid, id);
   if (!preview.ready || preview.preparedHash !== preparedHash) throw Error('mcp_submission_preview_changed');
   const publishAt = copenhagenPublicationInstant(localTime);
@@ -63,6 +63,7 @@ export async function approveSubmissionPublication(uid: string, id: string, prep
   return db.runTransaction(async tx => {
     const row = (await tx.get(ref)).data();
     if (!row || row.uid !== uid || row.status !== 'prepared' || row.preparedHash !== preparedHash || row.contentHash !== preview.contentHash) throw Error('mcp_submission_preview_changed');
+    if (consentId && row.livProduction) assertPublicationEnabled();
     await assertImageSelection(row as SubmissionRecord, tx);
     const consent = consentId ? assertPublicationConsent(row as SubmissionRecord, consentId) : null;
     if (consent && (await readImageSelection(row as SubmissionRecord, tx)).selectionHash !== consent.selectionHash) throw Error('mcp_submission_preview_changed');
@@ -108,8 +109,14 @@ async function publishSubmissionOperation(uid: string, id: string, now: Date) {
     } else {
       await assertImageSelection(row as SubmissionRecord);
       if (!await activeMember(uid, Date.parse(publication.acceptedAt))) throw Error('mcp_submission_owner_access_changed');
+      if (publication.consentId && !row.livProduction) {
+        const consent = assertPublicationConsent(row as SubmissionRecord, publication.consentId);
+        if (consent.status !== 'scheduled' || consent.publishAt !== publication.publishAt) throw Error('mcp_submission_preview_changed');
+      } else {
+        assertPublicationEnabled();
+      }
       cmsLease = await acquireCmsWriteLease(prepared.itemId, 'da');
-      assertPublicationEnabled(); await assertLease();
+      await assertLease();
       const inspectionPolicy = approvedSubmissionPolicy(row as unknown as Awaited<ReturnType<typeof readSubmission>>);
       const fresh = await inspectLivCmsDraft({ itemId: prepared.itemId, expected: prepared.expected, inspectionPolicy });
       if (fresh.fieldDataHash !== publication.cmsHash) throw Error('mcp_submission_preview_changed');
